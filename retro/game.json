@@ -1,0 +1,16 @@
+{
+  "name": "XEEN",
+  "version": "1.0",
+  "dosbox": {
+    "exe_path": "assets/dosbox/dosbox-staging/dosbox-staging-v0.83.0/dosbox.exe",
+    "webserver_port": 18086,
+    "cpu_cycles": 5000
+  },
+  "assets": {
+    "memory_map": "retro/memory_map.json",
+    "guide": "retro/xeen-guide.md"
+  },
+  "paths": {
+    "work_dir": ".temp/xeen-work"
+  }
+}

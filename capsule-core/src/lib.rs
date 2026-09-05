@@ -5,4 +5,5 @@
 //! 一个 crate 里避免重复实现；monitor 作为公开模块，供 launcher（B 壳）与
 //! xmonitor CLI（A 壳诊断工具）共同消费。
 
+pub mod game_config;
 pub mod monitor;

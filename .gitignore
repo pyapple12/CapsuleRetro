@@ -56,6 +56,9 @@ venv/
 Thumbs.db
 .history/
 
+## Tauri 生成（schema 与平台文件）
+launcher/src-tauri/gen/
+
 ## Agent 工具本地目录（不入库）
 .claude/
 .agents/

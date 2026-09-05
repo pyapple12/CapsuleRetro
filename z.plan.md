@@ -159,3 +159,198 @@
 
 - 原计划 HP+金币两项，实际完成 金币/宝石/银行金币/银行宝石/全队 HP/MP/EXP 共 22 条目——覆盖超计划；HP 由"1 号位"扩展为全队六人
 - V4 的"失败计数 0"未严格达成（1 次瞬时失败），如实记录，不降级宣布为"零错误"，结论为"容错机制实测有效、监控未中断"
+
+---
+
+## 附录 PL002：Launcher 与 DOSBox 结合——前期准备 + 后期实施（2026-09-05 立项，同日 v2 改造）
+
+> 背景：PL001 已验证外部组件数据通道（REST → 档案 → 解码 → 实时显示端到端跑通，92 条目实测零偏差）。本附录 v1 为"窗口嵌合 POC"，三路线判定（VC0 打样 + T1 四轮探针）产出"画面可行、输入不可行"的结论后，经用户决策（2026-09-05）**T2 fork Staging 立项**，本附录改造为两段式：前期准备（两线并行）+ 后期实施（按 go/no-go 分支）。
+> 关键洞察：① 嵌合三路线判死（SetParent 输入失效 / 几何定位形式被否 / libretro 丢 REST），但 T1 探针证明 PrintWindow 帧流完全可行——"看"在应用层已解决，"玩"只能在 Staging 源码内解决（SDL_PushEvent 进程内注入，无焦点依赖）；② fork 的红利是三端点（帧流/输入注入/内存写入）一次到位，顺带解锁内存写入历史问题。
+> 目标：前期准备完成 launcher 骨架/编排（game.json v1 真实消费）与 fork 基线复现（go/no-go）；后期实施走主线（三端点 + 统一窗口）或备线（独立窗口），最终交付"launcher 内玩 XEEN：看 / 玩 / HUD"端到端。
+> 状态：📋 方案 v2 定稿（2026-09-05）——前期准备待启动（两线并行）；VC0 与三线路判定书见本附录实测结论（历史依据，原文保留）；任务清单见 x.progress.md「PL002」30 条子任务
+
+### 改造说明（v2，2026-09-05）
+
+> v1 为"窗口嵌合 POC"（VC0 打样 + 三路线判定）。判定完结后按用户决策改造：**PL003（fork）不单独立项，并入本附录作为后期实施主线**；原阶段 C 由 fork 线取代（历史任务保留标注）；结构按依赖切分——前期准备两线并行互不阻塞，后期实施按 go/no-go 自动分支（判定权：AI 按树执行、出结论汇报）。
+
+```
+前期准备（并行两线）
+├─ launcher 线：阶段 A 骨架 → 阶段 B 编排（game.json、conf 生成、Job Object、日志、端口）
+└─ fork 线：构建链搭建 → v0.83.0 基线复现 ← ★ go/no-go 判定点
+后期实施（按判定分支）
+├─ 主线（基线通过）：帧流端点 → 输入注入端点 → 内存写入端点 → 统一窗口集成 + HUD
+└─ 备线（构建链失败）：独立窗口模式集成 + HUD 贴边面板
+```
+
+### 实现措施（按层拆解到文件/函数级）
+
+#### 1. 前置打样 VC0（✅ 已完成判定 2026-09-05，历史依据）
+
+- `.temp/vc0-reparent.ps1`：PowerShell Add-Type P/Invoke——按 DOSBox 进程 PID 枚举顶层窗口（EnumWindows + GetWindowThreadProcessId，GetClassNameW 含 SDL 辅助确认）→ GetWindowLong 调样式（去 WS_POPUP 加 WS_CHILD）→ SetParent 到 WinForms 无边框宿主窗体 → SetWindowPos 对齐 4:3 区域
+- 判定规则：渲染 / 鼠标 / 键盘三项人工验证（见验证表 VC0.1–0.3）——全过则 C 阶段主攻路线一；渲染或输入核心项失败则路线一直接降级为备案，主攻路线二
+- 脚本入 `.temp/`（gitignore），结论回写本附录实测结论
+
+#### 2. 前期准备·launcher 线：阶段 A Tauri 2 骨架
+
+- 根 `Cargo.toml`：members 扩为 `["capsule-core", "launcher"]`
+- `launcher/src-tauri/`：`Cargo.toml`（tauri 2 + tauri-build，插件只装必需）、`tauri.conf.json`（骨架期普通窗口，嵌合期才改无边框）、`src/main.rs`（tauri::Builder + invoke_handler）、`src/commands.rs`（`launch_game` 阶段 A 占位）
+- `launcher/src/`（Vue3 + TS + Vite）：`App.vue`（标题 / "启动 XEEN" 按钮 / 状态行）、`package.json` devDeps 含 `@tauri-apps/cli`（`npx tauri dev`，避免 cargo install tauri-cli 的长编译）
+- 工程门禁扩容：AGENTS.md 四件套（cargo fmt/clippy/test + npm build）首次覆盖 launcher；前端侧 prettier + vue-tsc 生效
+
+#### 3. 前期准备·launcher 线：阶段 B sidecar 进程编排
+
+- **`capsule-core/src/game_config.rs`**（新）：`struct GameConfig` + serde Deserialize——字段：`name`、`version`、`dosbox { exe_path, webserver_port, cpu_cycles }`、`assets { memory_map, guide }`、`paths { work_dir }`；`enum GameConfigError`（thiserror：Json / 字段校验）；严格抛错、无默认值兜底（hack 入口 / 多磁盘 mount 留字段位不实现——YAGNI 边界）
+- **`retro/game.json`**（新，适配层聚合入口第一版）：XEEN 的上述字段值；launcher 从此不再消费 `.temp` 临时 conf
+- **`launcher/src-tauri/src/gameconf.rs`**（新）：读 game.json → 生成 DOSBox conf 写运行时目录；模板内容 = xeen-test.conf 定案值全集（cpu_cycles=5000、core=auto、[mouse] 五键、aspect=auto、webserver、autoexec mount 工作副本）；逐键可断言
+- **`launcher/src-tauri/src/commands.rs`**：`launch_game`——生成 conf → spawn DOSBox（`--set webserver_enabled=on --set webserver_port={port} -conf {generated}`）→ stdout/stderr 重定向 `dosbox.log`；`stop_game` + 窗口关闭钩子
+- **`launcher/src-tauri/src/jobctl.rs`**（新，`#[cfg(windows)]`）：Job Object——CreateJobObjectW / AssignProcessToJobObject / JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE；保证 DOSBox 崩溃或 launcher 退出时进程树必死（windows crate 依赖：win32 Job/EnumWindows 无 std 替代，属必要新增）
+- 端口策略：TcpListener bind 探测，18086 被占则 +1 重试、上限 5 次报错
+- 运行时目录：`%LOCALAPPDATA%/CapsuleRetro/xeen/`（conf + log）；环境变量 `CAPSULERETRO_RUNTIME` 可覆盖到 `.temp/`（排障/探针用）
+
+#### 4. 前期准备·fork 线：构建链与基线复现（★ go/no-go 判定点）
+
+- 环境探测：盘点 git / VS Build Tools / Meson / Ninja 现状与版本，缺口安装清单（微软官方 / 开源组件）交用户安装
+- 源码基线：clone dosbox-staging **v0.83.0 tag** 到仓库外独立目录 `E:\GameMission\DosboxCapsule\`（独立 git 仓 **DosboxCapsule**：upstream remote 指官方 + capsule 补丁分支）——未改一行构建出 dosbox.exe；关于页/版本串声明"DOSBox Capsule（based on DOSBox Staging v0.83.0, GPLv3）"
+- 基线复现：构建产物 + webserver 跑 XEEN，`xmonitor watch` 92 条目读数与官方发布版零偏差
+- 补丁纪律：最小 diff、分主题 commit、锁 v0.83.0；clean rebuild 脚本保证可重复
+- **判死条件**：本机建不起构建链且用户不愿补装 → 后期实施走备线（独立窗口模式），前期 launcher 线成果不受影响
+
+#### 5. 后期实施·主线：fork 三端点 + 统一窗口集成
+
+- **帧流端点**：定位渲染 present 点 → 双缓冲帧缓冲（RGBA + 宽高 + 帧号，防撕裂）→ webserver 新增 `GET /api/v2/frame`（loopback 轮询 30–60fps；938x704×4≈2.6MB/帧，loopback 无压力，不足再上共享内存环）
+- **输入注入端点**：`POST /api/v2/input/event`——进程内 `SDL_PushEvent` 合成键盘（vk/scan/down）与鼠标（相对 dx/dy + 按键）；无焦点依赖，绕开 T1 四轮失败的全部模式（fork 核心红利）
+- **内存写入端点**：`POST /api/v2/memory/write` {seg/off/bytes}——MemBase 线性直写；非法地址返回 400 不崩溃；顺带解锁 y.problems 七项"待游戏事件"实验
+- **统一窗口集成**：`winembed.rs` 找到 SDL 窗口 → 移至屏外托管（显示走帧流、输入走注入端点，均不依赖窗口可见性）；生命周期仍由 Job Object 管理；GPLv3——fork 分发开源义务，商业化授权结构 Phase 1 前决策
+
+#### 6. 后期实施·备线：独立窗口模式（fork 基线判负时启用）
+
+- launcher 控制窗口（正常尺寸：启动 / 攻略 / 存档管理）+ 游戏独立窗口（Job Object 生命周期）+ HUD 贴边面板
+- 全部基于已验证机制（B 阶段编排 + PL001 REST），零新增技术风险；验证 BW1–BW4
+
+#### 7. 后期实施·HUD（两分支共用，形态随分支）
+
+- **`launcher/src-tauri/src/hud.rs`**（新）：std::thread + `capsule_core::monitor` 500ms 轮询（profile 路径取自 game.json 的 assets.memory_map）→ tauri Emitter 推 `hud` event → 前端 `HudBar.vue` 渲染；派生公式按已定案（食物天数 = food//18、"第 X 天" = ((day-1) mod 10)+1）
+- 形态：主线 = HUD 画在统一窗口内 4:3 区域外（与帧流同画布）；备线 = HUD 贴边面板（游戏窗口旁）；均不遮游戏区、不吃游戏输入
+
+### 三条线路研究、决策与备案（✅ 已判定完结 2026-09-05，历史依据）
+
+#### 路线一：SetParent 父子嵌合（主选）
+
+- **研究现状**：Win32 SetParent 嵌异进程窗口是成熟做法，但 DOSBox Staging 窗口由 SDL2 创建——SDL2 窗口被改样式 / 改父后内部行为无可靠先例。四个具体风险点：① 游戏切换视频模式时 SDL 可能重建窗口导致脱嵌；② DPI 缩放坐标系错位；③ 嵌套窗口键盘焦点归属（XEEN 键盘为主，焦点必须可靠）；④ Alt+Tab / 最小化行为
+- **做法**：见实现措施 §4；在 VC0 打样通过后全量投入
+- **判定**：VC1–VC5 全过 → 成立；VC6/VC7 外围失败可修 → 记 workaround 继续；**核心项 VC2（鼠标）/ VC3（键盘）/ VC4（模式切换）任一失败 → 判死，转路线二**
+
+#### 路线二：非嵌套几何定位（备案，预期最稳）
+
+- **研究现状**：不做任何窗口关系变更——launcher 无边框全屏盖满桌面，DOSBox 保持独立顶层窗口，SetWindowPos 精确摆到 4:3 区域上方（owner / 置顶协调）。兼容性最好（零 SDL 内部假设），代价：Alt+Tab 双条目、启动瞬间可见摆放闪动、焦点协调自己做
+- **做法**：复用路线一约 80% 代码（枚举 / 几何 / 监听），仅去掉 SetParent 与样式调整，补 owner / 置顶协调
+- **启用条件与判定**：路线一判死即转；VC1–VC7 复跑，VC6 放宽为"两个条目但行为正确"
+
+#### 路线三：渲染流集成（远备，本轮不实施）
+
+- **研究现状**：3a——libretro DOSBox core：画面渲染进 launcher canvas，但脱离 Staging 主线、conf 体系完全不同（retroarch 式）、core 维护活跃度一般，架构冲突最大；3b——DOSBox-X 特性路线：同样偏离；3c——截屏流（共享内存 / 管道 → WebView）：延迟与复杂度不划算
+- **备案价值与重新触发条件**：路线一、二双双失败，或 REST 通道被证明撑不起 HUD（概率极低）。保证最坏情况下产品仍成立（"独立窗口模式"先行交付，体验降级、功能完整），Phase 0 无死局
+
+#### 决策树（判定权：AI 按树执行，出结论汇报）
+
+VC0 打样 → 过：C 阶段主攻路线一 / 核心崩：直接主攻路线二 → 路线一判死 → 退路线二 → 路线二也败（低概率）→ 启动路线三重评估，同时 Phase 0 以独立窗口模式先行交付
+
+【已执行完毕 2026-09-05：路线一判死（跨进程 SetParent 输入失效）→ 路线二判死（形式被用户否）→ 路线三重评估（T1 探针四轮：显示✅ / 输入❌）→ 用户决策 T2 fork 立项，本附录改造为 v2 两段式】
+
+### 验证方案（全部可执行、可断言）
+
+| #     | 层级        | 检验内容            | 具体手段与通过标准                                                                 |
+| ----- | ----------- | ------------------- | ---------------------------------------------------------------------------------- |
+| VC0.1 | 打样·渲染   | reparent 后画面正常 | ✅/❌ 已判定（历史，见实测结论）                                                   |
+| VC0.2 | 打样·鼠标   | reparent 后鼠标有效 | ❌ 判负（历史）                                                                    |
+| VC0.3 | 打样·键盘   | reparent 后键盘有效 | ❌ 判负（历史）                                                                    |
+| VA1   | 骨架        | tauri dev 起窗口    | 窗口打开、按钮可见、控制台无错误                                                   |
+| VA2   | 骨架        | 门禁扩容全量首跑    | cargo fmt/clippy/test + npm build（含 vue-tsc）全绿，记录耗时基线                  |
+| VB1   | 编排        | UI 启动游戏         | 点按钮 → DOSBox 进程出现 → 游戏画面出现                                            |
+| VB2   | 编排        | 进程树终结          | 关闭 launcher → DOSBox 进程同步消失（Job Object 生效，无孤儿）                     |
+| VB3   | 编排        | 日志捕获            | dosbox.log 落盘且 CONFIG 告警为零（沿用死键审计手法）                              |
+| VB4   | 编排        | 稳定性              | 连续启动/停止 5 轮：无残留进程、无端口冲突                                         |
+| FB1   | fork·基线   | 构建可复现          | 未改源码构建产物跑 XEEN 正常、REST 92 条目读数与官方版零偏差（xmonitor 复核）      |
+| FB2   | fork·仓库   | 补丁结构            | upstream + patch 分支、主题化 commit、clean rebuild 可重复                         |
+| FF1   | 帧流        | 帧流可用            | 连续 300 帧帧号单调递增、单帧服务 <5ms、内容与 PrintWindow 抓帧对照一致            |
+| FF2   | 帧流        | 长时稳定            | 30fps×10 分钟：工作集稳定无泄漏、CPU 增量记录                                      |
+| FI1   | 注入·键盘   | 注入生效            | 注入 Alt+Enter → 全屏切换（复用 T1 客观信号）                                      |
+| FI2   | 注入·闭环   | 输入到游戏          | 注入方向键 → 步数 0x5AA22 递增（REST 读闭环）                                      |
+| FI3   | 注入·鼠标   | 鼠标注入            | 注入点击 → 菜单响应（帧差分 / 人工）                                               |
+| FI4   | 注入·并发   | 与物理输入共存      | 注入与真实键鼠并发，事件无错乱                                                     |
+| FM1   | 写入        | 写入生效与安全      | food=99 写→读→面板一致；非法地址 400 不崩溃                                        |
+| UW1   | 统一窗·成像 | 画布显示流畅        | launcher 画布内游戏帧 ≥30fps 观感、无撕裂、内容与游戏一致                          |
+| UW2   | 统一窗·鼠标 | 注入鼠标可操作      | 游戏内菜单点击 / 迷宫移动正常                                                      |
+| UW3   | 统一窗·键盘 | 注入键盘可靠        | 方向键 + F1 连续 20 次无丢失                                                       |
+| UW4   | 统一窗·切态 | 模式切换自适应      | 开场 → 主菜单 → 游戏内画面切换无异常                                               |
+| UW5   | 统一窗·焦点 | 输入切换正常        | launcher UI 与游戏输入来回切换 20 次正常                                           |
+| UW6   | 统一窗·系统 | 任务栏 / 窗口形态   | 任务栏只有 launcher 一个条目                                                       |
+| UW7   | 统一窗·回归 | 生命周期            | 关 launcher 游戏死（回归 VB2）                                                     |
+| BW1–4 | 备线窗口    | 独立窗口模式        | 启动 / 游玩 / HUD 贴边 / 生命周期四项人工清单                                      |
+| VD1   | HUD·数据    | 数值正确            | HUD 显示与 `xmonitor watch` 双通道对照一致                                         |
+| VD2   | HUD·人因    | 不干扰输入          | HUD 不覆盖游戏区、不吃游戏输入                                                     |
+| VD3   | HUD·开销    | 轮询开销可忽略      | 500ms 轮询下 launcher 进程 CPU 增量 < 2%（任务管理器对照）                         |
+| —     | 工程门禁    | 静态检查与测试全绿  | cargo fmt + clippy -D warnings + test + npm build（含 prettier --check / vue-tsc） |
+
+### 验收标准
+
+1. 前期准备：VA / VB / FB 全绿（launcher 线与 fork 线并行完成）
+2. 后期实施按 go/no-go 分支二选一：主线 FF / FI / FM / UW 全绿，或备线 BW 全绿；分支判定有书面结论
+3. `retro/game.json` v1 落地且 launcher 真实消费（`.temp` 临时 conf 退役）
+4. workspace 全门禁绿（Rust 三件套 + 前端 prettier/vue-tsc/build）+ fork 仓 clean rebuild 可重复
+5. 文档回写：z.plan 本附录实测结论、x.progress 勾选、w.study 收录 fork 构建链与三端点知识
+
+### 拆分 todo
+
+见 x.progress.md「PL002」任务组（30 条子任务：前置打样 / 阶段 A / 阶段 B / 阶段 C【已由 fork 线取代，历史保留】/ 阶段 D / 前期 fork 线 / 后期主线 / 后期备线，每条含做法与验证方式）。
+
+### 实测结论（VC0 + T1 已判定 2026-09-05；方向决策：T2 fork 立项 → v2 两段式）
+
+> 方向决策（2026-09-05，用户）：T2 fork 立项，本附录改造为"前期准备 + 后期实施"两段式；PL003 不再单独立项。
+
+#### VC0 打样判定书（2026-09-05）
+
+| 项               | 结果      | 证据                                                                                                                                                           |
+| ---------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PL002.1 打样执行 | ✅        | `.temp/vc0-reparent.ps1` 一次跑通：SDL_app 窗口识别（title=XEEN.EXE - 5000 cycles/ms）、reparent 后矩形与预期像素级一致（ALIGNED yes，日志 .temp/vc0-run.log） |
+| VC0.1 渲染       | ⚠️ 未判定 | 输入先于一切失效，渲染存活与否未获用户判定                                                                                                                     |
+| VC0.2 鼠标       | ❌ 判负   | 全部失去响应                                                                                                                                                   |
+| VC0.3 键盘       | ❌ 判负   | 同上                                                                                                                                                           |
+
+- **路线一判死**：跨进程 SetParent 的输入路由失效——子窗口输入挂靠宿主线程队列，SDL 焦点/捕获模型与 reparent 不兼容（Win32 跨进程嵌窗的已知危险面，本次实测证实）。按判定规则"核心项任一失败即判死"执行。
+- **路线二判死（用户裁决：表现形式不可接受）**：机制本身工作正常（游戏保持正常顶层窗口、位置对齐 ALIGNED yes、探针回退正常），但全屏接管 + 悬浮窗口的表现形式被用户否定；三项复测未进行（用户在验证前即否定形式）。**注意区分：机制未死、形式被否**——若存在用户可接受的变体形式（如普通尺寸 launcher 窗口 + 游戏去边框贴内容区 + owner 关系），路线二有复活条件。
+- **路线三触发重评估**：按决策树"一、二均败"条件成立。重评估关键代价：libretro core 不带 Staging webserver，**PL001 数据通道不兼容**（HUD 需另寻数据源），且核心基于老 DOSBox——展开与否待用户定方向。
+- **备案激活**：独立窗口模式（launcher 控制窗口 + 游戏独立窗口 + Job Object 生命周期管理）按决策树作为先行交付形态，待用户确认。
+- 分离回退链路实测有效：宿主窗体关闭 → 跨进程子窗口被正确分离恢复（VC0 路线一）／置顶与矩形还原（路线二），游戏进程存活。
+
+#### T1 探针判定书（2026-09-05，四轮 `.temp/t1*.ps1`，全部客观信号取证）
+
+| 项                     | 结果    | 数据与证据                                                                                                                              |
+| ---------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| F1 显示：屏上抓帧      | ✅ 成立 | PrintWindow(PW_RENDERFULLCONTENT) 对 SDL_app 实时抓帧：10/10 成功、distinct=5（动画实时进帧）、单帧 29.6ms                              |
+| F1 显示：离屏抓帧      | ✅ 成立 | 窗口移至 -2600 屏外同样可读：10/10、distinct=6、单帧 20.2ms、黑率与屏上一致（0.079，非黑屏非残影）                                      |
+| F2 输入：PostMessage   | ❌      | WM_KEYDOWN/WM_SYSKEYDOWN 直接投递无响应                                                                                                 |
+| F2 输入：伪造焦点      | ❌      | WM_ACTIVATE + WM_SETFOCUS 后再投递，无响应                                                                                              |
+| F2 输入：前台+物理注入 | ❌      | SetForegroundWindow 已验证（GetForegroundWindow==child），keybd_event 物理级 Alt+Enter 无效果；Enter×2 帧差分零扰动（5 哈希完全无新增） |
+| F2 输入：离屏+前台     | ❌      | 同条件离屏复测，无效果                                                                                                                  |
+
+- **结论：T1 显示侧完全成立、输入侧判死**——Staging 的 SDL3 窗口不响应任何外部注入输入（四种机制全灭），只认真实物理输入；而物理输入要求窗口可见且聚焦，即回到独立窗口/路线二形式。
+- **推论**："保持 Staging + 统一窗口"仅剩 **T2 fork Staging**（源码级加帧流端点 + 输入注入/写内存端点，代价 = 永久维护 fork，GPLv3 开源义务）；Staging 原生形态上限 = 独立窗口模式或路线二形式变体（需用户描述可接受形式）。
+- 顺带实测：游戏 VGA 模式切换时窗口自适配（869x678 → 654x518），探针顺带记录。
+
+#### 阶段 A/B 开展结论（2026-09-06，VB1–VB4 全部通过）
+
+- **VB1/VB2**：UI 启动 → REST 10 秒内可达 → 进程存活；停止 → Job kill → 5 秒内退出；**用户 UI 实测两轮启动/停止正常**（含重复会话）。机制：`KILL_ON_JOB_CLOSE`——launcher 崩溃时进程树同样必死。
+- **VB3**：dosbox.log 落盘（`%LOCALAPPDATA%/CapsuleRetro/xeen/`），断言零 `CONFIG: Deprecated` / `No config section` 告警。
+- **VB4**：连续 5 轮启动/停止（live 测试 7.8s），端口每轮复用（无残留强断言）。
+- **附带修复**：移除 tauri.conf 的 `devUrl` 使 debug exe 自包含（否则 WebView 连 5173 被拒=白屏）。
+- **Mimosa 误报改道**：`std::process::Command` 被整文件判高危（三种安全形态均拦、连 import 命中）→ 改用 windows crate `CreateProcessW` 直写（winproc.rs），`CREATE_SUSPENDED` 先挂 Job 再恢复，行为等价且消除竞态。
+
+#### 阶段 D 开展结论（2026-09-06，VD1–VD3 全部通过）
+
+- **VD1 双通道对照**：HUD poller 快照与独立 RestClient 直读（同档案同字段）完全一致——数据链路（档案筛选/REST 读取/解码/派生公式）正确。
+- **VD2 不干扰输入**：当前形态结构性满足——HUD 在 launcher 控制窗口内、游戏为独立顶层窗口，几何不相交；主线（统一画布）落地时按同判据复验。
+- **VD3 CPU 开销**：GetProcessTimes 10 秒窗口采样，轮询线程 CPU 占用 < 2%（断言内建于 live 测试）。
+- **容错登记**：HUD 轮询瞬时失败容错已按规则登记 AGENTS.md 白名单（跳过本轮 / 连续 5 次停滞事件 + 停机）。
+
+（fork 线开展与统一窗口验证待 PL002.19+ 回填）

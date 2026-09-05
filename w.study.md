@@ -152,10 +152,22 @@ dosbox.exe --set "webserver_enabled=on" --set "webserver_port=18086" -conf game.
 4. **假阳性识别**：相邻巧合值会骗过单轮差分（EXP 曾误定 +0x28，真偏移 +0x6）——反向变化一轮即可淘汰
 5. **同字节双解释**：昏迷 HP 同一地址 `fc ff`，有符号面板显示 -4、无符号面板显示 65532——数据只有一份，是游戏 UI 读法不统一；档案声明 `i16le` 即可永远显示真实语义
 6. **配置踩坑**（DOSBox Staging 0.83 的 cycles 三连）：老键 `cycles` 已弃用仍生效；`--set` 按命令行顺序即时生效、会被其后的 `-conf` 覆盖；新键 `cpu_cycles` 不接受 `fixed N` 两段式语法（非法静默回落 3000），正确写法是纯数字 `cpu_cycles = 13000`
+7. **鼠标配置三连**（DOSBox Staging 0.83）：`mouse_emulation` 旧键已不存在（被 `builtin_dos_mouse_driver` 家族取代，写了无效）；`[sdl]` 的 `sensitivity`/`raw_mouse_input` 为弃用键——迁至 `[mouse]` 节改名 `mouse_sensitivity`/`mouse_raw_input`，不生效仅日志告警；降输入延迟用 `builtin_dos_mouse_driver_options = immediate`（移动计数立即更新、不等中断；官方不兼容名单仅 Ultima Underworld 1/2）。cycles 热键：Ctrl+F12 +10%、Ctrl+F11 −20%（配置值 <100 按百分比）。换真 DOS 鼠标驱动（`builtin_dos_mouse_driver = off` + `ps2_mouse_model`/`com_mouse_model` + 加载驱动，Z: 盘自带 MOUSE.COM 可运行时测试）是兼容性逃生门而非优化——链路改走模拟 PS/2/IRQ12、驱动中断处理程序烧 guest cycles，官方明确内置驱动才是低延迟路径，仅当游戏与内置驱动不兼容时用。实测（2026-09-05，0.83.0 build 7b400）：**off 被静默忽略**——启动 0.4s 内即打 `Built-in driver is simulating` 日志（远早于 AUTOEXEC），1MB 快照零 mouse 字符串（无真驱动驻留证据），此 build 真驱动路径走不通；客观验证手法：REST 读 IVT int 33h 向量（0000:00CC）+ 全内存搜驱动特征串。对照实验定案（2026-09-05）：scoop 装原生 0.74-3 做参照组，同为 5000 cycles 下内置驱动手感与 Staging 基线一致——**卡顿固有于「游戏主循环 @ 低 cycles」，非 Staging 鼠标栈问题，cycles 是唯一杠杆**；CTMOUSE 2.1b4 在 0.74 上两路探测（PS/2/串口）均失败未安装（0.74 无 DOS 可用的鼠标硬件模拟，`serial1=mouse` 仅 Staging/DOSBox-X 支持），真驱动路线在两个版本上均不可行
+8. **0.83 死键审计**（2026-09-05，启动日志 `CONFIG: No config section or setting exists` 实证）：conf 里这四个键一律静默无效——`autolock`（0.83 移除，由 `[mouse] mouse_capture` 取代，onstart=启动即捕获、Windows 正常）、`cpu_type`（模板键名是 `cputype`）、`memsize`（`[memory]` 节已不存在，键归 `[dosbox]`，默认 16MB、官方明确调高无速度收益）、`dos version`（正确键名 `[dos] ver`，默认 5.0）；另 `[render] aspect` 规范值是 `auto`（旧写法 `true` 不报错但非规范）。教训：改完 conf 启动一次、grep 日志 CONFIG 告警清零即可验证，比逐键比对模板快
 
 **属性最大值未定位**：当前值旁无最大值数组、全局亦无第二份序列（可能独立存储或运行时推导）——需要一次真实属性变化（神庙恢复/怪物吸取）差分定位，机会出现时补测。
 
 **面板推导值不可直接读（2026-09-05 神庙实测补充）**：神庙祝福后面板出现"防护 当前/最大"数值对（1号 17/13、2号 14/10、3/4号 12/8、5号 10/6、6号 8/4），全内存多形态搜索（u16 相邻对/u8 字节对/跨角色数组 + 变化过滤）**全部未命中有效存储**——所有候选均标记"未变"（静态数据表的巧合值）。进一步验证："最大值"在六人结构体内也无同偏移存储（u16/u8 均排除）。最终结论：该面板是**游戏实时计算的推导值**（基础属性 + 装备 + 法术效果），底层只存了**法术效果位标志**（队员结构体内观察到 512/3072/4096 等掩码变化）；值得注意的是六人"当前−最大"恒等于 +4（神庙统一祝福量），佐证"当前值 = 存储基准 + 现算加成"的推导结构。教训：不是所有面板数字都按角色存储——"防护/祝福"四加成量实际是**全局共享的 4 字节**（0x5A7D7-0x5A7DA，生效=4/过期=0，已定位并经"休息清零"验证），按角色找永远找不到。HUD 显示面板加成可行：读全局加成量 + 档案存储值即可还原面板数值。但仍存在个别无存储的纯推导显示（如每角色"当前值"=存储值+加成量的合成结果，无独立地址）。
+
+### 3.5 launcher HUD 轮询实践（PL002，2026-09-06）
+
+- **数据面**：HUD 只读——500ms 轮询 9 个关注条目（hp1–6/gold/gems/food，REST 单请求单条目），派生公式（食物天数=food//18、第 X 天=((day-1) mod 10)+1）在前端/后端按已定案公式计算，无独立地址可读
+- **架构**：轮询线程不依赖 tauri（回调注入：命令层转发 tauri event、测试层记录对照）——可测性优先；事件 `hud`（快照）/`hud-error`（停滞）
+- **容错**：瞬时失败跳过本轮（前端保留上次快照），连续 5 次失败发停滞事件并停机（AGENTS.md 白名单已登记，与 watch 同类）
+- **验证法**：VD1 双通道对照——poller 快照 vs 独立 RestClient 直读同名字段；VD3 CPU 采样——GetProcessTimes 10 秒窗口 < 2%
+- **教训**：tauri.conf.json 配了 `devUrl` 后，debug 构建的 WebView 会去连 dev server（无服务=连接拒绝白屏）——独立启动 exe 必须移除 devUrl 改用内嵌 dist；热更需求与自包含需求互斥，按阶段取舍
+- **构建顺序陷阱（2026-09-06 实测）**：Tauri 在 **cargo 编译时**把 `frontendDist` 内嵌进 exe——前端改动后必须**先 `npm run build` 再 `cargo build`**，顺序颠倒 = exe 内嵌旧 UI（症状：界面旧版但后端正常）。后果链曾实际发生：门禁脚本里 cargo test 先于 npm build，exe 嵌了无 HUD 的旧 dist
+- **Tauri 2 ACL 陷阱（2026-09-06 实测）**：手写骨架漏建 `src-tauri/capabilities/default.json` 时，**前端 `listen()` 被 ACL 静默拒绝**（Promise 拒绝未处理 = 无任何报错），事件永远不到 UI；而自定义 `#[tauri::command]` 不走 ACL 仍能调用——症状是"命令成功但事件全无"。修复 = capabilities 文件授予 `core:default`（含 core:event）。教训：Tauri 2 手写工程必须带 capabilities 文件；前端事件监听要 `.catch` 可见的失败
 
 ## 4. 代码风格观察
 

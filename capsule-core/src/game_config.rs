@@ -1,0 +1,124 @@
+//! game.json 适配层配置聚合（`retro/game.json` 的类型化读取）。
+//!
+//! 设计理由：launcher 与 packer 共用同一份配置结构，字段校验集中在此；
+//! 严格抛错、无默认值兜底（AGENTS.md 错误策略），缺字段/非法值一律报错。
+//! 关联：字段结构由 PL002 阶段 B 定义（dosbox/assets/paths 三节）。
+
+use std::path::{Path, PathBuf};
+
+use serde::Deserialize;
+use thiserror::Error;
+
+/// game.json 读取与校验错误。
+#[derive(Debug, Error)]
+pub enum GameConfigError {
+    /// 文件读取失败。
+    #[error("game.json 读取失败 {path}: {source}")]
+    Io {
+        /// 失败的文件路径。
+        path: PathBuf,
+        /// 底层 IO 错误。
+        source: std::io::Error,
+    },
+    /// JSON 解析失败或结构不符（含缺字段）。
+    #[error("game.json 解析失败: {0}")]
+    Json(#[from] serde_json::Error),
+    /// 端口不在合法范围（1024–65535）。
+    #[error("非法 webserver 端口 {port}：须在 1024–65535")]
+    InvalidPort {
+        /// 非法的端口值。
+        port: u16,
+    },
+    /// cpu_cycles 必须为正数。
+    #[error("非法 cpu_cycles {cycles}：须为正数")]
+    InvalidCycles {
+        /// 非法的 cycles 值。
+        cycles: u32,
+    },
+}
+
+/// 适配层聚合配置（retro/game.json 的类型化形态）。
+#[derive(Debug, Deserialize)]
+pub struct GameConfig {
+    /// 游戏名（适配层约定：同时是 C: 盘内启动命令的小写来源，如 XEEN → xeen）
+    pub name: String,
+    /// 游戏版本（对外展示用）
+    pub version: String,
+    /// DOSBox 运行配置节
+    pub dosbox: DosboxSection,
+    /// 适配层资源节
+    pub assets: AssetsSection,
+    /// 运行路径节
+    pub paths: PathsSection,
+}
+
+/// DOSBox 运行配置节。
+#[derive(Debug, Deserialize)]
+pub struct DosboxSection {
+    /// DOSBox 可执行文件路径（仓库根相对）
+    pub exe_path: PathBuf,
+    /// webserver 端口（1024–65535）
+    pub webserver_port: u16,
+    /// CPU cycles（正数）
+    pub cpu_cycles: u32,
+}
+
+/// 适配层资源节。
+#[derive(Debug, Deserialize)]
+pub struct AssetsSection {
+    /// 内存档案路径（PL001 档案）
+    pub memory_map: PathBuf,
+    /// 攻略文档路径
+    pub guide: PathBuf,
+}
+
+/// 运行路径节。
+#[derive(Debug, Deserialize)]
+pub struct PathsSection {
+    /// 工作副本目录（C: 盘挂载源，retro/ 原版的释放目标）
+    pub work_dir: PathBuf,
+}
+
+impl std::str::FromStr for GameConfig {
+    type Err = GameConfigError;
+
+    /// # Errors
+    /// JSON 非法或字段校验失败时返回 [`GameConfigError`]。
+    fn from_str(text: &str) -> Result<Self, Self::Err> {
+        let config: Self = serde_json::from_str(text)?;
+        config.validate()?;
+        Ok(config)
+    }
+}
+
+impl GameConfig {
+    /// 从文件加载并校验。
+    ///
+    /// # 参数
+    /// - `path`：game.json 路径
+    ///
+    /// # Errors
+    /// 文件缺失、JSON 非法或字段校验失败时返回 [`GameConfigError`]。
+    pub fn load(path: &Path) -> Result<Self, GameConfigError> {
+        let text = std::fs::read_to_string(path).map_err(|source| GameConfigError::Io {
+            path: path.to_path_buf(),
+            source,
+        })?;
+        text.parse::<Self>()
+    }
+
+    /// 字段校验：端口范围与 cycles 正数（缺字段由 serde 报错覆盖）。
+    fn validate(&self) -> Result<(), GameConfigError> {
+        if !(1024..=65535).contains(&self.dosbox.webserver_port) {
+            return Err(GameConfigError::InvalidPort {
+                port: self.dosbox.webserver_port,
+            });
+        }
+        if self.dosbox.cpu_cycles == 0 {
+            return Err(GameConfigError::InvalidCycles {
+                cycles: self.dosbox.cpu_cycles,
+            });
+        }
+        Ok(())
+    }
+}
