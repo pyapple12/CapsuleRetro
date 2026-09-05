@@ -1,0 +1,73 @@
+# CapsuleRetro .gitignore
+
+## 密钥与本地配置
+.env
+.env.*
+*.key
+key.json
+
+## Rust 构建产物
+target/
+**/*.rs.bk
+
+## Node / 前端
+node_modules/
+dist/
+
+## Tauri / 打包产物
+*.dmg
+*.msi
+
+## 游戏素材释放目录（运行时生成，不入库）
+game/
+work/
+
+## 日志
+*.log
+.logs/
+
+## 备份
+backups/
+*.bak
+
+## 临时与缓存
+.temp/
+*.tmp
+.cache/
+
+## 测试与覆盖率
+coverage/
+.coverage
+.pytest_cache/
+
+## Python（素材处理脚本可能用到）
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+## IDE 和编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+.history/
+
+## Agent 工具本地目录（不入库）
+.claude/
+.agents/
+.mimosa/
+.zcode/
+!.zcode/config.json
+
+## 归档素材（本地留存，不入库）
+.archived/
+
+## dosbox：仅版本化 sidecar 压缩包，解压目录可由 zip 还原（派生产物）
+assets/dosbox/dosbox-staging/
+
+## Git worktrees
+.worktrees/

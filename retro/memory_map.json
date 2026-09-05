@@ -1,0 +1,160 @@
+{
+  "game": "xeen",
+  "poll_interval_ms": 500,
+  "entries": [
+    {
+      "name": "hp1",
+      "segment": "0x56FA",
+      "offset": "0x0008",
+      "len": 2,
+      "value_type": "i16le"
+    },
+    {
+      "name": "mp1",
+      "segment": "0x56FA",
+      "offset": "0x000A",
+      "len": 2,
+      "value_type": "u16le"
+    },
+    {
+      "name": "exp1",
+      "segment": "0x56FA",
+      "offset": "0x000E",
+      "len": 2,
+      "value_type": "u16le"
+    },
+    {
+      "name": "hp2",
+      "segment": "0x5710",
+      "offset": "0x000A",
+      "len": 2,
+      "value_type": "i16le"
+    },
+    {
+      "name": "mp2",
+      "segment": "0x5710",
+      "offset": "0x000C",
+      "len": 2,
+      "value_type": "u16le"
+    },
+    {
+      "name": "exp2",
+      "segment": "0x5710",
+      "offset": "0x0010",
+      "len": 2,
+      "value_type": "u16le"
+    },
+    {
+      "name": "hp3",
+      "segment": "0x5726",
+      "offset": "0x000C",
+      "len": 2,
+      "value_type": "i16le"
+    },
+    {
+      "name": "mp3",
+      "segment": "0x5726",
+      "offset": "0x000E",
+      "len": 2,
+      "value_type": "u16le"
+    },
+    {
+      "name": "exp3",
+      "segment": "0x5726",
+      "offset": "0x0012",
+      "len": 2,
+      "value_type": "u16le"
+    },
+    {
+      "name": "hp4",
+      "segment": "0x573C",
+      "offset": "0x000E",
+      "len": 2,
+      "value_type": "i16le"
+    },
+    {
+      "name": "mp4",
+      "segment": "0x573D",
+      "offset": "0x0000",
+      "len": 2,
+      "value_type": "u16le"
+    },
+    {
+      "name": "exp4",
+      "segment": "0x573D",
+      "offset": "0x0004",
+      "len": 2,
+      "value_type": "u16le"
+    },
+    {
+      "name": "hp5",
+      "segment": "0x5753",
+      "offset": "0x0000",
+      "len": 2,
+      "value_type": "i16le"
+    },
+    {
+      "name": "mp5",
+      "segment": "0x5753",
+      "offset": "0x0002",
+      "len": 2,
+      "value_type": "u16le"
+    },
+    {
+      "name": "exp5",
+      "segment": "0x5753",
+      "offset": "0x0006",
+      "len": 2,
+      "value_type": "u16le"
+    },
+    {
+      "name": "hp6",
+      "segment": "0x5769",
+      "offset": "0x0002",
+      "len": 2,
+      "value_type": "i16le"
+    },
+    {
+      "name": "mp6",
+      "segment": "0x5769",
+      "offset": "0x0004",
+      "len": 2,
+      "value_type": "u16le"
+    },
+    {
+      "name": "exp6",
+      "segment": "0x5769",
+      "offset": "0x0008",
+      "len": 2,
+      "value_type": "u16le"
+    },
+    {
+      "name": "gold",
+      "segment": "0x5AA3",
+      "offset": "0x000E",
+      "len": 4,
+      "value_type": "u32le"
+    },
+    {
+      "name": "gems",
+      "segment": "0x5AA4",
+      "offset": "0x0002",
+      "len": 4,
+      "value_type": "u32le"
+    },
+    {
+      "name": "bank_gold",
+      "segment": "0x5AA4",
+      "offset": "0x0006",
+      "len": 4,
+      "value_type": "u32le"
+    },
+    {
+      "name": "bank_gems",
+      "segment": "0x5AA4",
+      "offset": "0x000A",
+      "len": 4,
+      "value_type": "u32le"
+    }
+  ]
+}
