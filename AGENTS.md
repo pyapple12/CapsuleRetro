@@ -132,15 +132,15 @@ retro/           # 根 = 适配层（我们编写的文件）：game.json（待�
 - **路径处理**：Rust 强制使用 `std::path::Path` / `PathBuf`，禁止手拼字符串路径；TS 使用 `path.join` / `URL`，禁止字符串拼接路径
 - **临时文件**：所有临时生成的脚本/文件必须写入项目根目录下的 `.temp/` 文件夹（gitignore），禁止散落在源码目录
 - **文件修改必须用 edit 工具**：修改既有文件（.rs/.ts/.vue/.md/.json/.toml）一律用 edit 的精确 oldString/newString 替换，禁止用 python -c 或 PowerShell 脚本做内容替换（易踩引号/缩进坑）；新建 .temp 探针脚本不受限
-- **版本单一来源**：版本号只存根 `Cargo.toml` 的 `[workspace.package] version`（三段式 X.Y.Z；Cargo 强制 semver 三段，不使用四段式）；`tauri.conf.json`、`capsule-pack` 产物、`game.json` 的 version 均从 workspace version 派生或注入，禁止第二处硬编码
+- **版本双轨**：机器版本只存根 `Cargo.toml` 的 `[workspace.package] version`（三段式 X.Y.Z，Cargo 强制 semver）；对外正式文本（commit 标题、README 徽章、发布说明）一律写四段式 `VX.Y.Z.R`——前三段与 workspace version 一致，第四段 R 为修订号，只随提交历史记录、不入任何配置文件（递增规则见"Commit 提交规范"）；`tauri.conf.json`、`capsule-pack` 产物、`game.json` 的 version 均从 workspace version 派生或注入，禁止第二处硬编码
 - **Shell 命令**：执行命令前先检测当前 shell（`echo $SHELL` 或检查系统），本机 Windows 环境；避免使用 Linux-only 或 PowerShell-only 工具，优先跨 shell 兼容命令
 - **PowerShell 中文编码**：bash 工具的 pwsh 会话带 `-NoProfile`，不加载 `$PROFILE`，输出中文前必须先设置编码：`[Console]::OutputEncoding = [System.Text.Encoding]::UTF8;`
 - **Git 操作**：未经用户明确要求，不得擅自执行 `git add`、`git commit` 或任何其他 Git 写操作
 
 ## Commit 提交规范
 
-- **标题行**：`<type>: V<版本>，<摘要>`——版本号与根 `Cargo.toml` 的 workspace `version` 一致（三段式，如 `V0.3.2`）；摘要一句话概括核心
-- **版本递增**：`feat`/`fix`/`refactor`/`perf` 提交前先 bump version（patch 位 +1）；`docs`/`test`/`style`/`chore` 不强制
+- **标题行**：`<type>: V<版本>，<摘要>`——版本为四段式 `VX.Y.Z.R`（如 `V0.1.0.1`）：前三段与根 `Cargo.toml` 的 workspace `version` 一致，第四段 R 为修订号（不入配置文件，见下条）；摘要一句话概括核心
+- **版本递增**：`feat`/`fix`/`refactor`/`perf` 提交前先 bump 第四段 R（R+1）；前三段在 `Cargo.toml` 中推进时 R 回到 1；`docs`/`test`/`style`/`chore` 不强制
 - **type 全集**（conventional 风格）：`feat` 新功能 / `fix` 修复 / `refactor` 重构（行为不变）/ `perf` 性能 / `docs` 文档 / `test` 测试 / `style` 格式 / `build` 构建依赖 / `ci` CI / `chore` 杂项 / `revert` 回滚
 - **正文**（默认必写，仅 docs/style 微调可省）：`- ` 列表逐条"具体做了什么"，每条一个功能块、一行自然中文、≤ 100 字符；体例＝`主题：内容（细节；细节）`，同主题多细节用 `；` 分隔。样例：`- capsule-core::monitor 观察库：DOSBox Staging 0.83 REST 客户端（cpu/memory/1MB 快照，错误归一化 BadStatus/Http）`
 - **禁止项**：内部编号（A0.1/B1.5/FIX1.1 等任务编号）、验证/回归数字（如"全量回归 506 项通过"）、英文混排描述

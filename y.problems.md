@@ -1,10 +1,7 @@
 # 问题备忘录（y.problems.md）
 
-> ⚠️ **参考内容声明**：本文件当前全部为 DeepTransHub 项目的参考样例（2026-09-04 精简存档，完整原版备份于 `.temp/reference-backup/y.problems.md`），仅示范问题条目的记录格式。**CapsuleRetro 记录自有问题后，删除全部参考章节**。
-
-## 一、文件用途与条目格式（压缩版参考）
-
-`y.problems.md` 是问题与远期改进的备忘录：**只增不删、编号递增**（解决后不删条目，在任务清单里闭环；此处仅登记"待实现的设计决策"）。条目格式：
+> 文件职责：问题与远期改进的备忘录，**只增不删、编号递增**（解决后不删条目，在任务清单里闭环）。
+> 条目格式：
 
 ```markdown
 {N}. **{标题}**（{YYYY-MM-DD} {状态}）：
@@ -18,63 +15,74 @@
 
 - **状态取值**：记录 / 讨论确认 / 定案 / 待实现
 - 条目被任务清单引用（`[problems#N]`），任务完成时回改状态
-- 适合记录：暂不做但要留案的设计讨论、远期重构方向、审计中"降级备案"的关注项
+- 适合记录：暂不做但要留案的设计讨论、远期方向、"遇到特定游戏事件才能推进"的定位项
 
 ---
 
-## 二、完整参考样例：条目 3（DeepTransHub 统一 Context + config 拆分）
+## 一、问题记录（自有条目，2026-09-05 起）
 
-> 以下为 DeepTransHub 一条完整问题条目的存档，示范"带设计草稿与工作量估计的深度条目"写法（该条目后来落地为 D2 任务组，即条目从备忘录流入任务清单的完整链路）。
+1. **HP/MP 最大值字段定位**（2026-09-05 记录，待游戏事件）：
 
-3. **统一 Context + config 拆分**（2026-07-24 讨论确认，待实现）
+   当前问题：角色面板显示 当前/最大 HP（如 1 号 12/11），当前值已定位（队员记录 +0x142，i16），但最大值未找到——1 号结构体 354 字节内无任何等于 11 的字节，全局亦无明确的第二存储。HUD 血条画比例需要 max 值。
 
-   当前问题：四个工具（process/translate/download/analyze）各自独立构建 context，config 被多次读取，逻辑大量重复。
+   未来方案：
 
-   设计方案：
+   - 升级事件是 max HP/MP 的增长时机：升级前后各拍一张全量快照，差分找"六块同偏移、各自 +N"的字段即为 max HP/MP 数组
+   - 与问题 2（等级定位）是同一场实验，一次升级顺带解决两项
+   - 若差分无命中，则 max 可能为推导值（基础+装备+等级公式），记录结论放弃直读
 
-   a) **config 拆分为三层**：
-   - `key.json`：API 密钥（保持独立，已 gitignore）
-   - `config.json`：外部信息（excel_file、save_directory）
-   - `setting.json`：程序内部设定（defaults、steps、rounds、max_retries、batch_analyze_size 等）
+2. **七维属性最大值定位**（2026-09-05 记录，待游戏事件）：
 
-   b) **新建 `utils/context.py` — 统一 Context 入口**：
+   当前问题：面板属性存在 当前/最大 两态（怪物吸取降当前、神庙恢复），内存只找到当前值序列（队员记录 +0x00 起 7×u16），最大值全局无第二份序列。
 
-   ```python
-   @dataclass
-   class UnifiedContext:
-       # config.json
-       excel_file: str
-       save_directory: str
-       # key.json
-       api_key: str
-       api_base_url: str
-       # setting.json
-       defaults: dict
-       steps: list
-       rounds: list
-       # 工具专用
-       download_config: dict = field(default_factory=dict)
-       interrupt_codes: dict = field(default_factory=dict)
-       # Excel（按需打开）
-       workbook: Workbook | None = None
-       worksheet: Worksheet | None = None
-       start_row: int | None = None
+   未来方案：
 
-   def load_context(tool: str) -> UnifiedContext:
-       # 一次性读取全部 JSON 文件（key + config + setting + download_image）
-       # 构建缓存，主进程只读一次，避免四工具独立读取
-       # 按 tool 决定是否打开 Excel
-       # 未使用的字段 = None，不影响任何逻辑
-   ```
+   - 触发一次属性吸取（cur 下降、max 不变）或神庙恢复（cur 回升），前后差分定位 max 字段
+   - 若吸取/恢复实验后仍无独立存储，则 max 为推导或与当前同址（面板 max=存储值本身），记录结论即可
+   - 优先级低于问题 1/3（HUD 主血条不依赖属性 max）
 
-   c) **各工具迁移**：
-   - `tools/process_excel.py`：删除 `_PreprocessContext` + `_load_preprocess_context()`，改用 `load_context("process")`
-   - `tools/translate.py`：删除 `_TranslateContext` + `_load_translate_context()`，改用 `load_context("translate")`
-   - `tools/download_image.py`：删除 `_DownloadContext` + `_load_download_context()`，改用 `load_context("download")`
-   - `tools/analyze_logs.py`：删除 `_AnalyzeContext` + `_load_analyze_context()`，改用 `load_context("analyze")`
+3. **角色等级 level 字段定位**（2026-09-05 记录，待游戏事件）：
 
-   d) **缓存策略**：
-   - `main.py` 调用 `load_context()` 后传给各工具子进程（通过 CLI 参数或环境变量）
-   - 各工具不再独立读取 JSON，真正实现一次加载、全局复用
+   当前问题：等级是面板核心数值，未定位（不在队员记录已破解的偏移中）。
 
-   工作量：约 150-200 行新代码 + 4 个工具的各约 30 行删除。
+   未来方案：
+
+   - 与问题 1 同场实验：升级前后全量快照差分，"六块同偏移、恰好 +1"的字段即 level
+   - 定位后加入 memory_map（预计队员记录 +0x162 块内某偏移）
+
+4. **祝福加成量字节与祝福名的对应**（2026-09-05 记录，待实验）：
+
+   当前问题：`blessamt1–4`（0x5A7D7-0x5A7DA）四字节总是同步变化（4→9），无法分辨哪个对应 祝福/防御/威力/勇气。HUD 若要按名显示单项加成需要此映射。
+
+   未来方案：
+
+   - 单目标、单祝福实验：只对队伍施放一种祝福，观察仅一个字节变化——四次实验定案
+   - 若 HUD 只显示统一加成（不按名区分），此项可跳过（当前档案已够用）
+
+5. **食物消耗的未验证场景**（2026-09-05 记录，低优先）：
+
+   当前问题：已定案 扎营=全队×1 份、睡到天亮=存活人数×3 份（死亡队员不消耗）；但 打工/走步/战斗 是否消耗食物未验证（走 6 步样本未见消耗，样本不足）。
+
+   未来方案：
+
+   - 固定食物值原地走 100 步，前后快照对比（预期无变化）
+   - 打工前后对比（观察打工是否含餐）
+   - HUD 只依赖 food 直接读值与 `food//18`，此项为机制知识补全
+
+6. **+0x136 状态滑槽身份**（2026-09-05 记录，最低优先）：
+
+   当前问题：s12 时代该字节曾 = 虚弱同构序列（1,1,3,1,2,2）后归零，同值序列出现在 +0x131——两者是滑槽轮转/镜像/不同状态，未解。
+
+   未来方案：
+
+   - 遇到新状态变化时观察 +0x131/+0x136 是否同步搬移即可
+   - 无 HUD 需求，纯机制好奇
+
+7. **死亡标志值域完整语义**（2026-09-05 记录，低优先）：
+
+   当前问题：death 已见 1（常规死亡，神庙 160 可复活）与 4（重度死亡，法术不可复活、神庙 300）；值域是否还有 2/3 或其他等级未知。
+
+   未来方案：
+
+   - 遇到不同死法（不同怪物/法术致死）时读 death 值积累样本
+   - HUD 统一处理"非零=死亡"即可，此项为机制知识补全，非阻塞

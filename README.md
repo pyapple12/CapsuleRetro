@@ -1,6 +1,6 @@
 # CapsuleRetro —— 老 DOS 游戏的现代包装系统
 
-[![Version](https://img.shields.io/badge/Version-0.1.0-blue.svg)](Cargo.toml)
+[![Version](https://img.shields.io/badge/Version-0.1.0.1-blue.svg)](Cargo.toml)
 [![Rust](https://img.shields.io/badge/Rust-1.96-orange.svg)](https://www.rust-lang.org)
 [![Phase](https://img.shields.io/badge/Phase-0%20POC%20%E8%BF%9B%E8%A1%8C%E4%B8%AD-yellow.svg)](CapsuleRetro_plan.md)
 
@@ -70,7 +70,7 @@ CapsuleRetro/
 ├── capsule-core/            # 核心 crate：monitor 观察库 + src/bin/xmonitor 诊断 CLI
 │   └── tests/               # 集成测试（档案解析 / REST stub / 差分）
 ├── assets/dosbox/           # DOSBox Staging sidecar（入库 zip；解压目录已 gitignore）
-├── retro/                   # 根 = 适配层：memory_map.json（22 条目内存档案）、
+├── retro/                   # 根 = 适配层：memory_map.json（92 条目内存档案）、
 │   │                        #   xeen-guide.md（攻略）、zhuyin-keyboard.md（注音对照）
 │   └── XEEN/                # 纯原版游戏文件（字面意义只读）
 ├── AGENTS.md                # 项目规范（AI 协作约定）
