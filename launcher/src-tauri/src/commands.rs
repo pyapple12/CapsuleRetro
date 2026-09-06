@@ -5,10 +5,12 @@
 //! 安全边界：spawn 参数全部来自仓库内 `retro/game.json` 与 u16 端口探测值，
 //! 无任何外部用户输入参与；进程创建经 `winproc` 的 CreateProcessW 参数列表完成。
 
+use std::io::Read as _;
 use std::net::TcpListener;
 use std::os::windows::io::AsRawHandle;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
 use tauri::Emitter;
@@ -17,6 +19,7 @@ use windows::Win32::Foundation::HANDLE;
 use crate::gameconf;
 use crate::hud::{HudPollEvent, HudPoller};
 use crate::jobctl::JobHandle;
+use crate::winembed;
 use crate::winproc::{self, WinProcess};
 
 /// 全局会话槽（同一时刻至多一个游戏会话）。
@@ -32,6 +35,8 @@ pub struct Session {
     port: u16,
     profile: PathBuf,
     hud: Option<HudPoller>,
+    agent: ureq::Agent,
+    pid: u32,
 }
 
 impl Session {
@@ -65,6 +70,65 @@ impl Session {
             500,
             on_event,
         ));
+    }
+
+    /// 取帧流快照：`GET /api/v2/frame` 的二进制透传，前置 20 字节会话内元数据头
+    /// （帧号 u64 LE + 宽/高/行距 u32 LE ×3），前端据此解码与去重。
+    ///
+    /// # Errors
+    /// 无会话、上游 503（尚无帧）或 HTTP 失败时返回错误消息。
+    pub fn get_frame(&self) -> Result<Vec<u8>, String> {
+        let resp = self
+            .agent
+            .get(&format!("http://127.0.0.1:{}/api/v2/frame", self.port))
+            .call()
+            .map_err(|e| format!("帧流请求失败: {e}"))?;
+
+        let header = |name: &str| -> Result<u64, String> {
+            resp.header(name)
+                .ok_or_else(|| format!("帧流响应缺少 {name}"))?
+                .parse()
+                .map_err(|e| format!("{name} 解析失败: {e}"))
+        };
+        let number = header("X-Capsule-Frame-Number")?;
+        let width = header("X-Capsule-Frame-Width")? as u32;
+        let height = header("X-Capsule-Frame-Height")? as u32;
+        let pitch = header("X-Capsule-Frame-Pitch")? as u32;
+
+        let mut pixels = Vec::new();
+        resp.into_reader()
+            .take(16 * 1024 * 1024)
+            .read_to_end(&mut pixels)
+            .map_err(|e| format!("帧体读取失败: {e}"))?;
+
+        let mut out = Vec::with_capacity(20 + pixels.len());
+        out.extend_from_slice(&number.to_le_bytes());
+        out.extend_from_slice(&width.to_le_bytes());
+        out.extend_from_slice(&height.to_le_bytes());
+        out.extend_from_slice(&pitch.to_le_bytes());
+        out.extend_from_slice(&pixels);
+        Ok(out)
+    }
+
+    /// 注入输入事件：JSON body 透传 `POST /api/v2/input/event`。
+    ///
+    /// # Errors
+    /// 无会话或上游返回非 2xx 时返回错误消息（400 = 前端参数错误）。
+    pub fn inject_input(&self, payload: &str) -> Result<String, String> {
+        let resp = self
+            .agent
+            .post(&format!(
+                "http://127.0.0.1:{}/api/v2/input/event",
+                self.port
+            ))
+            .set("Content-Type", "application/json")
+            .send_string(payload)
+            .map_err(|e| format!("注入请求失败: {e}"))?;
+        let mut body = String::new();
+        resp.into_reader()
+            .read_to_string(&mut body)
+            .map_err(|e| format!("注入响应读取失败: {e}"))?;
+        Ok(body)
     }
 }
 
@@ -124,12 +188,17 @@ pub fn start_session() -> Result<Session> {
     job.assign(process.handle())
         .context("挂载 Job Object 失败")?;
     process.resume().context("恢复进程执行失败")?;
+    let agent = ureq::AgentBuilder::new()
+        .timeout(Duration::from_secs(3))
+        .build();
     Ok(Session {
+        pid: process.pid(),
         process,
         job,
         port,
         profile: repo_root.join(&config.assets.memory_map),
         hud: None,
+        agent,
     })
 }
 
@@ -160,10 +229,39 @@ pub fn launch_game(
                     }
                 }
             }));
+            // 窗口离屏托管：SDL 窗口创建约需 1-2 秒，延后嵌入；失败不阻断会话
+            // （窗口仍在屏幕上，帧流与注入不受影响——退化形态可用）
+            let embed_pid = session.pid;
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_secs(2));
+                if let Err(err) = winembed::embed_offscreen(embed_pid) {
+                    eprintln!("窗口离屏托管失败（退化为本机窗口形态）: {err}");
+                }
+            });
             *slot = Some(session);
             format!("游戏已启动（webserver 端口 {port}）")
         })
         .map_err(|e| e.to_string())
+}
+
+/// 取帧流快照（UI 命令，二进制：20 字节元数据头 + BGRX 像素）。
+#[tauri::command]
+pub fn get_frame(state: tauri::State<'_, SessionState>) -> Result<tauri::ipc::Response, String> {
+    let slot = state.inner.lock().map_err(|e| e.to_string())?;
+    let session = slot.as_ref().ok_or("没有运行中的游戏会话")?;
+    let bytes = session.get_frame()?;
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
+/// 注入输入事件（UI 命令，body 为注入端点的 JSON 字符串透传）。
+#[tauri::command]
+pub fn inject_input(
+    state: tauri::State<'_, SessionState>,
+    payload: String,
+) -> Result<String, String> {
+    let slot = state.inner.lock().map_err(|e| e.to_string())?;
+    let session = slot.as_ref().ok_or("没有运行中的游戏会话")?;
+    session.inject_input(&payload)
 }
 
 /// 停止游戏（UI 命令）。

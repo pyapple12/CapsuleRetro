@@ -2,7 +2,7 @@
   "name": "XEEN",
   "version": "1.0",
   "dosbox": {
-    "exe_path": "assets/dosbox/dosbox-staging/dosbox-staging-v0.83.0/dosbox.exe",
+    "exe_path": "../DosboxCapsule/build/release-windows/Release/dosbox.exe",
     "webserver_port": 18086,
     "cpu_cycles": 5000
   },

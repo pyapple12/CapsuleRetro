@@ -49,6 +49,9 @@ launcher/        # Tauri 2 应用（src-tauri/ Rust 后端 + src/ Vue 前端）�
 capsule-pack/    # Rust CLI 打包器——未建
 assets/dosbox/   # DOSBox Staging v0.83.0 sidecar（锁版本，进 git 的是 zip；
                  #   解压目录 dosbox-staging/ 为派生产物，已 gitignore）
+tools/dosbox-fork/ # DosboxCapsule fork 维护套件（版本化）：PATCHES.md（补丁登记
+                 #   与升级配方）、rebuild.bat（清洁重建）、baseline-capture.sh /
+                 #   baseline-compare.py（FB1 基线判定，升级后必跑）
 retro/           # 根 = 适配层（我们编写的文件）：game.json（待建）、
                  #   memory_map.json（内存档案）、xeen-guide.md（攻略）、
                  #   zhuyin-keyboard.md（注音对照）

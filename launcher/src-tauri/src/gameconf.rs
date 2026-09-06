@@ -49,7 +49,7 @@ pub fn generate_conf(config: &GameConfig, repo_root: &Path) -> String {
          fullscreen = false\n\n\
          [mouse]\n\
          builtin_dos_mouse_driver_options = immediate\n\
-         mouse_capture = onstart\n\
+         mouse_capture = nomouse\n\
          mouse_sensitivity = 125\n\
          mouse_raw_input = on\n\n\
          [render]\n\

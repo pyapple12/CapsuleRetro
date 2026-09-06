@@ -353,4 +353,27 @@ VC0 打样 → 过：C 阶段主攻路线一 / 核心崩：直接主攻路线二
 - **VD3 CPU 开销**：GetProcessTimes 10 秒窗口采样，轮询线程 CPU 占用 < 2%（断言内建于 live 测试）。
 - **容错登记**：HUD 轮询瞬时失败容错已按规则登记 AGENTS.md 白名单（跳过本轮 / 连续 5 次停滞事件 + 停机）。
 
-（fork 线开展与统一窗口验证待 PL002.19+ 回填）
+#### 前期准备·fork 线开展结论（2026-09-06，PL002.19–20 完成）
+
+- **PL002.19 环境探测**：VS Build Tools 2026 18.8.2（cl 14.51 + SDK 10.0.26100）在位；缺口 meson/ninja/cmake 经 pip --user + scoop 补齐（1.12.0 / 1.13.2 / 4.4.3），pip Scripts 目录补入用户 PATH；CMake 4×zlib-ng 2.1.5（要求 3.5.1）兼容核实；全记录 `.temp/p1-env.md`。
+- **路线变更（Meson → CMake+vcpkg）**：v0.83.0 tag 的 `resources/shaders/meson.build` 引用已被移除的 misc 目录（configure_file cp 失败）——tag 自身 meson 构建损毁；上游 fbef15885 "Kill the Meson build system with fire" 已整体删除 meson。0.83 官方 Windows CI 路径 = CMake+vcpkg（VS 生成器 + ClangCL 工具集），fork 演进对齐上游，判死 meson。
+- **Meson 探测沉淀**（复建/升级可复用）：本会话环境 `PYTHONUTF8=1` 使 meson 走 UTF-8 严格解码分支，cl 的 GBK 用法文本必崩（Popen_safe strict 分支）——构建须清该变量；`vcvarsall.bat x64` 显式环境可用（meson 见 VCINSTALLDIR 跳过自激活）。
+- **PL002.20 基线构建（P1–P4 全过）**：vcpkg 锁 baseline `6283825b`（34 包 22 分钟，二进制缓存沉淀，重建秒级）；ClangCL 22.1.3（用户补装 VS Clang 两组件）；cmake 直调等效 preset——preset 硬编码 VS 17 生成器且本机有 Insiders 多实例，须用 VS18 2026 生成器 + `CMAKE_GENERATOR_INSTANCE` 钉死 BuildTools（Insiders 实例 MSBuild 缺工具集触发 MSB8020 的教训）。产物 dosbox.exe（0.83.0 / 7b400），构建后 `git status --porcelain` = 0 行（零改动实证）；启动 XEEN：模式 13h 进入、REST 66 秒三连 200、5/5 档案条目读出真实数值（hp1=12 / exp1=2014），用户目视确认画面 OK。构建脚本 `.temp/p1-cmake-build.bat`（含 ALL_PROXY socks 修正——libcurl 不认 http(s)_proxy 的 socks5 方案、PYTHONUTF8 清除）。
+- **PL002.22 补丁仓库结构（FB2 全过）**：公开 fork `pyapple12/DosboxCapsule`（用户建仓改名，fork 关系保留）；本地 `capsule` 分支基于 v0.83.0、双 remote（origin=fork 推送 / upstream=官方升级）；FB2-a 清洁重建全绿（build 目录全清 → 全新配置编译 → 产物 0.83.0 (7b400)）；FB2-b 结构纯净（capsule diff 零起步）；fork 仓提交风格对齐上游英文 conventional，不套 CapsuleRetro 四段式。
+- **维护套件集中化（2026-09-07 修订，用户拍板）**：PATCHES.md、清洁重建脚本、FB1 基线判定脚本统一收入 CapsuleRetro `tools/dosbox-fork/`（版本化，迁出 .temp）——capsule 分支 diff 保持 100% 代码补丁；fork 仓仅以 FORK.md 单提交声明用途。迁移一致性验证闭环（cmake 链逐行相等、capture 执行行 MD5 全等、compare 仅 docstring 与错别字差异、新位置功能跑通 PASS）。
+- **切断 fork 转独立仓（2026-09-07，用户拍板）**：删除 fork 重建同名独立公开仓（仓库初生期零迁移成本；"193 commits behind / Discard" 陷阱横幅随 fork 关系消失），本地 capsule 分支改名 main、推 main + v0.83.0 tag（基线溯源，默认分支自动 = main）；FORK.md 改独立仓表述，PATCHES.md 分支模型简化为单分支 + tag 锚点（`git diff v0.83.0..main` = 全部足迹，升级配方 rebase --onto 换轴分支名同步）。GitHub Actions 因触发上游 CI（PVS-Studio 无许可必红）已关（用户操作，仓库设置级，零 diff）。**前期准备四连（PL002.19-22）全部完结，后期实施（PL002.23 帧流端点起）就绪。**
+
+#### 后期实施·主线开展结论（PL002.23 起）
+
+- **PL002.23 帧流端点（FF1 全过，commit a8e395cbf）**：研究修正——v0.83 webserver 已自带 Bridge 线程模型（webserver 线程投递命令、模拟主循环 `ProcessRequests` 执行，dosbox.cpp:120）与**内存写入端点**（`PUT /api/v1/memory/:seg/:off`，含 If-Match 乐观锁，PL002.26 因此降级为验证任务）；挂钩点定为两渲染器 `EndFrame`（DOS 帧内容完成点，scaler 输出尺寸、BGRX 32bit），帧流共享缓冲 `CapsuleFrame` 置于 gui 层（webserver→gui 依赖方向与上游一致；webserver 关闭时 Capture 仅一次原子读短路）；端点 `GET /api/v2/frame` 用响应头携带元数据 + 原始 BGRX body（30-60fps 轮询下避免 base64 膨胀 1/3 带宽）。FF1 实测：帧号 3→670 零回退、单帧服务最慢 2.27ms（keep-alive 口径，修正了把 curl 进程开销计入的错误口径）、尺寸自洽 640×200；内容对照用户确认一致（stream 640×200 pre-shader vs 窗口 post-shader，分辨率差异系设计——画布消费小帧自行 4:3 缩放）。**遗留 PL002.27**：帧流暂无像素纵横比元数据，画布 4:3 拟合需补充。
+- **PL002.24 帧流稳定性（FF2 全过）**：PowerShell HttpClient keep-alive 30fps×600 秒——12816 请求 0 失败、帧号 21 段零停滞（总增量 5747，9.1fps 内容变化帧率符合静态画面特征）、工作集仅涨 1.3MB（无泄漏）、**CPU 净增量 ≈0**（轮询期 20.32% vs 无轮询基线 21.07%，对照实验分离游戏本体开销；净增量优于 VD3 HUD <2% 口径）。两处阈值口径修正如实记录：帧增量阈值撤回（渲染帧≠内容变化帧混淆）、CPU 判定改净增量口径。`.temp/ff2-samples.csv` 存证。
+- **PL002.25 研究预收**：mapper 统一事件入口 `MAPPER_CheckEvent`（mapper.cpp:2640）+ 上游自带 `MAPPER_AutoType`/`MAPPER_TriggerEvent` 程序化触发机制；注入走 Bridge（模拟线程执行 mapper 分发）而非 SDL_PushEvent——SDL 队列会被暂停循环清空（sdl_gui.cpp:349），Bridge 直调绕坑且与 memory 端点模式一致。I1 客观信号复用 Alt+Enter 全屏切换（T1 探针判据）。
+- **PL002.25/26 实施（I1/I2/M1/M3 全过）**：注入端点 `POST /api/v2/input/event`（input.{h,cpp}）——键盘 Bridge+`MAPPER_CheckEvent`（模拟线程，与真实事件泵同路），键名表 62 键+6 修饰键；I1 = 窗口 869×678→1536×864 全屏往返；**协议事实**：mapper 组合键须时序注入（leftalt down → return → up），单发带 mod 位事件不触发。26 设计修正：上游 v0.83 自带 `PUT /api/v1/memory/:seg/:off`（If-Match 乐观锁），唯一补丁 = error_handler 映射 400；M3 = 越界 400 不崩溃；M1 = 游戏内 PUT food=99 读回持久（**标题屏下人物数据区被游戏活跃代码覆盖——写入验证必须在游戏内状态**）。
+- **PL002.27/28 统一窗口集成与收尾（UW1–UW7 全过，nomouse 形态定案）**：launcher 侧 = winembed.rs（离屏 + TOOLWINDOW 摘任务栏，UW6 客观 rect x=-2560/TOOLWINDOW 置位）+ get_frame/inject_input 命令（ureq 透传 + 20 字节元数据头，零 CORS）+ GameCanvas.vue（30fps + 帧号去重 + BGRX→RGBA + PointerLock + 键盘鼠标转发）+ 双模式布局；HudBar 进顶栏（VD1/VD2/VD3 通道未变分别引用既有验证）。**实测根因链三条（集成测试价值实证）**：① 黑屏 = game.json 指官方版无帧流端点 → 改指 DosboxCapsule 构建产物（launcher 首次消费 fork）；② 注入光标不动 = 离屏窗口 cursor_is_outside 恒真丢弃鼠标事件 → **fork 补丁 #4** 注入原语 MOUSE_InjectMoved/Button（绕判定 + cursor_x_abs/y_abs 累进 clamp，nomouse 态驱动走 seamless 绝对路径必需）；③ 中键致宿主光标失效 = 非捕获态中键触发捕获、离屏窗口拖宿主光标进屏外 → **nomouse 形态定案**（dosbox 永不抓宿主光标，鼠标输入全走注入，宿主光标归画布 Pointer Lock）。全量门禁绿。**PL002 前期准备与后期实施主线全部完结**；备线（PL002.29-30）仅在上游升级 rebase 失败时回炉。
+
+#### FB1 基线复现判定书（2026-09-06，go——后期实施走主线）
+
+- **方法**：`.temp/fb1-capture.sh` + `fb1-compare.py`——官方发布版（assets 内 v0.83.0）与构建版（DosboxCapsule ClangCL 产物）串行启动 XEEN（同 conf 同工作副本，标题屏），各拍两份 1MB 全内存快照（间隔 2 秒），按 memory_map 档案 92 条目切片对照：自对照（a vs b）确认稳定、交叉对照（官方 vs 构建）字节级零偏差。
+- **判定过程含一次探针自证**：首轮构建版 5 秒稳定期不足（s2a 全零被自对照识别），暴露判定口径的空洞——静态集为 0 时"零偏差"为空真；改 12 秒等待重跑，双稳定条件真实成立后判定有效。
+- **结果**：92/92 条目静态、0 偏差（`fb1-report.json`）。构建版（ClangCL）与官方发布版在 DOS 内存行为上字节级一致，memory_map 档案在构建产物上完整有效。
+- **决策**：FB1 全过 → **PL002.23 起后期实施走主线**（fork 三端点 + 统一窗口）；备线（PL002.29-30）仅在上游升级 rebase 失败时回炉。
