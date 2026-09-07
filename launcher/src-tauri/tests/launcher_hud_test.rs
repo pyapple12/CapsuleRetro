@@ -15,7 +15,7 @@ use launcher_lib::hud::{HudPollEvent, HudPoller};
 #[test]
 #[ignore = "真实进程测试：DOSBox 窗口闪现 + 10 秒 CPU 采样，显式 --ignored 运行"]
 fn hud_双通道对照与cpu开销() {
-    let mut session = start_session().expect("启动会话应成功");
+    let mut session = start_session(None).expect("启动会话应成功");
     let (tx, rx) = mpsc::channel::<HudPollEvent>();
 
     let repo_root = gameconf::resolve_repo_root(&std::env::current_dir().expect("cwd"))

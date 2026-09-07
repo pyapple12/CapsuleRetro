@@ -2,7 +2,7 @@
 
 老 DOS 游戏现代包装系统：把任意 DOS 游戏打包成"看起来像移植的现代游戏"，三平台（Windows / macOS / Linux）通用。产物 = 执行文件 + save 文件两个文件走天下。总体规划见 `CapsuleRetro_plan.md`。
 
-**当前状态**：PL001、PL002 主线已完结（2026-09-07）——`capsule-core`（monitor 观察库 + game.json 解析）+ `xmonitor` 诊断 CLI + `launcher`（Tauri 2 + Vue 3；统一窗口形态：DosboxCapsule 离屏托管 + 画布吃帧流 + REST 注入 + nomouse 定案，见 z.plan.md 附录 PL002）。已有素材：`retro/XEEN/`（《魔法门 XEEN》DOS 版，含 CHINFONT 汉化字体与 CMM4.PAT 补丁）、`retro/` 根适配层（game.json、xeen-guide.md 攻略、zhuyin-keyboard.md 注音对照、memory_map.json 内存档案）、`.archived/`（mm4/mm5 原版 zip）、`.agents/skills/`（项目自建 skill）、独立模拟器仓 `DosboxCapsule`（`E:\GameMission\DosboxCapsule`，v0.83.0 + 4 代码补丁，维护套件见 `tools/dosbox-fork/`）。遗留与远期项登记 `y.problems.md`。下一步 PL003（save 生命周期 + 补丁闭环）待立项；`capsule-pack` 未建。
+**当前状态**：PL001、PL002 主线已完结（2026-09-07），FIX001 全量审计修复完结（2026-09-08）——`capsule-core`（monitor 观察库 + game.json 解析 + save/patch/paths 生命周期三模块）+ `xmonitor` 诊断 CLI + `launcher`（Tauri 2 + Vue 3；统一窗口形态 + save 闭环 + hack 切换 + 攻略渲染，见 z.plan.md 附录 PL002/PL003）。已有素材：`retro/XEEN/`（《魔法门 XEEN》DOS 版，含 CHINFONT 汉化字体与 CMM4.PAT 补丁）、`retro/` 根适配层（game.json v2、xeen-guide.md 攻略、zhuyin-keyboard.md 注音对照、memory_map.json 内存档案、patches/test-hack.zip 测试补丁包）、`.archived/`（mm4/mm5 原版 zip）、`.agents/skills/`（项目自建 skill）、独立模拟器仓 `DosboxCapsule`（`E:\GameMission\DosboxCapsule`，v0.83.0 + 4 代码补丁，维护套件见 `tools/dosbox-fork/`）。遗留与远期项登记 `y.problems.md`。下一步：PL003 live 验收收口（VA1–VA4）；`capsule-pack` 未建。
 
 ## 技术栈
 
@@ -43,6 +43,9 @@ npm run build                                    # 前端构建校验
 Cargo.toml       # workspace 根（version 单一来源；当前 members=["capsule-core", "launcher"]）
 capsule-core/    # Rust crate：save 打包/解包、补丁应用、配置、路径管理
                  #   src/monitor/      REST 观察库（PL001）
+                 #   src/save.rs       save 档案打包/解包/原子替换（PL003）
+                 #   src/patch.rs      补丁包解析与应用（PL003）
+                 #   src/paths.rs      运行时释放与生命周期编排（PL003）
                  #   src/bin/xmonitor  诊断 CLI（watch/search/bench）
                  #   tests/            集成测试（cargo test 自动发现）
 launcher/        # Tauri 2 应用（src-tauri/：commands / gameconf / hud / winembed / winproc / jobctl
@@ -53,8 +56,8 @@ assets/dosbox/   # DOSBox Staging v0.83.0 sidecar（锁版本，进 git 的是 z
 tools/dosbox-fork/ # DosboxCapsule fork 维护套件（版本化）：PATCHES.md（补丁登记
                  #   与升级配方）、rebuild.bat（清洁重建）、baseline-capture.sh /
                  #   baseline-compare.py（FB1 基线判定，升级后必跑）
-retro/           # 根 = 适配层（我们编写的文件）：game.json、
-                 #   memory_map.json（内存档案）、xeen-guide.md（攻略）、
+retro/           # 根 = 适配层（我们编写的文件）：game.json（v2：game_dir/save_files/patches）、
+                 #   patches/（测试补丁包）、memory_map.json（内存档案）、xeen-guide.md（攻略）、
                  #   zhuyin-keyboard.md（注音对照）
                  # 子目录（如 retro/XEEN/）= 纯原版游戏文件，字面意义只读
 .agents/skills/  # 项目自建 skill（audit-project / audit-report / progress-task），ZCode workspace 级扫描目录
@@ -166,6 +169,8 @@ y.problems.md    # 问题与远期改进备忘录（只增不删、编号递增�
 - **窗口离屏托管退化形态**（FIX001.17 登记，2026-09-08）：场景——`embed_offscreen` 轮询重试（500ms×10）仍找不到/改不动 SDL 窗口；降级行为——打日志，游戏保留本机顶层窗口形态继续运行；理由——托管是统一窗口形态的增强层，帧流显示与输入注入均不依赖窗口位置，会话功能完整。
 - **GameCanvas 帧轮询瞬时失败**（FIX001.7/17 登记，2026-09-08）：场景——前端 30fps 消费循环中单次 `get_frame` 失败（会话启动早期 503/瞬时网络抖动）；降级行为——console.warn 计数并跳过本轮，连续 5 次显式置错误态并停循环（`NO_SESSION` 前缀例外：会话已结束属正常终止）；理由——与 watch/HUD 同类的伴生轮询，瞬时抖动不应打崩画面，最终显式暴露。
 - **文件日志写失败静默**（FIX001.17/22 登记，2026-09-08）：场景——`logging.rs` 追加写 launcher.log 失败（磁盘满/句柄失效）；降级行为——静默忽略该行，不影响业务流程；理由——日志组件不得反噬主流程；init 未调用时为空操作同此登记。
+- **save 档案损坏降级**（PL003.5 登记，2026-09-08）：场景——启动解包 `GameName.save` 时检测损坏（非 zip / 缺 meta / meta 非法）；降级行为——损坏档案备份为 `<原名>.save.corrupt`（仅保留最新一份），以全新空 save 继续运行并 ERROR 级落日志；理由——存档损坏若严格报错会让游戏整体不可玩，降级保住"可继续游玩"，损失仅限已损坏数据；其余错误（IO/越界条目）仍严格上抛不走降级。
+- **dosbox.log 轮转失败继续追加**（PL003.14 登记，2026-09-08）：场景——启动时 dosbox.log 超过 5MB 触发轮转但 rename 失败（文件被占用等）；降级行为——ERROR 级落日志，本轮放弃轮转继续追加；理由——轮转只影响日志体积不影响功能，下轮启动自动重试。
 
 ## 素材与环境陷阱
 

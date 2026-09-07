@@ -74,3 +74,7 @@ assets/dosbox/dosbox-staging/
 
 ## Git worktrees
 .worktrees/
+
+## save 用户数据（PL003：开发形态 save 落仓库根，不入库；.corrupt 为降级备份）
+*.save
+*.save.corrupt

@@ -41,6 +41,12 @@ pub enum GameConfigError {
         /// 非法的 name 值。
         name: String,
     },
+    /// save_files 清单含空白条目或路径分隔符（存档收集只认工作副本顶层文件名）。
+    #[error("非法 save_files 清单: {0}")]
+    InvalidSaveFiles(String),
+    /// patches 定义非法（id 为空、重复或 patch 路径为空）。
+    #[error("非法 patches 定义: {0}")]
+    InvalidPatches(String),
 }
 
 /// 适配层聚合配置（retro/game.json 的类型化形态）。
@@ -56,6 +62,8 @@ pub struct GameConfig {
     pub assets: AssetsSection,
     /// 运行路径节
     pub paths: PathsSection,
+    /// 补丁定义列表（hack 版 = 原版 + 运行时应用补丁；可为空数组）
+    pub patches: Vec<PatchRef>,
 }
 
 /// DOSBox 运行配置节。
@@ -81,8 +89,21 @@ pub struct AssetsSection {
 /// 运行路径节。
 #[derive(Debug, Deserialize)]
 pub struct PathsSection {
-    /// 工作副本目录（C: 盘挂载源，retro/ 原版的释放目标）
-    pub work_dir: PathBuf,
+    /// 原版游戏目录（相对 game.json 所在目录，如 "XEEN" → retro/XEEN/，只读释放源）
+    pub game_dir: PathBuf,
+    /// 存档文件清单（工作副本顶层文件名通配符，仅支持 `*`；save 回写收集依据）
+    pub save_files: Vec<String>,
+}
+
+/// 补丁定义（game.json patches[] 条目）。
+#[derive(Debug, Deserialize)]
+pub struct PatchRef {
+    /// 补丁 id（save meta.hack 引用此 id，如 "test-hack"）
+    pub id: String,
+    /// 展示名（UI 待机页切换项）
+    pub name: String,
+    /// 补丁包 zip 路径（相对 game.json 所在目录）
+    pub patch: PathBuf,
 }
 
 impl std::str::FromStr for GameConfig {
@@ -134,6 +155,38 @@ impl GameConfig {
             return Err(GameConfigError::InvalidCycles {
                 cycles: self.dosbox.cpu_cycles,
             });
+        }
+        if self.paths.game_dir.as_os_str().is_empty() {
+            return Err(GameConfigError::InvalidPatches(format!(
+                "paths.game_dir 为空（game.json: {}）",
+                self.name
+            )));
+        }
+        if let Some(bad) = self
+            .paths
+            .save_files
+            .iter()
+            .find(|p| p.trim().is_empty() || p.contains('/') || p.contains('\\'))
+        {
+            return Err(GameConfigError::InvalidSaveFiles(format!(
+                "{bad:?}（须为非空顶层文件名通配符，仅支持 *）"
+            )));
+        }
+        let mut ids: Vec<&str> = Vec::new();
+        for patch in &self.patches {
+            if patch.id.trim().is_empty() || patch.patch.as_os_str().is_empty() {
+                return Err(GameConfigError::InvalidPatches(format!(
+                    "id/patch 为空: {:?}",
+                    patch.id
+                )));
+            }
+            if ids.contains(&patch.id.as_str()) {
+                return Err(GameConfigError::InvalidPatches(format!(
+                    "id 重复: {:?}",
+                    patch.id
+                )));
+            }
+            ids.push(&patch.id);
         }
         Ok(())
     }

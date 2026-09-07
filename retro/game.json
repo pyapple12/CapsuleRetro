@@ -11,6 +11,14 @@
     "guide": "retro/xeen-guide.md"
   },
   "paths": {
-    "work_dir": ".temp/xeen-work"
-  }
+    "game_dir": "XEEN",
+    "save_files": ["*.SAV", "XEEN.DAT", "XEEN.CUR", "DARK.CUR", "XEEN.CFG"]
+  },
+  "patches": [
+    {
+      "id": "test-hack",
+      "name": "测试补丁",
+      "patch": "patches/test-hack.zip"
+    }
+  ]
 }

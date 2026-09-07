@@ -100,8 +100,6 @@
 
 ---
 
-## 未完成
-
 ### FIX001: 第1轮审计修复 [audit#A001]
 
 > 来源：附录 A001（第 1 轮全量审计，2026-09-07）。43 条 P 级按 [P0]→[P3] 分层；观察项 23 条经用户确认全部保持参考级，未入清单。条目标题含（A001#n）回溯编号。
@@ -151,3 +149,37 @@
 - [x] FIX001.42 [P3] 显示 ctx 每帧获取（A001#40）—— GameCanvas.vue:88 首帧缓存 context；验证：vue-tsc
 - [x] FIX001.43 [P3] 生产 CSP 为 null（A001#42）—— PL003 攻略渲染落地前设最小 CSP（本条随 PL003 执行，先登记）；验证：攻略渲染落地时核对
 - [x] FIX001.44 [P2] FIX001 收尾门禁与状态回写 —— 全量门禁（cargo fmt --check + clippy -D warnings + test --workspace + vue-tsc + npm build）全绿；A001 状态行回写 ✅ 已修复；y.problems #12 闭环核对（随 FIX001.6/测试修复路径处理）；验证：门禁全绿 + z.plan 附录 A001 状态更新
+
+---
+
+### PL003: save 生命周期 + 补丁闭环 [plan#PL003]
+
+> 来源：附录 PL003（2026-09-08 立项，方向定案三条：存档清单显式声明 / 攻略渲染并入 / 开发形态 save 落仓库根）。目标 = `GameName.save` 唯一用户数据端到端闭环（解压 → 运行 → 原子回写）+ 补丁纪律代码化 + 攻略渲染与 CSP 收尾；packer 不在本期。
+> **✅ 全组完成（2026-09-08）**：15/15 勾结。全量门禁绿（fmt/clippy/test 54 过/doc 零警告/prettier/vue-tsc/npm build）；反向验收 14 项 + live VA1–VA4 全过，记录见 `.temp/pl003-verification.md`。live 实测修复 2 bug：① CSP 未放行 `ipc:` 二进制通道致帧流全灭（FIX001.43 回归，教训=安全配置必须 live 验证）；② meta.hack 被旧 save 覆盖（UI 选择改为权威源）。
+
+#### 阶段 A：定案与实验先行（格式 + 事实收集）
+
+- [x] PL003.1 存档落盘实验 —— 静态取证（.temp/xeen-work 用户游玩副本文件集）+ live 终验联合定案；验证：清单登记 retro/game.json `paths.save_files` 落盘，两次独立存档命中集合一致（2026-09-08 已验证：save_files = ["*.SAV","XEEN.DAT","XEEN.CUR","DARK.CUR","XEEN.CFG"]；VA1 live 用户存档 → zip 内 6 文件（XEEN01+DARK01.SAV 双面合体同槽双写）→ 读档续玩）
+- [x] PL003.2 zip 选型与 save 结构定案 —— 评估 zip crate 版本（2.x/3.x API 与维护状态）锁定依赖；定案 save zip 结构（meta.json + save/ + config/）与 meta.json 字段（version/hack/settings）；验证：单测构造 → 解析最小 save 往返字段一致（2026-09-08 已验证：zip 8.6.0 仅 deflate 特性（cargo add 解析最新稳定）；SaveMeta serde 单一来源 + SaveMeta::new 构造；往返断言在 `save打包解包往返一致`）
+- [x] PL003.3 patch 包结构与测试素材 —— 定案 manifest.json（action: replace|add, path, source 含 files/ 前缀）；用 retro/XEEN 现成文件（只读复制构造）做一个真实测试补丁包 + capsule-core 集成测试伪文件夹具；验证：素材落盘、manifest 可解析、retro/ 零写入（2026-09-08 已验证：`retro/patches/test-hack.zip`（构造脚本 .temp/make_test_patch.py）= replace PLAY.BAT + add PATCHED.TXT；选 PLAY.BAT 而非 CMM4.PAT——更小且 replace/add 双动作覆盖；真实包应用并入 VA2 live）
+- [x] PL003.4 src/save.rs 解包与打包 —— unpack（meta + save/ 落工作区）、pack（按 save_files 收集 → 临时 zip）；损坏 zip 显式检测（区分损坏与缺失）；验证：集成测试用例——合法/损坏/缺 meta 三场景 FAIL→PASS（2026-09-08 已验证：E0432 FAIL → 15 集成测试 PASS；函数式 API 非 SaveArchive 结构体，KISS）
+- [x] PL003.5 save 原子替换与降级 —— replace_atomically（临时文件 → rename 覆盖，失败保旧件）；损坏降级路径（备份 .corrupt + 新建空 save 继续）；AGENTS.md 容错白名单登记该条目（场景/降级/理由三要素）；验证：单测——替换失败保旧件、损坏降级产物正确（备份存在 + 新 save 可用）（2026-09-08 已验证：`原子替换覆盖旧档`/`load_or_recover三态` PASS；白名单已登记含 dosbox.log 轮转失败条目）
+- [x] PL003.6 src/patch.rs 补丁应用 —— manifest 解析校验 + apply（replace=覆盖/add=新增到工作副本）；path 越界（zip slip/绝对路径/`..`）严格报错；验证：单测——合法应用/未知 action/越界 path FAIL→PASS（2026-09-08 已验证：7 种越界形态全拒；replace 目标缺失/add 目标已存在/source 缺失/未知 action 各自独立错误；校验顺序 action→目标→source 防错误语义混淆）
+- [x] PL003.7 src/paths.rs 释放自愈与生命周期编排 —— release（原版 → 工作副本释放）；编排纯函数 prepare_session（释放 → 补丁 → 解包）与 writeback（收集 → 打包 → 替换）；验证：单测断言对 retro/ 零写入（2026-09-08 已验证：自愈策略定案为"每次启动全量重建工作副本"（残留天然自愈、hack 切换零污染，37MB 本地盘亚秒级），比计划原文的"首启释放+缺失重建"更强；`释放重建清除残留`/`启动前置序列全链路且原版零写入` PASS）
+- [x] PL003.8 启动前置接线 —— launch_game 前置序列接入（释放 → 按 hack 补丁 → 解包 save），退役 `.temp/xeen-work` 依赖；验证：cargo test（2026-09-08 已验证：game.json v2 落盘（game_dir + save_files + patches）；**work_dir 字段退役而非改名**——释放目标由 runtime_dir 派生（runtime/work），避免死配置；hack id 不在 patches 中严格报错；冷启动 live 并入 VA1）
+- [x] PL003.9 退出回写接线 —— exit-watcher 线程与 stop_game 双挂点走同一 writeback_save()（幂等：按 save_files 收集 → 打包 → 原子替换仓库根 XEEN.save）；.gitignore 登记 *.save；关键节点落 launcher.log；验证：live VA1——游戏内存档 → 退出 → zip 内含存档文件 → 重进读档继续（2026-09-08 已验证：VA1 全过——用户存档后停止显示"save 已回写"，zip 内 6 文件，重启读档一致）
+- [x] PL003.10 补丁纪律 live 验收（VA2）—— hack 版与原版各启动一轮交叉；验证：retro/ 哈希断言零改动、hack/原版互不污染（工作副本内容随切换重建）（2026-09-08 已验证：hack 轮 work 出现 PATCHED.TXT + PLAY.BAT 改写 + meta.hack=test-hack 持久化；原版轮 PATCHED.TXT 随重建清除 + meta 归 null；retro/ 21 文件 MD5 三比对照全等）
+- [x] PL003.11 防损坏 live 验收（VA3）—— 手工破坏 XEEN.save 启动；验证：启动按白名单降级不炸（回写中断场景由原子替换单测覆盖：`原子替换覆盖旧档`）（2026-09-08 已验证：垃圾字节写 save → ERROR 日志 + .corrupt 备份 + 游戏正常启动 + 停止生成全新档；真实存档测试后已恢复）
+- [x] PL003.12 待机页 hack 切换与 save 状态 —— App.vue 待机态：hack/原版切换（写 meta.hack，启动前生效）+ save 状态显示（"N 个数据文件"计数）；验证：vue-tsc + live 切换后启动会话实际按所选形态释放（2026-09-08 已验证：切换测试补丁启动 → work 实际打上补丁；save 状态行随回写刷新为"补丁 test-hack"/"原版"）
+- [x] PL003.13 攻略 Markdown 渲染 + CSP —— 攻略视图（retro/xeen-guide.md 渲染）；选型 marked+DOMPurify（XSS 消毒 + CSP 兜底双层防护）；tauri.conf.json csp 最小白名单（FIX001.43 闭环）；验证：渲染可用、无脚本执行 + npm build（2026-09-08 已验证：用户目测攻略渲染正常；**live 揪出 CSP 回归**——connect-src 须放行 `ipc: http://ipc.localhost` 否则二进制 IPC 全灭，已修复并记录教训）
+
+#### 阶段 C：连带清理与收尾
+
+- [x] PL003.14 连带清理 —— dosbox.log 轮转（problems#13：>5MB 改名 .log.1 仅留一份）、gameconf 测试资产转正（problems#12：定案键内嵌测试）、帧流 640×200 纵横比复核（problems#9：全幅拉伸对 13h 即正确显示几何，非缺陷，y.problems 降级注记）；验证：三项各自验证 + 全量门禁（2026-09-08 已验证：两项闭环一项降级注记；门禁全绿）
+- [x] PL003.15 文档回改与收尾 —— AGENTS.md 回改（当前状态/目录规划/白名单两条登记）；全量门禁（fmt/clippy/test/doc + prettier/vue-tsc/npm build）全绿；z.plan 实测结论回写 + x.progress 勾结；验证：门禁全绿 + 文档一致性核对（2026-09-08 已验证：全部完成；遗留移交——.temp/xeen-work 退役待用户批准删除，.temp/xeen-test.conf 已无代码引用）
+
+---
+
+## 未完成
+
+（暂无——任务完成后整组上移至已完成区）

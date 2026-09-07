@@ -7,10 +7,12 @@
 
 - **PL001 观察库与内存档案**（2026-09-05 收口）→ 附录 PL001
 - **PL002 launcher × DOSBox 结合**（2026-09-07 主线收口，备线休眠 [problems#16]）→ 附录 PL002
+- **FIX001 第 1 轮全量审计修复**（2026-09-08 收口）→ 附录 A001
+- **PL003 save 生命周期 + 补丁闭环**（2026-09-08 收口）→ 附录 PL003
 
 ## 二、待完成
 
-- **PL003 save 生命周期 + 补丁闭环**（待立项，方向已议）
+- （暂无——packer（capsule-pack）与三平台打包是下一个大件，未立项）
 
 ## 三、主题规划
 
@@ -493,3 +495,94 @@ VC0 打样 → 过：C 阶段主攻路线一 / 核心崩：直接主攻路线二
 - 严格抛错主线贯彻：thiserror 枚举齐全，业务代码无散落 unwrap/expect；版本单一来源 workspace 侧合规
 - winproc.rs 挂起→挂 Job→resume 时序注释清晰、Send/Sync 论证规范；hud.rs 回调注入可测性好
 - 审计过程修正一处子任务误报（生产端口硬编码指控），锚点复核有效
+
+---
+
+## 附录 PL003：save 生命周期 + 补丁闭环（2026-09-08 立项）
+
+> 背景：PL002 收口后 launcher 已能"看 / 玩 / HUD"，但形态仍是"仓库即游戏包"——工作副本靠 `.temp/xeen-work` 手工预置、无用户数据持久化、补丁纪律尚无代码承载（commands.rs 留有"释放逻辑属 PL003"注记）。本期把产品骨架补完：`GameName.save`（唯一用户数据）与补丁应用闭环落地，capsule-core 补齐 save / patch / paths 三模块（launcher 与未来 packer 共用，逻辑只写一份）。
+> 关键洞察：① 回写挂点是现成的——FIX001.5 的 exit-watcher 线程已监听进程退出（含被杀），打包回写正好挂在该链路，无需新增生命周期机制；② 补丁纪律（原版只读、补丁只作用于释放的工作副本）第一次由代码结构承载——原版 = 释放源（只读），工作副本 = 补丁与存档的宿主；③ packer 不在本期，save / patch 接口按路径参数化设计，packer 到来只需喂资源。
+> 目标：XEEN 端到端跑通"启动解压 save → 按补丁状态释放工作副本 → 运行 → 退出原子回写"完整生命周期；hack / 原版切换互不污染；损坏 save 自愈；攻略渲染 + 最小 CSP 随期落地。
+> 状态：✅ 已完成（2026-09-08 收口；VA1–VA4 全过；任务清单见 x.progress.md「PL003」；实测结论见下）
+
+### 方向定案（2026-09-08，用户拍板）
+
+1. **存档界定 = game.json 显式声明清单**：`paths.save_files` 声明存档文件（glob，如 `*.SAV`），回写只打包清单命中文件——干净透明、save 体积小；备选"整个工作副本 diff 回写"弃用。XEEN 具体存档文件名由阶段 A 落盘实验确定。
+2. **攻略渲染并入本期**：攻略视图 + Markdown 渲染 + 最小 CSP（审计遗留 FIX001.43 随之闭环）。
+3. **开发形态 save 落点 = 仓库根** `XEEN.save`（与产品"exe 同目录"形态一致，packer 到来零迁移），登记 .gitignore。
+
+### 数据格式（定案）
+
+- **save zip**（`GameName.save`，zip 格式可校验结构透明）：
+
+  ```
+  meta.json        # { version, hack: "hack1" | null, settings: {} }
+  save/            # 存档文件（按 game.json paths.save_files 从工作副本收集）
+  config/          # 用户 dosbox.conf 覆盖片段（字段位预留，本期可空）
+  ```
+
+- **patch zip**（游戏包内嵌或 game.json 引用）：
+
+  ```
+  manifest.json    # [{ action: "replace" | "add", path: "...", source: "files/..." }]
+  files/           # 实际替换文件
+  ```
+
+  应用方式：解包覆盖到工作副本（原版永不触碰）；manifest path 严格校验不得越出工作副本根（zip slip / 绝对路径 / `..` 防护）。
+
+- **game.json v2 扩展**：`paths.save_files`（存档清单）、`patches`（v1 字段位激活，本期至少一条真实测试补丁）；`paths.work_dir` 语义变更——从"手工预置源"改为"释放目标"。
+
+### 生命周期设计
+
+```
+启动（launch_game 前置序列）
+  1. 运行时目录自愈校验（work 缺失/不完整 → 从原版重新释放；conf/dosbox 现状保留）
+  2. 读 <name>.save → 损坏? → 白名单降级（备份 .corrupt + 新建空 save）→ 解包到 work 工作区
+  3. 按 meta.hack 应用补丁到工作副本（hack = null 则纯原版释放）
+运行（PL002 会话链路不变：离屏托管 / 帧流 / 注入 / HUD）
+退出（exit-watcher 线程 + stop_game 双挂点，同一 writeback() 幂等函数）
+  4. 按 save_files 清单从工作副本收集存档 → 打包临时 zip
+  5. 原子替换 <name>.save（失败保旧件，可自愈）
+```
+
+### 实现措施（按层拆解到文件/函数级）
+
+#### 1. capsule-core 新模块（TDD 先行）
+
+- `src/paths.rs`：运行时目录释放与自愈——release（原版 → work 释放 + 完整性校验 + 缺失重建）；退役 `.temp/xeen-work` 手工预置
+- `src/save.rs`：unpack（meta + save/ 落工作区）、pack（按清单收集打包临时 zip）、replace_atomically（rename 覆盖，失败保旧件）；meta.json serde 结构单一来源；损坏检测与降级路径
+- `src/patch.rs`：manifest 解析校验 + apply（replace = 覆盖 / add = 新增到工作副本，path 越界报错）
+- 依赖：新增 `zip` crate（评估 2.x / 3.x 后锁定），其余不新增
+- 测试素材：`capsule-core/tests/fixtures/` 放伪文件构造的补丁包与 save 样本（不含真实游戏文件）；真实补丁包用 retro/XEEN 现成补丁文件（CMM4.PAT 等）只读复制构造，不触碰 retro/
+
+#### 2. launcher 接线（阶段 B）
+
+- `commands.rs`：launch_game 前置序列（释放 → 补丁 → 解包）+ 退出双挂点（exit-watcher 线程与 stop_game 走同一 `writeback()`，幂等）
+- `gameconf.rs`：save 路径解析（仓库根 `<name>.save`，产品形态预留 exe 同目录）；测试资产转正（y.problems #12 闭环）
+- `logging.rs`：生命周期关键节点落日志（释放 / 补丁 / 解包 / 回写 / 降级）
+- 容错白名单登记：save 损坏降级（备份损坏件 + 新建空 save 继续运行）——AGENTS.md 错误策略新增条目（场景 / 降级 / 理由三要素）
+
+#### 3. 前端（阶段 C）
+
+- 待机页：hack / 原版切换（写 meta.hack，启动前生效）+ save 状态显示
+- 攻略视图：Markdown 渲染（选型 marked + DOMPurify 或等效净化方案，XSS 防护定案后记录）；`tauri.conf.json` `csp` 从 null 改最小白名单（FIX001.43 闭环）
+
+#### 4. 连带清理
+
+- dosbox.log 轮转（y.problems #13）、gameconf 测试资产转正（y.problems #12）、帧流 640×200 像素纵横比画布修正（y.problems #9）、`.temp/xeen-work` 退役与 AGENTS.md 目录规划回改
+
+### 验收标准
+
+1. **VA1 存档闭环**：游戏内存档 → 退出 → save zip 内可见存档文件 → 重进可读档继续
+2. **VA2 补丁纪律**：hack / 原版各启动一轮，retro/ 哈希断言零改动，两者互不污染（工作副本随切换重建）
+3. **VA3 防损坏**：手工破坏 save → 启动按白名单降级不炸；回写中断（杀进程模拟）→ 旧 save 完整可用
+4. **VA4 攻略渲染 + CSP**：攻略视图可用、csp 非空且功能无回归
+5. **收尾**：全量门禁绿 + z.plan 实测结论回写 + x.progress 勾结
+
+### 实测结论（2026-09-08 收口）
+
+- **VA1–VA4 全过**：存档闭环（存档 → 停止回写 6 文件 → 读档续玩）；补丁纪律（retro/ 21 文件 MD5 三比照全等，工作副本随切换重建零污染）；防损坏（垃圾字节 → ERROR 日志 + `.corrupt` 备份 + 降级启动 + 全新档）；攻略渲染 + CSP 目视正常。反向验收 14 项 + live 记录见 `.temp/pl003-verification.md`。
+- **落地形态**：capsule-core 新增 save / patch / paths 三模块（zip 8.6.0 仅 deflate；SaveMeta serde 单一来源；manifest replace/add 语义 + 7 种路径穿越全拒）；"每次启动全量重建工作副本"替代计划的"首启释放 + 增量自愈"（残留天然自愈，37MB 亚秒级）；`paths.work_dir` 字段退役（释放目标由 runtime_dir 派生）；game.json v2（game_dir / save_files / patches）。
+- **live 揪出 2 个测试盖不住的 bug**：① CSP 未放行 `connect-src ipc: http://ipc.localhost` → 二进制帧通道全灭（FIX001.43 回归；JSON 命令走 postMessage 无恙，唯二进制被拦）——**安全配置回归必须 live 全链路验证**；② hack 选择被旧 save meta 覆盖 → UI 选择定为权威源。
+- **连带闭环**：y.problems #12（gameconf 测试资产转正）、#9（纵横比复核为非缺陷降级）、FIX001.43（CSP）；dosbox.log 5MB 轮转；容错白名单新增 2 条（save 损坏降级 / 轮转失败继续追加）。
+- **存档事实**：XEEN 为双面合体，存一次档同槽号双面各写一份（XEEN01.SAV + DARK01.SAV），`*.SAV` 通配符天然覆盖。

@@ -1,9 +1,12 @@
-//! Tauri 命令层：launch_game / stop_game 与游戏会话状态。
+//! Tauri 命令层：launch_game / stop_game / get_game_info 与游戏会话状态。
 //!
 //! 会话 = DOSBox 进程（CreateProcessW 挂起创建）+ Job Object + 端口；生命周期
 //! 保障依赖 `KILL_ON_JOB_CLOSE`——launcher 进程退出（含崩溃）时进程树必死。
-//! 进程自退/崩溃由退出监听线程捕获：清槽 + 广播 `session-ended` 事件，UI
-//! 不会停留在"会话仍在"的假状态。
+//! 进程自退/崩溃由退出监听线程捕获：清槽 + 回写 save + 广播 `session-ended`
+//! 事件，UI 不会停留在"会话仍在"的假状态。
+//! save 生命周期（PL003）：启动前置序列（释放工作副本 → 补丁 → 解包 save）
+//! 在 [`start_session`] 内完成；退出回写在 exit-watcher 与 stop_game 两个
+//! 挂点走同一 `writeback_save`（幂等，先到先写）。
 //! "无会话"约定：get_frame / inject_input 返回 `Err(NO_SESSION: ...)`（前端
 //! 据前缀识别并停轮询）；stop_game 对无会话是幂等成功（Ok）。
 //! 安全边界：spawn 参数全部来自仓库内 `retro/game.json` 与 u16 端口探测值，
@@ -33,6 +36,21 @@ const HUD_POLL_INTERVAL_MS: u64 = 500;
 /// webserver 就绪探测超时（秒）：VB1 实测 REST 10 秒内可达，留余量。
 const WEBSERVER_READY_TIMEOUT_SECS: u64 = 15;
 
+/// dosbox.log 轮转阈值（字节）：超过则改名 .1 保留一份旧日志（审计观察项 #13 治理）。
+const DOSBOX_LOG_ROTATE_BYTES: u64 = 5 * 1024 * 1024;
+
+/// 会话 save 生命周期数据（回写所需的全部上下文）。
+struct SessionLifecycle {
+    /// 工作副本目录（运行时释放目标，存档收集源）
+    work: PathBuf,
+    /// save 档案路径（仓库根 `<name>.save`）
+    save: PathBuf,
+    /// 存档收集清单（game.json paths.save_files）
+    patterns: Vec<String>,
+    /// 本次会话的元数据（hack 状态随回写持久化）
+    meta: capsule_core::save::SaveMeta,
+}
+
 /// "无会话"错误前缀：前端据此程序化识别并停帧轮询（见模块文档约定）。
 const NO_SESSION: &str = "NO_SESSION";
 
@@ -52,6 +70,8 @@ pub struct Session {
     hud: Option<HudPoller>,
     agent: ureq::Agent,
     pid: u32,
+    /// save 生命周期上下文（回写后被 take 走，保证幂等）
+    lifecycle: Option<SessionLifecycle>,
 }
 
 impl Session {
@@ -212,38 +232,101 @@ fn wait_webserver_ready(port: u16, timeout: Duration) -> Result<()> {
     }
 }
 
-/// 启动游戏会话：加载 game.json → 校验工作副本 → 探测端口 → 生成 conf →
-/// 挂起创建 DOSBox → 挂 Job → 恢复执行 → 等 webserver 就绪。
-pub fn start_session() -> Result<Session> {
+/// dosbox.log 轮转：超过阈值时改名 `.log.1`（覆盖上一份轮转，仅保留一份）。
+/// 轮转失败记录日志后继续追加（仅影响日志体积，不影响功能；白名单登记见 AGENTS.md）。
+fn rotate_dosbox_log(log_path: &Path) {
+    let oversized = std::fs::metadata(log_path)
+        .map(|meta| meta.len() > DOSBOX_LOG_ROTATE_BYTES)
+        .unwrap_or(false);
+    if !oversized {
+        return;
+    }
+    let rotated = log_path.with_extension("log.1");
+    match std::fs::rename(log_path, &rotated) {
+        Ok(()) => logging::info(&format!("dosbox.log 已轮转: {}", rotated.display())),
+        Err(err) => logging::error(&format!("dosbox.log 轮转失败（继续追加）: {err}")),
+    }
+}
+
+/// 解析 hack 选择对应的补丁包路径；选了补丁但 id 不在 game.json 里严格报错。
+fn resolve_patch_zip(
+    repo_root: &Path,
+    config: &capsule_core::game_config::GameConfig,
+    hack: Option<&str>,
+) -> Result<Option<PathBuf>> {
+    let Some(id) = hack else {
+        return Ok(None);
+    };
+    let patch = config
+        .patches
+        .iter()
+        .find(|p| p.id == id)
+        .ok_or_else(|| anyhow!("hack id {id:?} 在 game.json patches 中不存在"))?;
+    Ok(Some(repo_root.join("retro").join(&patch.patch)))
+}
+
+/// 启动游戏会话：加载 game.json → 生命周期前置序列（释放工作副本 → 补丁 →
+/// 解包 save）→ 校验工作副本 → 探测端口 → 生成 conf → 挂起创建 DOSBox →
+/// 挂 Job → 恢复执行 → 等 webserver 就绪。
+///
+/// # 参数
+/// - `hack`：本次会话的补丁选择（None = 原版；随 save meta 持久化）
+pub fn start_session(hack: Option<String>) -> Result<Session> {
     let cwd = std::env::current_dir().context("读取当前目录失败")?;
     let repo_root = gameconf::resolve_repo_root(&cwd).context("定位仓库根失败")?;
     let config = capsule_core::game_config::GameConfig::load(&repo_root.join("retro/game.json"))
         .context("加载 retro/game.json 失败")?;
 
-    // 工作副本前置校验：缺失时用户只会看到黑窗，提前显式报错指明根因
-    // （释放逻辑属 PL003 save 生命周期，当前工作副本由适配层预置）
-    let work_dir = repo_root.join(&config.paths.work_dir);
-    if !work_dir.is_dir() {
-        return Err(anyhow!(
-            "工作副本目录不存在: {}（释放流程未执行，检查 game.json paths.work_dir）",
-            work_dir.display()
+    // 生命周期前置序列（PL003）：每次启动全量重建工作副本（自愈 + hack
+    // 切换互不污染），补丁只作用于释放出的工作副本，原版目录零写入
+    let runtime = gameconf::runtime_dir(&config.name)?;
+    let work_dir = runtime.join("work");
+    let original_dir = repo_root.join("retro").join(&config.paths.game_dir);
+    let save_path = gameconf::save_path(&repo_root, &config.name);
+    let patch_zip = resolve_patch_zip(&repo_root, &config, hack.as_deref())?;
+    let default_meta = capsule_core::save::SaveMeta::new("1", hack.clone());
+    let (mut meta, recovered) = capsule_core::paths::prepare_session(
+        &original_dir,
+        &work_dir,
+        patch_zip.as_deref(),
+        &save_path,
+        default_meta,
+    )
+    .context("会话前置序列失败（释放/补丁/存档）")?;
+    // 本次会话的 UI 选择是权威源：save 里旧 meta.hack 不能推翻本次补丁形态
+    //（否则解包出的旧值会在回写时把选择覆盖丢失）
+    meta.hack = hack;
+    if recovered {
+        logging::error(&format!(
+            "save 档案损坏，已按白名单降级（备份 .corrupt + 全新空档继续）: {}",
+            save_path.display()
         ));
     }
+    match &patch_zip {
+        Some(path) => logging::info(&format!(
+            "补丁已应用（hack: {}）: {}",
+            meta.hack.clone().unwrap_or_default(),
+            path.display()
+        )),
+        None => logging::info("原版形态启动（无补丁）"),
+    }
+
+    // 完整性断言：释放内容必须含游戏可执行文件（game.json 配错在此显式暴露）
     let guest_exe = format!("{}.exe", config.name.to_ascii_lowercase());
     if !work_dir.join(&guest_exe).is_file() {
         return Err(anyhow!(
-            "工作副本缺少游戏可执行文件: {}（检查释放内容完整性）",
+            "释放后的工作副本缺少游戏可执行文件: {}（检查 game.json paths.game_dir）",
             work_dir.join(&guest_exe).display()
         ));
     }
 
     let port = probe_port(config.dosbox.webserver_port)?;
-    let conf_text = gameconf::generate_conf(&config, &repo_root);
-    let runtime = gameconf::runtime_dir(&config.name)?;
+    let conf_text = gameconf::generate_conf(&config, &work_dir);
     let conf_path = gameconf::write_conf(&conf_text, &runtime)?;
 
     let exe = repo_root.join(&config.dosbox.exe_path);
     let log_path = runtime.join("dosbox.log");
+    rotate_dosbox_log(&log_path);
     let log = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -289,12 +372,38 @@ pub fn start_session() -> Result<Session> {
         profile: repo_root.join(&config.assets.memory_map),
         hud: None,
         agent,
+        lifecycle: Some(SessionLifecycle {
+            work: work_dir,
+            save: save_path,
+            patterns: config.paths.save_files.clone(),
+            meta,
+        }),
     })
 }
 
+/// 会话 save 回写（幂等）：lifecycle 上下文先到先写（take 走），回写失败
+/// 严格记录错误——旧 save 未被触碰，保持完整可用（原子替换语义）。
+fn writeback_save(session: &mut Session) -> Result<()> {
+    let Some(lifecycle) = session.lifecycle.take() else {
+        return Ok(());
+    };
+    let count = capsule_core::paths::writeback(
+        &lifecycle.work,
+        &lifecycle.save,
+        &lifecycle.patterns,
+        &lifecycle.meta,
+    )
+    .with_context(|| format!("save 回写失败: {}", lifecycle.save.display()))?;
+    logging::info(&format!(
+        "save 回写完成（{count} 个存档文件）: {}",
+        lifecycle.save.display()
+    ));
+    Ok(())
+}
+
 /// 进程退出监听线程：等句柄触发（进程死）→ 若槽内仍是本会话则清槽、停
-/// HUD、广播 `session-ended`。持有的是 DuplicateHandle 出的独立句柄副本，
-/// 与 Session 的句柄生命周期解耦。
+/// HUD、回写 save、广播 `session-ended`。持有的是 DuplicateHandle 出的独立
+/// 句柄副本，与 Session 的句柄生命周期解耦。
 fn spawn_exit_watcher(
     app: tauri::AppHandle,
     sessions: Arc<Mutex<Option<Session>>>,
@@ -320,6 +429,10 @@ fn spawn_exit_watcher(
             }
             // 进程已死，Job 终止仅为兜底收尾；失败不影响事件广播
             let _ = session.job.kill();
+            // 崩溃/自退路径同样回写（被杀时游戏已写盘的存档不丢）
+            if let Err(err) = writeback_save(&mut session) {
+                logging::error(&format!("会话退出回写失败: {err:#}"));
+            }
         }
         drop(slot);
         logging::info(&format!("游戏进程退出（pid {pid}），会话槽已清"));
@@ -333,15 +446,19 @@ fn spawn_exit_watcher(
 ///
 /// async 化：构造流程（含就绪探测最长 15 秒）在异步运行时线程执行，不占
 /// 主线程；锁内只做检查与槽位交换（构造在锁外完成，避免持锁跨越重活）。
+///
+/// # 参数
+/// - `hack`：待机页选择的补丁 id（null = 原版），随 save meta 持久化
 #[tauri::command]
 pub async fn launch_game(
     app: tauri::AppHandle,
     state: tauri::State<'_, SessionState>,
+    hack: Option<String>,
 ) -> Result<String, String> {
     if state.inner.lock().map_err(|e| e.to_string())?.is_some() {
         return Err("已有游戏会话在运行".into());
     }
-    let mut session = start_session().map_err(|e| e.to_string())?;
+    let mut session = start_session(hack).map_err(|e| e.to_string())?;
     let port = session.port();
     let emitter = app.clone();
     session.start_hud(Box::new(move |event| match event {
@@ -428,6 +545,7 @@ pub async fn inject_input(
 }
 
 /// 停止游戏（UI 命令）。无会话是幂等成功（Ok），与会话清理完成语义一致。
+/// 正常停止路径回写 save（与 exit-watcher 崩溃路径共用幂等的 writeback_save）。
 #[tauri::command]
 pub async fn stop_game(
     app: tauri::AppHandle,
@@ -437,14 +555,113 @@ pub async fn stop_game(
     match slot.as_mut() {
         Some(session) => {
             session.stop().map_err(|e| e.to_string())?;
+            let message = match writeback_save(session) {
+                Ok(()) => "游戏已停止，save 已回写".to_string(),
+                Err(err) => {
+                    // 回写失败显式呈现给用户（旧 save 完整，可重试会话再回写）
+                    logging::error(&format!("正常停止回写失败: {err:#}"));
+                    format!("游戏已停止，但 save 回写失败: {err:#}")
+                }
+            };
             *slot = None;
             if let Err(err) = app.emit("hud-clear", ()) {
                 logging::error(&format!("hud-clear 事件发送失败: {err}"));
             }
-            Ok("游戏已停止".into())
+            Ok(message)
         }
         None => Ok("没有运行中的游戏会话".into()),
     }
+}
+
+/// 攻略 Markdown 原文（前端 marked 解析 + DOMPurify 消毒后渲染，CSP 兜底）。
+#[tauri::command]
+pub async fn get_guide() -> Result<String, String> {
+    get_guide_impl().map_err(|e| format!("{e:#}"))
+}
+
+/// get_guide 的同步实现（读 game.json assets.guide 指向的适配层文档）。
+fn get_guide_impl() -> Result<String> {
+    let cwd = std::env::current_dir().context("读取当前目录失败")?;
+    let repo_root = gameconf::resolve_repo_root(&cwd).context("定位仓库根失败")?;
+    let config = capsule_core::game_config::GameConfig::load(&repo_root.join("retro/game.json"))
+        .context("加载 retro/game.json 失败")?;
+    let guide_path = repo_root.join(&config.assets.guide);
+    std::fs::read_to_string(&guide_path)
+        .with_context(|| format!("读取攻略失败: {}", guide_path.display()))
+}
+
+/// 待机页聚合信息：游戏名 / save 档案状态 / 可选补丁列表（hack 切换数据源）。
+#[derive(serde::Serialize)]
+pub struct GameInfo {
+    /// 游戏名（game.json name）
+    pub name: String,
+    /// save 档案 meta（None = 尚无 save 用户数据）
+    pub save: Option<SaveMetaView>,
+    /// 可选补丁列表
+    pub patches: Vec<PatchView>,
+}
+
+/// save 状态视图（UI 展示形态）。
+#[derive(serde::Serialize)]
+pub struct SaveMetaView {
+    /// save 格式版本
+    pub version: String,
+    /// 当前 hack 补丁 id（null = 原版）
+    pub hack: Option<String>,
+    /// 存档数据文件数（save/ 前缀条目）
+    pub files: usize,
+}
+
+/// 补丁选项视图（UI 待机页切换项）。
+#[derive(serde::Serialize)]
+pub struct PatchView {
+    /// 补丁 id（launch_game 的 hack 参数取值）
+    pub id: String,
+    /// 展示名
+    pub name: String,
+}
+
+/// 读取待机页聚合信息（轻量文件读取，同步完成后由 Tauri 异步调度返回）。
+#[tauri::command]
+pub async fn get_game_info() -> Result<GameInfo, String> {
+    get_game_info_impl().map_err(|e| format!("{e:#}"))
+}
+
+/// get_game_info 的同步实现（便于错误上下文组织）。
+fn get_game_info_impl() -> Result<GameInfo> {
+    let cwd = std::env::current_dir().context("读取当前目录失败")?;
+    let repo_root = gameconf::resolve_repo_root(&cwd).context("定位仓库根失败")?;
+    let config = capsule_core::game_config::GameConfig::load(&repo_root.join("retro/game.json"))
+        .context("加载 retro/game.json 失败")?;
+    let save_path = gameconf::save_path(&repo_root, &config.name);
+    let save = match capsule_core::save::read_meta(&save_path)
+        .with_context(|| format!("读取 save 状态失败: {}", save_path.display()))?
+    {
+        Some(meta) => {
+            let files = capsule_core::save::save_entry_count(&save_path)
+                .with_context(|| format!("读取 save 内容失败: {}", save_path.display()))?
+                .unwrap_or(0);
+            Some(SaveMetaView {
+                version: meta.version,
+                hack: meta.hack,
+                files,
+            })
+        }
+        None => None,
+    };
+    let patches = config
+        .patches
+        .iter()
+        .map(|p| PatchView {
+            id: p.id.clone(),
+            name: p.name.clone(),
+        })
+        .collect();
+    Ok(GameInfo {
+        name: config.name,
+        save,
+        patches,
+    })
 }
 
 #[cfg(test)]

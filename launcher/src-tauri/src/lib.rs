@@ -23,6 +23,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::launch_game,
             commands::stop_game,
+            commands::get_game_info,
+            commands::get_guide,
             commands::get_frame,
             commands::inject_input
         ]);

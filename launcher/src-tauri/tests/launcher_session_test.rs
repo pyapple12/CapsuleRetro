@@ -12,7 +12,7 @@ use launcher_lib::gameconf;
 #[test]
 #[ignore = "真实进程测试：闪现 DOSBox 窗口，显式 --ignored 运行"]
 fn 启动会话_日志与rest可达_终止() {
-    let mut session = start_session().expect("启动会话应成功");
+    let mut session = start_session(None).expect("启动会话应成功");
     assert!(session.is_alive(), "DOSBox 进程应存活");
 
     // REST 可达：10 秒内重试（webserver 启动需要片刻）
@@ -47,7 +47,7 @@ fn 启动会话_日志与rest可达_终止() {
 #[ignore = "真实进程测试：闪现 DOSBox 窗口，显式 --ignored 运行"]
 fn 五轮启动停止无残留() {
     for round in 1..=5 {
-        let mut session = start_session().expect("第 {round} 轮启动应成功");
+        let mut session = start_session(None).expect("第 {round} 轮启动应成功");
         std::thread::sleep(Duration::from_millis(1500));
         session.stop().expect("第 {round} 轮停止应成功");
         assert!(!session.is_alive(), "第 {round} 轮终止后进程不应存活");

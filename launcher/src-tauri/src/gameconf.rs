@@ -48,12 +48,13 @@ pub fn resolve_repo_root(start: &Path) -> Result<PathBuf> {
 }
 
 /// 依据配置生成 DOSBox conf 全文（键值与 xeen-test.conf 定案值一致）。
-pub fn generate_conf(config: &GameConfig, repo_root: &Path) -> String {
+///
+/// # 参数
+/// - `config`：适配层聚合配置
+/// - `work_dir`：工作副本目录（PL003 起由运行时目录派生，不再是仓库内预置路径）
+pub fn generate_conf(config: &GameConfig, work_dir: &Path) -> String {
     // 统一正斜杠：与已验证可用的 mount 写法一致，避免 conf 内反斜杠歧义
-    let work_dir = repo_root
-        .join(&config.paths.work_dir)
-        .to_string_lossy()
-        .replace('\\', "/");
+    let work_dir = work_dir.to_string_lossy().replace('\\', "/");
     // 适配层约定：game.json 的 name 即 C: 盘内启动命令的小写来源（XEEN → xeen）
     let guest = config.name.to_ascii_lowercase();
     format!(
@@ -81,6 +82,12 @@ pub fn generate_conf(config: &GameConfig, repo_root: &Path) -> String {
     )
 }
 
+/// save 档案路径：仓库根 `<name>.save`（PL003 定案——开发形态与产品
+/// "exe 同目录"形态一致，packer 到来零迁移）。
+pub fn save_path(repo_root: &Path, game: &str) -> PathBuf {
+    repo_root.join(format!("{game}.save"))
+}
+
 /// 把 conf 写入运行时目录并返回文件路径。
 pub fn write_conf(content: &str, dir: &Path) -> Result<PathBuf> {
     std::fs::create_dir_all(dir)
@@ -95,28 +102,57 @@ pub fn write_conf(content: &str, dir: &Path) -> Result<PathBuf> {
 mod tests {
     use super::*;
 
-    /// PL002.9 验证：生成 conf 与 .temp/xeen-test.conf 逐键语义一致。
-    ///
-    /// 注意：参考文件 .temp/xeen-test.conf 已 gitignore（y.problems #12）——
-    /// 全新 clone 上此测试会因文件缺失失败，属已知登记问题，随 PL003 测试
-    /// 资产落地一并修复。
+    /// PL002.9 验证 + PL003.14 转正（y.problems #12 闭环）：生成 conf 与
+    /// xeen-test.conf 定案值逐键语义一致——参考定案以常量内嵌（原依赖的
+    /// .temp/xeen-test.conf 已 gitignore，全新 clone 上不可用），mount 行
+    /// 随运行时工作副本路径派生，只断言键存在不断言具体路径。
     #[test]
     fn 生成conf与定案conf逐键一致() {
-        let cwd = std::env::current_dir().unwrap();
-        let root = resolve_repo_root(&cwd).expect("仓库根应可定位");
-        let config = GameConfig::load(&root.join("retro").join("game.json")).unwrap();
-        let generated = generate_conf(&config, &root);
-        let reference = std::fs::read_to_string(root.join(".temp").join("xeen-test.conf")).unwrap();
-        for line in reference.lines() {
-            let t = line.trim();
-            if t.is_empty() || t.starts_with('#') {
-                continue;
-            }
+        let config_text = r#"{
+            "name": "XEEN",
+            "version": "1.0",
+            "dosbox": { "exe_path": "a.exe", "webserver_port": 18086, "cpu_cycles": 5000 },
+            "assets": { "memory_map": "m.json", "guide": "g.md" },
+            "paths": { "game_dir": "XEEN", "save_files": ["*.SAV"] },
+            "patches": []
+        }"#;
+        let config: GameConfig = config_text.parse().expect("解析配置");
+        let generated = generate_conf(&config, Path::new("E:/rt/xeen/work"));
+        let expected_keys = [
+            "[sdl]",
+            "fullscreen = false",
+            "[mouse]",
+            "builtin_dos_mouse_driver_options = immediate",
+            "mouse_capture = nomouse",
+            "mouse_sensitivity = 125",
+            "mouse_raw_input = on",
+            "[render]",
+            "aspect = auto",
+            "[cpu]",
+            "cpu_cycles = 5000",
+            "core = auto",
+            "[autoexec]",
+            "c:",
+            "xeen",
+            "exit",
+        ];
+        for key in expected_keys {
             assert!(
-                generated.lines().any(|g| g.trim() == t),
-                "生成 conf 缺少定案行: {t}"
+                generated.lines().any(|g| g.trim() == key),
+                "生成 conf 缺少定案键: {key}"
             );
         }
+        assert!(
+            generated.contains(r#"mount c: "E:/rt/xeen/work""#),
+            "mount 应指向运行时工作副本: {generated}"
+        );
+    }
+
+    /// PL003.8 验证：save 路径 = 仓库根 `<name>.save`。
+    #[test]
+    fn save路径在仓库根() {
+        let path = save_path(Path::new("E:/repo"), "XEEN");
+        assert_eq!(path, Path::new("E:/repo/XEEN.save"));
     }
 
     /// FIX001.24 验证：runtime_dir 按 game 小写派生，游戏身份不再硬编码。

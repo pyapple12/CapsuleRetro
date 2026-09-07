@@ -119,7 +119,11 @@ async function loop(): Promise<void> {
   while (running) {
     const cycleStart = performance.now();
     try {
-      const buffer = (await invoke("get_frame")) as ArrayBuffer;
+      // 二进制 IPC 响应按 ArrayBuffer 消费；防御性兼容 Uint8Array 形态
+      //（DataView 只认 ArrayBuffer，直接传视图会 TypeError）
+      const raw: unknown = await invoke("get_frame");
+      const bytes = raw instanceof ArrayBuffer ? raw : (raw as ArrayBuffer | ArrayLike<number>);
+      const buffer = bytes instanceof ArrayBuffer ? bytes : new Uint8Array(bytes).buffer;
       drawFrame(buffer);
       consecutiveFailures = 0;
       frameError.value = null;
@@ -132,9 +136,11 @@ async function loop(): Promise<void> {
         break;
       }
       consecutiveFailures++;
+      // 立即显示最近一次失败原因（诊断窗口期：连续超限前就能看到根因）
+      frameError.value = `取帧失败（连续第 ${consecutiveFailures} 次）: ${message}`;
       console.warn(`取帧失败（连续第 ${consecutiveFailures} 次）:`, message);
       if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-        frameError.value = `帧流连续 ${consecutiveFailures} 次取帧失败，已停止消费`;
+        frameError.value = `帧流连续 ${consecutiveFailures} 次取帧失败，已停止消费（末次: ${message}）`;
         running = false;
         break;
       }
