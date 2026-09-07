@@ -13,6 +13,28 @@ EXE="$2"
 LOG="/e/GameMission/CapsuleRetro/.temp/fb1-${TAG}.log"
 CONF='E:/GameMission/CapsuleRetro/.temp/xeen-test.conf'
 
+# 启动前检查 conf 存在，避免 dosbox 无配置空跑污染日志与判定
+if [ ! -f "$CONF" ]; then
+  echo "[$TAG] CONF 不存在: $CONF"
+  exit 1
+fi
+
+# 按 PID 终止本脚本启动的实例（kill 走 MSYS 进程句柄，等价 TerminateProcess）。
+# 禁止 taskkill //IM 兜底——那会全机误杀并发运行的其他 dosbox 实例。
+kill_dosbox() {
+  kill "$PID" 2>/dev/null
+  sleep 1
+  if kill -0 "$PID" 2>/dev/null; then
+    kill -9 "$PID" 2>/dev/null
+    sleep 1
+    if kill -0 "$PID" 2>/dev/null; then
+      echo "[$TAG] 警告: dosbox (PID $PID) 按 PID 终止失败，需人工处理" >&2
+      return 1
+    fi
+  fi
+  return 0
+}
+
 "$EXE" --set webserver_enabled=on --set webserver_port=18086 -conf "$CONF" > "$LOG" 2>&1 &
 PID=$!
 
@@ -25,7 +47,7 @@ for i in $(seq 1 40); do
 done
 if [ "$READY" != "1" ]; then
   echo "[$TAG] webserver 就绪超时"
-  kill "$PID" 2>/dev/null; taskkill //F //IM dosbox.exe 2>/dev/null
+  kill_dosbox
   exit 1
 fi
 sleep 12
@@ -34,7 +56,7 @@ curl -s --max-time 10 -o "/e/GameMission/CapsuleRetro/.temp/fb1-snap-${TAG}a.bin
 sleep 2
 curl -s --max-time 10 -o "/e/GameMission/CapsuleRetro/.temp/fb1-snap-${TAG}b.bin" http://127.0.0.1:18086/api/v1/memory/0x0/0x100000
 
-kill "$PID" 2>/dev/null; taskkill //F //IM dosbox.exe 2>/dev/null >/dev/null
+kill_dosbox
 wait "$PID" 2>/dev/null
 A=$(wc -c < "/e/GameMission/CapsuleRetro/.temp/fb1-snap-${TAG}a.bin")
 B=$(wc -c < "/e/GameMission/CapsuleRetro/.temp/fb1-snap-${TAG}b.bin")

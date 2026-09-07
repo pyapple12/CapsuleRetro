@@ -114,3 +114,68 @@ fn memory_map_bare_string_address_errors() {
     let err = serde_json::from_str::<MemoryMap>(json).unwrap_err();
     assert!(err.to_string().contains("0x 前缀"));
 }
+
+/// len 与 value_type 宽度不符的档案必须在加载期报 InvalidLen（FIX001.16）。
+#[test]
+fn memory_map_width_mismatch_len_errors_on_load() {
+    let json = r#"{
+        "game": "xeen",
+        "poll_interval_ms": 500,
+        "entries": [
+            { "name": "hp", "segment": "0x1234", "offset": "0x5678", "len": 3, "value_type": "u16le" }
+        ]
+    }"#;
+    let path = std::env::temp_dir().join("capsule-core-profile-bad-len.json");
+    std::fs::write(&path, json).unwrap();
+    let err = MemoryMap::load(&path).unwrap_err();
+    assert!(matches!(
+        err,
+        ProfileError::InvalidLen {
+            ref name,
+            len: 3,
+            width: 2
+        } if name == "hp"
+    ));
+    let _ = std::fs::remove_file(&path);
+}
+
+/// len=0 的档案必须在加载期报 InvalidLen（轮询期必然解码失败的条目提前拦截）。
+#[test]
+fn memory_map_zero_len_errors_on_load() {
+    let json = r#"{
+        "game": "xeen",
+        "poll_interval_ms": 500,
+        "entries": [
+            { "name": "hp", "segment": "0x1234", "offset": "0x5678", "len": 0, "value_type": "u8" }
+        ]
+    }"#;
+    let path = std::env::temp_dir().join("capsule-core-profile-zero-len.json");
+    std::fs::write(&path, json).unwrap();
+    let err = MemoryMap::load(&path).unwrap_err();
+    assert!(matches!(
+        err,
+        ProfileError::InvalidLen {
+            ref name,
+            len: 0,
+            width: 1
+        } if name == "hp"
+    ));
+    let _ = std::fs::remove_file(&path);
+}
+
+/// 合法档案走 MemoryMap::load 全链路（磁盘读取 + 解析 + len 校验）应成功。
+#[test]
+fn memory_map_valid_file_loads() {
+    let json = r#"{
+        "game": "xeen",
+        "poll_interval_ms": 500,
+        "entries": [
+            { "name": "hp", "segment": "0x1234", "offset": "0x5678", "len": 2, "value_type": "u16le" }
+        ]
+    }"#;
+    let path = std::env::temp_dir().join("capsule-core-profile-good.json");
+    std::fs::write(&path, json).unwrap();
+    let map = MemoryMap::load(&path).expect("合法档案应加载成功");
+    assert_eq!(map.entries.len(), 1);
+    let _ = std::fs::remove_file(&path);
+}

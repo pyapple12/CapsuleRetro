@@ -14,23 +14,35 @@ interface HudSnapshot {
 const snapshot = ref<HudSnapshot | null>(null);
 const stalled = ref(false);
 const unlisteners: Array<() => void> = [];
+// 卸载竞态守卫：listen 是异步注册，晚 resolve 时直接释放，防止 unlisten 泄漏
+let disposed = false;
 
 void listen<HudSnapshot>("hud", (event) => {
   snapshot.value = event.payload;
   stalled.value = false;
-}).then((unlisten) => unlisteners.push(unlisten));
+}).then((unlisten) => {
+  if (disposed) unlisten();
+  else unlisteners.push(unlisten);
+});
 
 void listen<string>("hud-error", (event) => {
   stalled.value = true;
   console.warn("HUD 停滞:", event.payload);
-}).then((unlisten) => unlisteners.push(unlisten));
+}).then((unlisten) => {
+  if (disposed) unlisten();
+  else unlisteners.push(unlisten);
+});
 
 void listen("hud-clear", () => {
   snapshot.value = null;
   stalled.value = false;
-}).then((unlisten) => unlisteners.push(unlisten));
+}).then((unlisten) => {
+  if (disposed) unlisten();
+  else unlisteners.push(unlisten);
+});
 
 onUnmounted(() => {
+  disposed = true;
   for (const unlisten of unlisteners) unlisten();
 });
 </script>

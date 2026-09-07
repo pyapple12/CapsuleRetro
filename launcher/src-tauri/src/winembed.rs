@@ -7,7 +7,7 @@
 
 use windows::core::Result as WinResult;
 use windows::core::BOOL;
-use windows::Win32::Foundation::{HWND, LPARAM, RECT};
+use windows::Win32::Foundation::{HWND, LPARAM};
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GetWindowLongPtrW, GetWindowThreadProcessId, IsWindowVisible, SetWindowLongPtrW,
     SetWindowPos, GWL_EXSTYLE, HWND_BOTTOM, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER,
@@ -54,7 +54,16 @@ pub fn embed_offscreen(pid: u32) -> WinResult<()> {
     for hwnd in &finder.found {
         unsafe {
             let ex_style = GetWindowLongPtrW(*hwnd, GWL_EXSTYLE);
-            SetWindowLongPtrW(*hwnd, GWL_EXSTYLE, ex_style | WS_EX_TOOLWINDOW.0 as isize);
+            let prev =
+                SetWindowLongPtrW(*hwnd, GWL_EXSTYLE, ex_style | WS_EX_TOOLWINDOW.0 as isize);
+            // 返回值检查（FIX001.38）：失败返回 0 且置最后错误；先前样式恰为
+            // 0 时 from_win32 的 code 也是 0，误报无害（样式本就为空）
+            if prev == 0 {
+                let err = windows::core::Error::from_win32();
+                if err.code() != windows::core::HRESULT(0) {
+                    return Err(err);
+                }
+            }
             SetWindowPos(
                 *hwnd,
                 Some(HWND_BOTTOM),
@@ -67,28 +76,4 @@ pub fn embed_offscreen(pid: u32) -> WinResult<()> {
         }
     }
     Ok(())
-}
-
-/// 读取窗口矩形（诊断探针用：验证离屏位置）。
-///
-/// # Errors
-/// 窗口不存在时返回 `windows::core::Error`。
-pub fn window_rect(pid: u32) -> WinResult<RECT> {
-    let mut finder = WindowFinder {
-        pid,
-        found: Vec::new(),
-    };
-    unsafe {
-        EnumWindows(Some(enum_callback), LPARAM(&mut finder as *mut _ as isize))?;
-    }
-    let hwnd = finder
-        .found
-        .first()
-        .copied()
-        .ok_or_else(windows::core::Error::from_win32)?;
-    let mut rect = RECT::default();
-    unsafe {
-        windows::Win32::UI::WindowsAndMessaging::GetWindowRect(hwnd, &mut rect)?;
-    }
-    Ok(rect)
 }

@@ -88,6 +88,8 @@ hack 版运行时对**游戏文件副本**应用补丁包，不改动原版。�
 | macOS / Linux | 覆盖层窗口方案：DOSBox 无边框窗口居中运行，启动器全屏"点击穿透 + 透明背景"窗口绘制填充图片 |
 
 > macOS 无 Windows 式窗口嵌入 API，是最大技术风险点，覆盖层方案为备选兜底，POC 阶段必须验证。
+>
+> 实况修订（2026-09-07）：上表方案已被 T2 fork 线取代——两平台统一改为"DOSBox 帧流（REST）+ launcher 画布整数缩放"，无窗口嵌入需求；Windows 侧 SetParent 经 VC0 判死。本表保留作历史方案，风险讨论见 §8 与 y.problems #10。
 
 ### 4.4 运行时目录（Windows 示例）
 
@@ -146,15 +148,19 @@ config/          # 用户对 dosbox.conf 的覆盖片段
 
 ## 7. 实现路径
 
-### Phase 0 — POC 技术验证（约 1.5 周）
+> **排期原则（2026-09-07 用户决策）：Windows 优先**——Phase 0–4 全部以 Windows 为唯一目标平台交付，功能全量完成后再进入 Phase 5 做 macOS/Linux 适配；三平台产品的最终目标不变。跨平台问题在主线期间只登记 y.problems.md，不阻塞开发。
 
-- [ ] Tauri 2 项目骨架（三平台可跑通）
-- [ ] DOSBox Staging sidecar 集成：进程启动、界面隐藏、独立 conf
-- [ ] **4:3 填充验证**：Windows SetParent 嵌入 + macOS 覆盖层窗口，两者至少其一跑通
-- [ ] save zip 打包/解包/原子替换
-- [ ] 验收：macOS 上跑通一个示例游戏，全屏填充图正确显示，存档能回写 save 文件
+### Phase 0 — POC 技术验证（约 1.5 周）✅ 主体完成
 
-### Phase 1 — 启动器核心（约 2.5 周）
+- [x] Tauri 2 项目骨架（三平台可跑通）——已完成（PL002.4；Windows 实测通过）
+- [x] DOSBox Staging sidecar 集成：进程启动、界面隐藏、独立 conf ——已完成（PL002 阶段 B + 后期主线；"界面隐藏"以 Windows 离屏托管实现）
+- [x] **4:3 填充验证**：Windows SetParent 嵌入 + macOS 覆盖层窗口，两者至少其一跑通 ——已完成（方案变更：SetParent 判死，由 fork 帧流 + 画布整数缩放达成，见下方实况备注）
+- [ ] save zip 打包/解包/原子替换（随 PL003 落地）
+- [ ] 验收：Windows 上跑通一个示例游戏，全屏填充图正确显示，存档能回写 save 文件（原 macOS 验收移 Phase 5）
+
+> 实况备注（2026-09-07）：前三项已由 PL002 完成（界面隐藏 = DosboxCapsule 离屏托管；**4:3 填充方案变更**——SetParent 判死（VC0），改由 fork 帧流 + launcher 画布整数缩放达成，跨平台缺口仅剩 macOS/Linux 窗口隐藏，见 y.problems #10）；save 闭环未做，随 PL003 落地。
+
+### Phase 1 — 启动器核心（约 2.5 周，Windows）
 
 - [ ] 单游戏 UI：封面页、原版/hack 入口、攻略页（MD → HTML 渲染）
 - [ ] 全屏游戏会话：填充图、4:3 区域计算、热键呼出/隐藏启动器
@@ -162,28 +168,35 @@ config/          # 用户对 dosbox.conf 的覆盖片段
 - [ ] 设置项：音量、填充图切换、分辨率
 - [ ] 验收：完整玩一局游戏，存档保存/恢复正确，界面无模拟器痕迹
 
-### Phase 2 — 补丁与 save 闭环（约 1.5 周）
+### Phase 2 — 补丁与 save 闭环（约 1.5 周，Windows）
 
 - [ ] patch 格式定义 + 应用器（文件级替换）
 - [ ] save 完整闭环：启动解压 → 运行 → 退出回写（原子、防损坏）
 - [ ] hack 标记持久化（meta.json）
 - [ ] 验收：hack 版与原版切换互不污染，save 文件损坏时能恢复
 
-### Phase 3 — 打包器 CLI（约 2 周）
+### Phase 3 — 打包器 CLI（约 2 周，Windows 产物）
 
 - [ ] game.json 校验与解析
-- [ ] `capsule-pack`：Windows 单 exe / macOS .app / Linux AppImage 产物生成
+- [ ] `capsule-pack`：Windows 单 exe 产物生成（macOS .app / Linux AppImage 移 Phase 5）
 - [ ] 资源内嵌 + 首次运行释放（含进度提示）
 - [ ] 游戏文件压缩存储
-- [ ] 验收：用一款真实 DOS 游戏跑通三平台打包 → 运行全流程
+- [ ] 验收：用一款真实 DOS 游戏跑通 Windows 打包 → 运行全流程
 
-### Phase 4 — 打磨与发布（约 2 周）
+### Phase 4 — Windows 打磨与发布（约 1.5 周）
 
 - [ ] Windows 杀软误报实测与对策（签名或降级方案）
-- [ ] macOS Gatekeeper 用户指引（右键打开 / `xattr -cr` / 社区分发规避）
-- [ ] GitHub Actions 三平台构建矩阵
+- [ ] GitHub Actions Windows 构建与产物分发流水线
 - [ ] UI 打磨（封面、填充图效果、攻略排版）
-- [ ] 验收：三平台产物可从零运行，新机器首次启动无人工干预
+- [ ] 验收：Windows 产物可从零运行，新机器首次启动无人工干预
+
+### Phase 5 — macOS / Linux 适配与发布（约 1.5 周，排期最后）
+
+- [ ] 窗口隐藏等价手段：macOS NSWindow / Linux 窗管方案验证（y.problems #10）
+- [ ] `capsule-pack`：macOS .app / Linux AppImage 产物生成
+- [ ] macOS Gatekeeper 用户指引（右键打开 / `xattr -cr` / 社区分发规避）；Linux webkit2gtk / AppImage FUSE 依赖文档
+- [ ] GitHub Actions 三平台构建矩阵
+- [ ] 验收：macOS/Linux 上跑通一个示例游戏全流程（原 Phase 0 顺延项）；三平台产物可从零运行，新机器首次启动无人工干预
 
 ## 8. 技术风险与降级方案
 
@@ -196,9 +209,11 @@ config/          # 用户对 dosbox.conf 的覆盖片段
 | 不同 DOS 游戏配置差异大               | 中   | game.json 暴露 dosbox_conf，逐游戏调优配置                   |
 | 首次运行释放缓存耗时                  | 低   | 释放时显示进度；增量释放（版本号比对）                       |
 
+> 实况备注（2026-09-07）：第 1 行风险已随 §4.3 方案变更转移——统一窗口形态下 Windows 无窗口嵌入需求，macOS/Linux 剩"窗口隐藏"缺口（y.problems #10）；该缺口已随排期调整（Windows 优先）移至 Phase 5 处理。
+
 ## 9. 时间预估
 
-**全职投入：约 8-10 周**
+**全职投入：约 10 周**（2026-09-07 排期调整：Phase 0–4 Windows 全量优先约 9 周 + Phase 5 macOS/Linux 适配约 1.5 周）
 
 | Phase   | 内容             | 时间   |
 | ------- | ---------------- | ------ |

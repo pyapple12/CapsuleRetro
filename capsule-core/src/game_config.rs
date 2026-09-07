@@ -35,6 +35,12 @@ pub enum GameConfigError {
         /// 非法的 cycles 值。
         cycles: u32,
     },
+    /// name 为空或含非法字符（name 是运行时目录与启动命令的来源，须可安全落盘）。
+    #[error("非法游戏名 {name:?}：须非空且只含字母、数字、下划线、连字符")]
+    InvalidName {
+        /// 非法的 name 值。
+        name: String,
+    },
 }
 
 /// 适配层聚合配置（retro/game.json 的类型化形态）。
@@ -107,8 +113,18 @@ impl GameConfig {
         text.parse::<Self>()
     }
 
-    /// 字段校验：端口范围与 cycles 正数（缺字段由 serde 报错覆盖）。
+    /// 字段校验：name 合法性、端口范围与 cycles 正数（缺字段由 serde 报错覆盖）。
     fn validate(&self) -> Result<(), GameConfigError> {
+        let name_ok = !self.name.is_empty()
+            && self
+                .name
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-');
+        if !name_ok {
+            return Err(GameConfigError::InvalidName {
+                name: self.name.clone(),
+            });
+        }
         if !(1024..=65535).contains(&self.dosbox.webserver_port) {
             return Err(GameConfigError::InvalidPort {
                 port: self.dosbox.webserver_port,

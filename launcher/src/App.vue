@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { ref } from "vue";
 import GameCanvas from "./components/GameCanvas.vue";
 import HudBar from "./components/HudBar.vue";
@@ -7,6 +8,13 @@ import HudBar from "./components/HudBar.vue";
 const status = ref("待机");
 const busy = ref(false);
 const running = ref(false);
+
+// 后端退出监听线程在 DOSBox 自退/崩溃时广播此事件：UI 回待机态，不停留在假会话
+void listen<number>("session-ended", (event) => {
+  if (!running.value) return;
+  running.value = false;
+  status.value = `游戏进程已退出（pid ${event.payload}）`;
+});
 
 async function onLaunch(): Promise<void> {
   busy.value = true;

@@ -14,6 +14,11 @@ set UseMultiToolTask=true
 set EnforceProcessCountAcrossBuilds=true
 set VCPKG_ROOT=E:\GameMission\tools\vcpkg
 if exist E:\GameMission\DosboxCapsule\build rmdir /s /q E:\GameMission\DosboxCapsule\build
+rem "清洁重建"前提：旧 build 必须真被删掉（被占用删不净时继续构建是假清洁）
+if exist E:\GameMission\DosboxCapsule\build (
+  echo ERROR: build 目录删除失败（可能被占用），拒绝继续构建
+  exit /b 1
+)
 cd /d E:\GameMission\DosboxCapsule
 cmake -S . -B build/release-windows -G "Visual Studio 18 2026" -A x64 ^
   -DCMAKE_GENERATOR_TOOLSET=ClangCL ^
@@ -23,4 +28,8 @@ cmake -S . -B build/release-windows -G "Visual Studio 18 2026" -A x64 ^
   -DCMAKE_BUILD_TYPE=Release
 if errorlevel 1 exit /b 1
 cmake --build build/release-windows --config Release
-echo REBUILD-EXIT:%ERRORLEVEL%
+rem 构建失败必须以非 0 退出（FB2 门禁依赖退出码判定，禁止归零）
+set BUILD_RC=%ERRORLEVEL%
+echo REBUILD-EXIT:%BUILD_RC%
+if not "%BUILD_RC%"=="0" exit /b %BUILD_RC%
+exit /b 0

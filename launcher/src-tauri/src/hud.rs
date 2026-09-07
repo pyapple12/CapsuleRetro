@@ -138,7 +138,24 @@ fn poll_loop(
                 }
             }
         }
-        std::thread::sleep(Duration::from_millis(interval_ms));
+        interruptible_sleep(Duration::from_millis(interval_ms), stop);
+    }
+}
+
+/// 轮间等待：整段 sleep 改为 50ms 步进，stop() 最坏等待从 interval（500ms）
+/// 降到 50ms，停止响应性不牺牲轮询节奏。
+fn interruptible_sleep(duration: Duration, stop: &AtomicBool) {
+    let step = Duration::from_millis(50);
+    let mut remaining = duration;
+    while !stop.load(Ordering::Relaxed) {
+        if remaining <= step {
+            if !remaining.is_zero() {
+                std::thread::sleep(remaining);
+            }
+            return;
+        }
+        std::thread::sleep(step);
+        remaining -= step;
     }
 }
 

@@ -28,6 +28,16 @@ pub enum ProfileError {
     /// segment/offset 字段既不是数字也不是合法的十六进制字符串。
     #[error("地址字段非法: {0}")]
     InvalidAddress(String),
+    /// 条目 len 与 value_type 宽度不一致或为 0（加载期校验）。
+    #[error("条目 {name} 的 len 非法: {len}（value_type 宽度 {width}，须相等且非 0）")]
+    InvalidLen {
+        /// 非法条目名。
+        name: String,
+        /// 档案声明的 len。
+        len: u8,
+        /// value_type 实际宽度。
+        width: usize,
+    },
 }
 
 /// 数值的内存类型与解码方式。
@@ -149,14 +159,29 @@ pub struct MemoryMap {
 impl MemoryMap {
     /// 从磁盘加载并解析档案文件。
     ///
+    /// 加载期校验每条 entry 的 `len` 与 `value_type` 宽度一致且非 0：
+    /// len:0 或宽度错位的条目在轮询期必然解码失败，提前在加载期报错可把
+    /// 故障定位从运行中轮询前移到启动时。
+    ///
     /// # 参数
     /// - `path`：memory_map.json 的路径
     ///
     /// # 返回
-    /// 解析后的档案；文件读取或 JSON 解析失败时返回 [`ProfileError`]。
+    /// 解析并校验通过的档案；文件读取、JSON 解析或 len 校验失败时返回
+    /// [`ProfileError`]。
     pub fn load(path: &Path) -> Result<Self, ProfileError> {
         let text = std::fs::read_to_string(path)?;
-        let map = serde_json::from_str(&text)?;
+        let map: Self = serde_json::from_str(&text)?;
+        map.entries.iter().try_for_each(|entry| {
+            if entry.len == 0 || entry.len as usize != entry.value_type.width() {
+                return Err(ProfileError::InvalidLen {
+                    name: entry.name.clone(),
+                    len: entry.len,
+                    width: entry.value_type.width(),
+                });
+            }
+            Ok(())
+        })?;
         Ok(map)
     }
 }

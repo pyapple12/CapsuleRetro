@@ -2,7 +2,7 @@
 
 老 DOS 游戏现代包装系统：把任意 DOS 游戏打包成"看起来像移植的现代游戏"，三平台（Windows / macOS / Linux）通用。产物 = 执行文件 + save 文件两个文件走天下。总体规划见 `CapsuleRetro_plan.md`。
 
-**当前状态**：Phase 0 进行中——PL001 已完成（`capsule-core` crate + `capsule-core::monitor` REST 观察库 + `xmonitor` 诊断 CLI + XEEN 适配档案 `retro/memory_map.json`，见 z.plan.md 附录 PL001）。已有素材：`retro/XEEN/`（《魔法门 XEEN》DOS 版，含 CHINFONT 汉化字体与 CMM4.PAT 补丁）、`retro/` 根适配层（xeen-guide.md 攻略、zhuyin-keyboard.md 注音对照、memory_map.json 内存档案）、`.archived/`（mm4/mm5 原版 zip）、`.agents/skills/`（项目自建 skill）。launcher / capsule-pack 未建。下文"启动命令"与"架构要点"按计划书预写，代码落地后如与实现不一致，以实现为准并回改本文件。
+**当前状态**：PL001、PL002 主线已完结（2026-09-07）——`capsule-core`（monitor 观察库 + game.json 解析）+ `xmonitor` 诊断 CLI + `launcher`（Tauri 2 + Vue 3；统一窗口形态：DosboxCapsule 离屏托管 + 画布吃帧流 + REST 注入 + nomouse 定案，见 z.plan.md 附录 PL002）。已有素材：`retro/XEEN/`（《魔法门 XEEN》DOS 版，含 CHINFONT 汉化字体与 CMM4.PAT 补丁）、`retro/` 根适配层（game.json、xeen-guide.md 攻略、zhuyin-keyboard.md 注音对照、memory_map.json 内存档案）、`.archived/`（mm4/mm5 原版 zip）、`.agents/skills/`（项目自建 skill）、独立模拟器仓 `DosboxCapsule`（`E:\GameMission\DosboxCapsule`，v0.83.0 + 4 代码补丁，维护套件见 `tools/dosbox-fork/`）。遗留与远期项登记 `y.problems.md`。下一步 PL003（save 生命周期 + 补丁闭环）待立项；`capsule-pack` 未建。
 
 ## 技术栈
 
@@ -26,7 +26,7 @@ npm run build                                    # 前端构建校验
 
 依赖：Rust toolchain（cargo 1.96+）、Node.js（26+）、DOSBox Staging 二进制（sidecar，随包分发）。
 
-## 架构要点（按计划书预写）
+## 架构要点
 
 - **两个文件架构**：`GameName.exe/.app/.AppImage`（只读：DOSBox + 游戏 + 启动器 + 攻略 + 补丁）+ `GameName.save`（唯一用户数据：存档 + 设置 + hack 状态，zip 格式）
 - **capsule-core**：save 打包/解包（原子替换）、补丁应用、路径管理——launcher 与 packer 共用，逻辑只写这一份
@@ -34,31 +34,33 @@ npm run build                                    # 前端构建校验
 - **packer**（capsule-pack CLI）：读 game.json → 校验 → 资源内嵌 → 生成三平台产物
 - **save 生命周期**：启动解压到临时工作区 → 运行 → 退出原子回写（防损坏，丢失可自愈）
 - **补丁纪律（产品核心，代码与 Agent 操作双重遵守）**：hack 版 = 原版文件副本 + 运行时应用补丁；**原版游戏文件永不被修改**，补丁只作用于释放出来的工作副本
-- **4:3 填充**：Windows 用 SetParent 嵌入，macOS/Linux 用覆盖层点击穿透窗口（最大技术风险，见计划书 §8）
+- **4:3 填充**：已由 fork 帧流方案实现——launcher 画布消费 pre-shader 帧自行整数缩放（SetParent 路线 VC0 判死，见 z.plan 附录 PL002）；nomouse 形态定案：dosbox 永不抓宿主光标，宿主光标归画布 PointerLock、DOS 光标归注入原语；macOS/Linux 窗口隐藏手段待验证 [problems#10]
 - **运行时目录**：系统缓存目录（如 `%LOCALAPPDATA%/CapsuleRetro/<GameName>/`）存放释放的 game/work/dosbox，丢失可自愈重新释放
 
 ## 目录规划
 
 ```
-Cargo.toml       # workspace 根（version 单一来源；当前 members=["capsule-core"]）
+Cargo.toml       # workspace 根（version 单一来源；当前 members=["capsule-core", "launcher"]）
 capsule-core/    # Rust crate：save 打包/解包、补丁应用、配置、路径管理
                  #   src/monitor/      REST 观察库（PL001）
                  #   src/bin/xmonitor  诊断 CLI（watch/search/bench）
                  #   tests/            集成测试（cargo test 自动发现）
-launcher/        # Tauri 2 应用（src-tauri/ Rust 后端 + src/ Vue 前端）——未建
+launcher/        # Tauri 2 应用（src-tauri/：commands / gameconf / hud / winembed / winproc / jobctl
+                 #   + src/：App / GameCanvas / HudBar）
 capsule-pack/    # Rust CLI 打包器——未建
 assets/dosbox/   # DOSBox Staging v0.83.0 sidecar（锁版本，进 git 的是 zip；
                  #   解压目录 dosbox-staging/ 为派生产物，已 gitignore）
 tools/dosbox-fork/ # DosboxCapsule fork 维护套件（版本化）：PATCHES.md（补丁登记
                  #   与升级配方）、rebuild.bat（清洁重建）、baseline-capture.sh /
                  #   baseline-compare.py（FB1 基线判定，升级后必跑）
-retro/           # 根 = 适配层（我们编写的文件）：game.json（待建）、
+retro/           # 根 = 适配层（我们编写的文件）：game.json、
                  #   memory_map.json（内存档案）、xeen-guide.md（攻略）、
                  #   zhuyin-keyboard.md（注音对照）
                  # 子目录（如 retro/XEEN/）= 纯原版游戏文件，字面意义只读
 .agents/skills/  # 项目自建 skill（audit-project / audit-report / progress-task），ZCode workspace 级扫描目录
 .archived/       # 归档素材（mm4.zip / mm5.zip，只读）
 .temp/           # 临时脚本与文件（gitignore）；探针、快照、验证记录放这里
+y.problems.md    # 问题与远期改进备忘录（只增不删、编号递增；任务清单以 [problems#N] 引用）
 ```
 
 ## 自动格式化与静态检查（硬性工作流，替代 LSP）
@@ -135,7 +137,7 @@ retro/           # 根 = 适配层（我们编写的文件）：game.json（待�
 - **路径处理**：Rust 强制使用 `std::path::Path` / `PathBuf`，禁止手拼字符串路径；TS 使用 `path.join` / `URL`，禁止字符串拼接路径
 - **临时文件**：所有临时生成的脚本/文件必须写入项目根目录下的 `.temp/` 文件夹（gitignore），禁止散落在源码目录
 - **文件修改必须用 edit 工具**：修改既有文件（.rs/.ts/.vue/.md/.json/.toml）一律用 edit 的精确 oldString/newString 替换，禁止用 python -c 或 PowerShell 脚本做内容替换（易踩引号/缩进坑）；新建 .temp 探针脚本不受限
-- **版本双轨**：机器版本只存根 `Cargo.toml` 的 `[workspace.package] version`（三段式 X.Y.Z，Cargo 强制 semver）；对外正式文本（commit 标题、README 徽章、发布说明）一律写四段式 `VX.Y.Z.R`——前三段与 workspace version 一致，第四段 R 为修订号，只随提交历史记录、不入任何配置文件（递增规则见"Commit 提交规范"）；`tauri.conf.json`、`capsule-pack` 产物、`game.json` 的 version 均从 workspace version 派生或注入，禁止第二处硬编码
+- **版本双轨**：机器版本只存根 `Cargo.toml` 的 `[workspace.package] version`（三段式 X.Y.Z，Cargo 强制 semver）；对外正式文本（commit 标题、README 徽章、发布说明）一律写四段式 `VX.Y.Z.R`——前三段与 workspace version 一致，第四段 R 为修订号，只随提交历史记录、不入任何配置文件（递增规则见"Commit 提交规范"）；`tauri.conf.json`、`capsule-pack` 产物、`game.json` 的 version 均从 workspace version 派生或注入，禁止第二处硬编码。**豁免（FIX001.25 定案 2026-09-08）**：`retro/game.json` 的 `version` 语义 = 游戏自身版本（对外展示，非产品版本）；`launcher/package.json` 的 `version` 为 npm 生态必填字段、不参与发布——两者豁免于 workspace 单一来源，不派生不注入
 - **Shell 命令**：执行命令前先检测当前 shell（`echo $SHELL` 或检查系统），本机 Windows 环境；避免使用 Linux-only 或 PowerShell-only 工具，优先跨 shell 兼容命令
 - **PowerShell 中文编码**：bash 工具的 pwsh 会话带 `-NoProfile`，不加载 `$PROFILE`，输出中文前必须先设置编码：`[Console]::OutputEncoding = [System.Text.Encoding]::UTF8;`
 - **Git 操作**：未经用户明确要求，不得擅自执行 `git add`、`git commit` 或任何其他 Git 写操作
@@ -159,6 +161,11 @@ retro/           # 根 = 适配层（我们编写的文件）：game.json（待�
 
 - **watch 轮询瞬时失败**（PL001 登记，2026-09-05）：场景——`xmonitor watch` 长驻轮询 DOSBox webserver 时的单次瞬时失败（连接拒绝/超时）；降级行为——单次失败打印警告并计数、跳过本轮继续轮询，连续 3 次失败以退出码 1 终止；理由——轮询型伴生进程必须对瞬时抖动免疫，但失败路径最终显式退出、不吞错，符合"严格抛错 + 登记制"精神。
 - **HUD 轮询瞬时失败**（PL002 登记，2026-09-06）：场景——launcher 内 HUD 线程按 500ms 轮询 webserver 读取关注条目；降级行为——单次失败跳过本轮（前端保留上次快照），连续 5 次失败向 UI 发停滞事件并停止轮询（显式暴露、不吞错）；理由——与 watch 同类的伴生轮询，瞬时抖动不应打崩 UI，停滞最终显式呈现给用户。
+- **REST Registers 缺字段兜 0**（FIX001.17 登记，2026-09-08）：场景——`cpu_state` 解析时 DOSBox 响应可能省略部分寄存器字段（实测无 `es`）；降级行为——`#[serde(default)]` 缺字段置 0，不报错；理由——上游 API 字段可选属事实契约，缺字段非错误状态。
+- **xmonitor 快照存档降级**（FIX001.17 登记，2026-09-08）：场景——`search` 交互拍快照后的本地存档（目录创建失败/目录定位失败退化相对 `.temp`）；降级行为——存档失败仅警告、快照内存数据照常参与差分；理由——存档是离线回放的便利品，不是功能必需，拍取与差分本身不受影响。
+- **窗口离屏托管退化形态**（FIX001.17 登记，2026-09-08）：场景——`embed_offscreen` 轮询重试（500ms×10）仍找不到/改不动 SDL 窗口；降级行为——打日志，游戏保留本机顶层窗口形态继续运行；理由——托管是统一窗口形态的增强层，帧流显示与输入注入均不依赖窗口位置，会话功能完整。
+- **GameCanvas 帧轮询瞬时失败**（FIX001.7/17 登记，2026-09-08）：场景——前端 30fps 消费循环中单次 `get_frame` 失败（会话启动早期 503/瞬时网络抖动）；降级行为——console.warn 计数并跳过本轮，连续 5 次显式置错误态并停循环（`NO_SESSION` 前缀例外：会话已结束属正常终止）；理由——与 watch/HUD 同类的伴生轮询，瞬时抖动不应打崩画面，最终显式暴露。
+- **文件日志写失败静默**（FIX001.17/22 登记，2026-09-08）：场景——`logging.rs` 追加写 launcher.log 失败（磁盘满/句柄失效）；降级行为——静默忽略该行，不影响业务流程；理由——日志组件不得反噬主流程；init 未调用时为空操作同此登记。
 
 ## 素材与环境陷阱
 

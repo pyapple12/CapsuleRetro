@@ -1795,7 +1795,6 @@ dependencies = [
  "anyhow",
  "capsule-core",
  "serde",
- "serde_json",
  "tauri",
  "tauri-build",
  "ureq",

@@ -5,31 +5,42 @@ import { onUnmounted, ref, watch } from "vue";
 // 帧流二进制协议：20 字节头（帧号 u64 + 宽/高/行距 u32，全部 LE）+ BGRX 像素
 const HEADER_BYTES = 20;
 const FRAME_INTERVAL_MS = 33; // 30fps 消费节奏（端点实测单帧 2.3ms）
+const MOUSE_BATCH_MS = 30; // 鼠标相对位移合帧间隔（Pointer Lock 事件高频）
+// 帧轮询连续失败上限（容错白名单登记：单次失败跳过，超限显式置错并停循环）
+const MAX_CONSECUTIVE_FAILURES = 5;
 
 const props = defineProps<{ active: boolean }>();
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const pointerLocked = ref(false);
-const frameFps = ref(0);
+const frameError = ref<string | null>(null);
 
 let running = false;
 let loopThread: Promise<void> | null = null;
 let lastFrameNumber = -1;
-let fpsCounter = 0;
-let fpsWindowStart = 0;
-// 鼠标相对位移累积（Pointer Lock 事件高频，30ms 合帧发送）
+let consecutiveFailures = 0;
+// 鼠标相对位移累积（Pointer Lock 事件高频，按 MOUSE_BATCH_MS 合帧发送）
 let pendingDx = 0;
 let pendingDy = 0;
 let lastMouseSent = 0;
-
+// 离屏画布按帧尺寸惰性重建；ImageData 与显示 ctx 均按尺寸缓存复用
 const offscreen = document.createElement("canvas");
 const offCtx = offscreen.getContext("2d");
+let imageCache: ImageData | null = null;
+let displayCtx: CanvasRenderingContext2D | null = null;
 
 /** event.code → 注入端点键名（覆盖 dosbox 常用键）。 */
 function toKeyName(code: string): string | null {
   if (code.startsWith("Key")) return code.slice(3).toLowerCase();
   if (code.startsWith("Digit")) return code.slice(5);
-  if (code.startsWith("Numpad")) return `numpad${code.slice(6)}`;
+  // NumpadEnter 必须特判在前，否则被下方 Numpad 前缀分支吞掉成死条目
+  if (code === "NumpadEnter") return "return";
+  // fork 键名表无任何 numpad* 条目（input.cpp 全表核对）：小键盘数字退化为
+  // 对应数字键名（numlock 打开时等价），其余小键盘键不受支持
+  if (code.startsWith("Numpad")) {
+    const digit = code.slice(6);
+    return /^[0-9]$/.test(digit) ? digit : null;
+  }
   const map: Record<string, string> = {
     ArrowUp: "up",
     ArrowDown: "down",
@@ -54,7 +65,7 @@ function toKeyName(code: string): string | null {
   return map[code] ?? null;
 }
 
-/** 解码一帧并绘制到显示画布（BGRX → RGBA）。 */
+/** 解码一帧并绘制到显示画布（BGRX → RGBA）。长度与行距不符时抛错走失败路径。 */
 function drawFrame(buffer: ArrayBuffer): void {
   if (!canvasRef.value || !offCtx) return;
   const view = new DataView(buffer);
@@ -62,12 +73,21 @@ function drawFrame(buffer: ArrayBuffer): void {
   const width = view.getUint32(8, true);
   const height = view.getUint32(12, true);
   const pitch = view.getUint32(16, true);
+  // 帧协议校验：静默错值会表现为花屏且无诊断，宁可报错
+  if (pitch < width * 4 || buffer.byteLength < HEADER_BYTES + (height - 1) * pitch + width * 4) {
+    throw new Error(`帧数据异常: ${buffer.byteLength}B（${width}x${height} pitch ${pitch}）`);
+  }
   if (number === BigInt(lastFrameNumber) || width === 0 || height === 0) return;
   lastFrameNumber = Number(number);
 
-  offscreen.width = width;
-  offscreen.height = height;
-  const image = offCtx.createImageData(width, height);
+  // 尺寸未变时复用画布与 ImageData，消除 30fps 下的每帧重分配
+  if (offscreen.width !== width || offscreen.height !== height) {
+    offscreen.width = width;
+    offscreen.height = height;
+    imageCache = offCtx.createImageData(width, height);
+  }
+  const image = imageCache;
+  if (!image) return;
   const src = new Uint8Array(buffer, HEADER_BYTES);
   const dst = image.data;
   for (let y = 0; y < height; y++) {
@@ -85,29 +105,39 @@ function drawFrame(buffer: ArrayBuffer): void {
   }
   offCtx.putImageData(image, 0, 0);
 
-  const ctx = canvasRef.value.getContext("2d");
-  if (ctx) {
-    ctx.imageSmoothingEnabled = false; // 像素风整数缩放
-    ctx.drawImage(offscreen, 0, 0, canvasRef.value.width, canvasRef.value.height);
+  if (!displayCtx) {
+    displayCtx = canvasRef.value.getContext("2d");
+  }
+  if (displayCtx) {
+    displayCtx.imageSmoothingEnabled = false; // 像素风整数缩放
+    displayCtx.drawImage(offscreen, 0, 0, canvasRef.value.width, canvasRef.value.height);
   }
 }
 
-/** 30fps 消费循环：取帧失败按瞬时抖动跳过本轮。 */
+/** 30fps 消费循环：单次失败跳过本轮（瞬时抖动），连续超限显式置错停循环。 */
 async function loop(): Promise<void> {
   while (running) {
     const cycleStart = performance.now();
     try {
       const buffer = (await invoke("get_frame")) as ArrayBuffer;
       drawFrame(buffer);
-      fpsCounter++;
-      const now = performance.now();
-      if (now - fpsWindowStart >= 1000) {
-        frameFps.value = Math.round((fpsCounter * 1000) / (now - fpsWindowStart));
-        fpsCounter = 0;
-        fpsWindowStart = now;
+      consecutiveFailures = 0;
+      frameError.value = null;
+    } catch (err) {
+      const message = String(err);
+      if (message.includes("NO_SESSION")) {
+        // 会话已由后端清槽（进程退出或被停止）：正常终止消费循环
+        running = false;
+        frameError.value = null;
+        break;
       }
-    } catch {
-      // 会话启动早期 503/无帧：静默跳过本轮
+      consecutiveFailures++;
+      console.warn(`取帧失败（连续第 ${consecutiveFailures} 次）:`, message);
+      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+        frameError.value = `帧流连续 ${consecutiveFailures} 次取帧失败，已停止消费`;
+        running = false;
+        break;
+      }
     }
     const spent = performance.now() - cycleStart;
     const wait = FRAME_INTERVAL_MS - spent;
@@ -134,7 +164,7 @@ function onMouseMove(event: MouseEvent): void {
   pendingDx += event.movementX;
   pendingDy += event.movementY;
   const now = performance.now();
-  if (now - lastMouseSent >= 30 && (pendingDx !== 0 || pendingDy !== 0)) {
+  if (now - lastMouseSent >= MOUSE_BATCH_MS && (pendingDx !== 0 || pendingDy !== 0)) {
     lastMouseSent = now;
     void invoke("inject_input", {
       payload: JSON.stringify({
@@ -174,7 +204,8 @@ watch(
   (active) => {
     running = active;
     if (active) {
-      fpsWindowStart = performance.now();
+      consecutiveFailures = 0;
+      frameError.value = null;
       loopThread = loop();
     }
   },
@@ -206,6 +237,7 @@ onUnmounted(() => {
       @contextmenu.prevent
     />
     <p class="hint" :class="{ hidden: pointerLocked }">点击画布接管键鼠（Esc 释放光标）</p>
+    <p v-if="frameError" class="frame-error">{{ frameError }}</p>
   </div>
 </template>
 
@@ -237,5 +269,15 @@ onUnmounted(() => {
 }
 .hint.hidden {
   display: none;
+}
+.frame-error {
+  position: absolute;
+  top: 8px;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: #ff7b72;
+  background: #1e222b;
+  border: 1px solid #ff7b72;
+  border-radius: 6px;
 }
 </style>

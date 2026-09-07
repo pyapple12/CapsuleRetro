@@ -10,28 +10,41 @@ use anyhow::{Context, Result};
 
 use capsule_core::game_config::GameConfig;
 
-/// 运行时目录：默认 `%LOCALAPPDATA%/CapsuleRetro/xeen/`，
-/// 环境变量 `CAPSULERETRO_RUNTIME` 可覆盖（排障/探针用）。
-pub fn runtime_dir() -> PathBuf {
+/// 运行时目录：`%LOCALAPPDATA%/CapsuleRetro/<game>/`（game 由 config.name
+/// 小写派生，游戏身份单一来源、不再第二处硬编码），环境变量
+/// `CAPSULERETRO_RUNTIME` 可覆盖（排障/探针用）。
+///
+/// # Errors
+/// `LOCALAPPDATA` 环境变量缺失时严格报错（审计建议：Windows 标准环境变量
+/// 不做兜底降级，缺失败真环境问题应显式暴露）。
+pub fn runtime_dir(game: &str) -> Result<PathBuf> {
     if let Ok(over) = std::env::var("CAPSULERETRO_RUNTIME") {
-        return PathBuf::from(over);
+        return Ok(PathBuf::from(over));
     }
     let base = std::env::var("LOCALAPPDATA")
-        .unwrap_or_else(|_| std::env::temp_dir().to_string_lossy().into_owned());
-    PathBuf::from(base).join("CapsuleRetro").join("xeen")
+        .map_err(|_| anyhow::anyhow!("LOCALAPPDATA 环境变量缺失，无法定位运行时目录"))?;
+    Ok(PathBuf::from(base)
+        .join("CapsuleRetro")
+        .join(game.to_ascii_lowercase()))
 }
 
 /// 从 `start` 向上查找包含 `retro/game.json` 的目录作为仓库根。
-/// 找不到时返回 `start` 本身——后续加载按严格抛错报 Io。
-pub fn resolve_repo_root(start: &Path) -> PathBuf {
+///
+/// # Errors
+/// 自 `start` 至文件系统根都找不到 `retro/game.json` 时显式报错并报告探测
+/// 起点（静默返回 start 会把根因掩盖成 Io 错误）。
+pub fn resolve_repo_root(start: &Path) -> Result<PathBuf> {
     let mut dir = Some(start.to_path_buf());
     while let Some(d) = dir {
         if d.join("retro").join("game.json").is_file() {
-            return d;
+            return Ok(d);
         }
         dir = d.parent().map(Path::to_path_buf);
     }
-    start.to_path_buf()
+    Err(anyhow::anyhow!(
+        "自 {} 向上未找到 retro/game.json，无法定位仓库根——请从仓库内启动",
+        start.display()
+    ))
 }
 
 /// 依据配置生成 DOSBox conf 全文（键值与 xeen-test.conf 定案值一致）。
@@ -83,9 +96,14 @@ mod tests {
     use super::*;
 
     /// PL002.9 验证：生成 conf 与 .temp/xeen-test.conf 逐键语义一致。
+    ///
+    /// 注意：参考文件 .temp/xeen-test.conf 已 gitignore（y.problems #12）——
+    /// 全新 clone 上此测试会因文件缺失失败，属已知登记问题，随 PL003 测试
+    /// 资产落地一并修复。
     #[test]
     fn 生成conf与定案conf逐键一致() {
-        let root = resolve_repo_root(&std::env::current_dir().unwrap());
+        let cwd = std::env::current_dir().unwrap();
+        let root = resolve_repo_root(&cwd).expect("仓库根应可定位");
         let config = GameConfig::load(&root.join("retro").join("game.json")).unwrap();
         let generated = generate_conf(&config, &root);
         let reference = std::fs::read_to_string(root.join(".temp").join("xeen-test.conf")).unwrap();
@@ -99,5 +117,26 @@ mod tests {
                 "生成 conf 缺少定案行: {t}"
             );
         }
+    }
+
+    /// FIX001.24 验证：runtime_dir 按 game 小写派生，游戏身份不再硬编码。
+    #[test]
+    fn 运行时目录按game派生() {
+        let dir = runtime_dir("XEEN").expect("本机 LOCALAPPDATA 应存在");
+        let lowered = dir.to_string_lossy().to_ascii_lowercase();
+        assert!(
+            lowered.ends_with("\\capsuleretro\\xeen"),
+            "运行时目录应以小写 xeen 结尾，实际: {}",
+            dir.display()
+        );
+    }
+
+    /// FIX001.21 验证：找不到仓库根必须显式报错（不再静默返回起点）。
+    #[test]
+    fn 仓库根定位失败显式报错() {
+        // 系统临时目录下不存在 retro/game.json，向上搜索也不应命中
+        let start = std::env::temp_dir();
+        let err = resolve_repo_root(&start).expect_err("应显式报错");
+        assert!(err.to_string().contains("retro/game.json"));
     }
 }

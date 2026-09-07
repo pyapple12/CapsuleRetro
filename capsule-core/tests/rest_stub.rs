@@ -19,8 +19,21 @@ const CPU_STATE_JSON: &str = r#"{
   }
 }"#;
 
+/// memory 端点的固定字节模式（8 字节循环填充，前 8 字节与既有断言一致）。
+const MEMORY_PATTERN: &[u8] = &[0x39, 0x05, 0xAB, 0xCD, 0x00, 0xFF, 0x11, 0x22];
+
 /// 启动 stub 服务：按请求路径返回预录响应，返回其端口。
 fn spawn_stub() -> u16 {
+    spawn_stub_with(None)
+}
+
+/// 启动带模式的 stub 服务。
+///
+/// # 参数
+/// - `body_len_override`：Some(n) 时 memory 端点固定返回 n 字节（模拟短读，
+///   n 小于请求长度触发客户端 ShortRead）；None 时按请求长度循环填充
+///   [`MEMORY_PATTERN`]。
+fn spawn_stub_with(body_len_override: Option<usize>) -> u16 {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind stub");
     let port = listener.local_addr().expect("addr").port();
     thread::spawn(move || {
@@ -47,10 +60,22 @@ fn spawn_stub() -> u16 {
             let (status, body) = match path.as_str() {
                 "/api/v1/cpu/state" => ("200 OK", CPU_STATE_JSON.as_bytes().to_vec()),
                 p if p.contains("0xdead") => ("404 Not Found", b"not found".to_vec()),
-                p if p.starts_with("/api/v1/memory/") => (
-                    "200 OK",
-                    vec![0x39, 0x05, 0xAB, 0xCD, 0x00, 0xFF, 0x11, 0x22],
-                ),
+                p if p.starts_with("/api/v1/memory/") => {
+                    let len = p
+                        .rsplit('/')
+                        .next()
+                        .and_then(|raw| u32::from_str_radix(raw.trim_start_matches("0x"), 16).ok())
+                        .unwrap_or(MEMORY_PATTERN.len() as u32)
+                        as usize;
+                    let fill = match body_len_override {
+                        Some(n) => n,
+                        None => len,
+                    };
+                    let body: Vec<u8> = (0..fill)
+                        .map(|i| MEMORY_PATTERN[i % MEMORY_PATTERN.len()])
+                        .collect();
+                    ("200 OK", body)
+                }
                 _ => ("404 Not Found", b"not found".to_vec()),
             };
             let response = format!(
@@ -85,9 +110,22 @@ fn memory_returns_exact_bytes() {
 fn snapshot_reads_requested_length() {
     let client = RestClient::new(spawn_stub());
     let snap = client.snapshot_lower_memory().expect("快照应成功");
-    // stub 对任意 memory 路径返回固定 8 字节，这里只验证错误传播路径不触发、
-    // 返回非空（长度由真实服务决定，stub 场景不做长度强断言）
-    assert!(!snap.is_empty());
+    // stub 按请求长度回填，1MB 快照必须足额返回（短读走 ShortRead 严格报错）
+    assert_eq!(snap.len(), 0x10_0000);
+}
+
+/// 短读（响应体少于请求长度）必须报 ShortRead，不得静默截断（FIX001.14）。
+#[test]
+fn short_read_returns_error() {
+    let client = RestClient::new(spawn_stub_with(Some(4)));
+    let err = client.memory(Some(4518), 0x200, 8).unwrap_err();
+    assert!(matches!(
+        err,
+        MonitorError::ShortRead {
+            expected: 8,
+            actual: 4
+        }
+    ));
 }
 
 #[test]

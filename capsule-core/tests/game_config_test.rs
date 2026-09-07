@@ -62,3 +62,41 @@ fn 真实档案文件可加载() {
     assert_eq!(config.name, "XEEN");
     assert_eq!(config.dosbox.cpu_cycles, 5000);
 }
+
+/// name 含空格等非法字符 → 报 InvalidName（name 是运行时目录与启动命令来源）。
+#[test]
+fn 非法name报错() {
+    let text = r#"{
+        "name": "XEEN 游戏版",
+        "version": "1.0",
+        "dosbox": { "exe_path": "a.exe", "webserver_port": 18086, "cpu_cycles": 5000 },
+        "assets": { "memory_map": "m.json", "guide": "g.md" },
+        "paths": { "work_dir": "work" }
+    }"#;
+    let err = text.parse::<GameConfig>().expect_err("含空格 name 应报错");
+    assert!(err.to_string().contains("非法游戏名"), "实际错误: {err}");
+
+    let text = r#"{
+        "name": "",
+        "version": "1.0",
+        "dosbox": { "exe_path": "a.exe", "webserver_port": 18086, "cpu_cycles": 5000 },
+        "assets": { "memory_map": "m.json", "guide": "g.md" },
+        "paths": { "work_dir": "work" }
+    }"#;
+    let err = text.parse::<GameConfig>().expect_err("空 name 应报错");
+    assert!(err.to_string().contains("非法游戏名"), "实际错误: {err}");
+}
+
+/// 合法 name（字母数字下划线连字符）应通过校验。
+#[test]
+fn 合法name通过() {
+    let text = r#"{
+        "name": "XEEN-2_ok",
+        "version": "1.0",
+        "dosbox": { "exe_path": "a.exe", "webserver_port": 18086, "cpu_cycles": 5000 },
+        "assets": { "memory_map": "m.json", "guide": "g.md" },
+        "paths": { "work_dir": "work" }
+    }"#;
+    let config = text.parse::<GameConfig>().expect("合法 name 应通过");
+    assert_eq!(config.name, "XEEN-2_ok");
+}

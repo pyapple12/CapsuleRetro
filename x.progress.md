@@ -41,11 +41,11 @@
 
 ---
 
-## 未完成
-
 ### PL002: Launcher 与 DOSBox 结合——前期准备 + 后期实施 [plan#PL002]
 
 > 目标（v2 改造 2026-09-05）：launcher 与 DOSBox 结合——前期准备（launcher 线 + fork 线并行，fork 基线复现为 go/no-go 判定点）→ 后期实施（主线：fork 三端点 + 统一窗口；备线：独立窗口模式）。方案与验证表见 z.plan.md 附录 PL002；三线路判定与 T1 探针判定书见同附录实测结论（历史依据）。
+>
+> **终态（2026-09-07）**：fork 基线 FB1 判 go，后期主线 PL002.23–28 全部完结；备线 PL002.29/30 休眠不执行，登记 [problems#16]。
 
 #### 前置打样：VC0 SetParent 最小实验（PowerShell 零开发，先于一切）
 
@@ -98,7 +98,56 @@
 - [x] PL002.27 统一窗口集成 —— 游戏窗口离屏托管（winembed 找窗+移位）+ launcher 画布吃帧流（30–60fps）+ 输入转发（canvas 事件→REST 注入）；验证：UW1–UW7 人工清单（成像/鼠标/键盘/切态/焦点/任务栏/生命周期）（2026-09-07 已验证：实现 = winembed.rs（EnumWindows 按 PID → 移屏外 x=-3200 + WS_EX_TOOLWINDOW 摘任务栏）+ get_frame/inject_input 命令（ureq 透传，20 字节元数据头+二进制 body，零 CORS 零 fork 改动）+ GameCanvas.vue（30fps 循环+帧号去重+BGRX→RGBA+4:3 整数缩放+PointerLock 鼠标 30ms 合帧+键盘 code→键名映射）+ App.vue 双模式布局。**实测根因链三条**：① 画布黑屏 = game.json 仍指官方版（无帧流端点）→ 改指 DosboxCapsule 构建产物；② 注入光标不动 = 离屏窗口宿主光标恒"窗外"，cursor_is_outside 丢弃一切鼠标事件 → fork 补丁 #4 注入原语（MOUSE_InjectMoved/Button 绕判定 + cursor_x_abs/y_abs 随位移累进 clamp——nomouse 态驱动走 seamless 绝对路径必需）；③ 中键"脱离"反致宿主光标失效 = 非捕获态中键触发捕获、离屏窗口把宿主光标拖进屏外 → **nomouse 形态定案**（dosbox 永不抓宿主光标，鼠标输入全走注入）。**UW 清单**：UW1 ✓ 成像（用户目视）、UW2 ✓ 鼠标注入（用户确认）、UW3 ✓ 键盘（用户经画布键盘完成菜单导航进游戏）、UW4 ✓ 待机→标题→游戏切态走通（帧尺寸 header 动态）、UW5 ✓ 宿主光标异常已根治（20 次压测并入日常观察）、UW6 ✓ 客观（rect x=-2560（125% DPI 虚拟化）+ TOOLWINDOW 置位）、UW7 ✓（Job KILL_ON_JOB_CLOSE 回归 VB2））
 - [x] PL002.28 HUD 与主线收尾 —— HudBar（REST 只读，画 4:3 区域外）+ VD1–VD3 + 全量门禁 + z.plan 实测结论回写；验证：验收标准逐条核对完成（2026-09-07 已验证：HudBar 进统一窗口顶栏（4:3 画布外，DOM 层不进画布、不吃画布输入）；VD1 双通道一致（阶段 D 已证，通道未变）、VD2 结构性满足（HUD 在 DOM 顶栏与 canvas 元素分离）、VD3 轮询 CPU 净增量≈0（FF2 对照实验）；全量门禁 = cargo fmt + clippy -D warnings + cargo test --workspace + vue-tsc + npm build 全绿；z.plan 后期实施开展结论回写完成）
 
-#### 后期实施·备线：独立窗口模式（fork 基线判负时启用）
+---
 
-- [ ] PL002.29 独立窗口集成 —— launcher 控制窗口（正常尺寸：启动/攻略/存档管理）+ 游戏独立窗口（Job Object 生命周期）+ HUD 贴边面板；验证：BW1–BW4 人工清单（启动/游玩/HUD/生命周期）
-- [ ] PL002.30 备线收尾 —— 全量门禁 + 文档回写（z.plan 实测结论 + w.study）；验证：验收标准逐条核对完成
+## 未完成
+
+### FIX001: 第1轮审计修复 [audit#A001]
+
+> 来源：附录 A001（第 1 轮全量审计，2026-09-07）。43 条 P 级按 [P0]→[P3] 分层；观察项 23 条经用户确认全部保持参考级，未入清单。条目标题含（A001#n）回溯编号。
+> **✅ 全组完成（2026-09-08）**：44/44 勾结。全量门禁全绿（fmt/clippy/test 36 过/doc 零警告/prettier/vue-tsc/npm build）；反向验收逐项记录见 `.temp/fix001-verification.md`。**live 复核已收口（2026-09-08 双轮实测）**：①会话退出感知 ✅ ②UI 无冻结 ✅ ③30fps 流畅+帧校验零误报 ✅ ⑤release 日志落盘 ✅（实测修复 1 bug：logging::init 补目录创建）；④小键盘注入由 y.problems #18 承接待实体键盘；FIX001.43 CSP 按条目原文随 PL003 执行；y.problems #12 保持挂账随 PL003 测试资产闭环。
+
+- [x] FIX001.1 [P0] CreateProcessW 参数引号包裹（A001#1）—— winproc.rs:59-63 spawn_suspended 对 args 各段统一走 `quoted()` 包裹，同步修正 :49 文档注释；验证：新增单测构造含空格 conf 路径断言命令行含引号（cargo test -p launcher）
+- [x] FIX001.2 [P0] rebuild.bat 构建失败退出码归零（A001#2）—— :25 build 步补 `if errorlevel 1 exit /b 1`（REBUILD-EXIT 输出保留在退出前）；验证：临时注入编译错误跑 rebuild.bat 断言退出码非 0，复原后再跑断言 0
+- [x] FIX001.3 [P0] baseline-compare.py 假 GO 双路径（A001#3）—— :40-48 dynamic 分类细分为"仅 s1 不稳/仅 s2 不稳/双侧不稳"，单侧不稳列名并退出码非 0；:73 静态条目数低于总数一半时退出码非 0；验证：构造单侧不稳定与空静态集两组输入离线断言退出码
+- [x] FIX001.4 [P1] 比较切片越界静默截断（A001#4）—— baseline-compare.py slice_at 补 `addr+length > len(mem)` 时 raise ValueError；验证：构造越界坐标条目离线断言报错
+- [x] FIX001.5 [P1] 会话结束无感知（A001#5）—— commands.rs 增加进程退出监听线程（wait_exit + emit `session-ended` 事件并清槽），App.vue 监听置 running=false，GameCanvas 收事件停循环；验证：live 手杀 dosbox 进程 3 秒内 UI 回待机态
+- [x] FIX001.6 [P1] 帧协议静默错值链（A001#6）—— commands.rs:100 超限截断改显式报错；GameCanvas.vue drawFrame 开头校验 `buffer.length ≥ HEADER+(height-1)*pitch+width*4` 且 `pitch ≥ width*4` 不符抛错走失败路径；验证：cargo test 畸形响应 stub + vue-tsc
+- [x] FIX001.7 [P1] GameCanvas 空 catch 吞错（A001#7）—— :99-111 try 域缩小到 invoke 调用；catch 内 console.warn + 连续失败计数（超限显式置错误状态并停循环）；AGENTS.md 容错白名单登记帧轮询条目；验证：vue-tsc + 杀进程观察 UI 显式错误
+- [x] FIX001.8 [P1] 同步 command 阻塞主线程（A001#8）—— get_frame/launch_game/inject_input 改 async fn（Tauri 2 异步 command），launch 锁外构造 Session 锁内仅 swap；验证：cargo clippy/test + live 界面拖动不冻结（需验证 Tauri 2 调度行为后定案）
+- [x] FIX001.9 [P1] ResumeThread 返回值未检查（A001#9）—— winproc.rs:108-110 检查 `!= u32::MAX` 失败转 WinResult；验证：cargo test 编译路径 + 代码审查
+- [x] FIX001.10 [P1] probe_port TOCTOU 窗口（A001#10）—— :136 文档标注竞态；launch 后增 webserver 就绪探测（复用 capsule-core::monitor REST 重试 N 秒）；验证：live 启动日志出现就绪确认
+- [x] FIX001.11 [P1] Job assign 失败挂起僵尸（A001#11）—— commands.rs:184-190 失败路径先 TerminateProcess 再返回错误；验证：代码审查 + cargo test
+- [x] FIX001.12 [P1] embed 固定 2s 竞态无重试（A001#12）—— commands.rs:232-240 改轮询重试（500ms × 10 次找窗）；验证：live 人工模拟慢启动场景
+- [x] FIX001.13 [P1] work_dir 不校验（A001#13）—— launch 前校验 work_dir 存在且含游戏可执行文件，缺失严格报错提示释放流程未跑；验证：清空 work_dir 启动断言错误消息（live）
+- [x] FIX001.14 [P1] rest memory() 短读静默（A001#17）—— rest.rs:118-135 读后校验 `buf.len() == len` 否则新增 ShortRead 错误变体，统一返回值文档；验证：cargo test 新增短读 stub 用例
+- [x] FIX001.15 [P1] search 离线参数不成对（A001#18）—— xmonitor.rs clap 用 requires 强制 s1↔s2 成对，s3 单独出现显式报错退出码 2；验证：cargo test + 手工只传 --s1 断言报错
+- [x] FIX001.16 [P1] 档案 len 宽度无加载期校验（A001#19）—— MemoryMap::load 校验 `len != 0 && len == value_type.width()`；poll_once 错误附 entry.name；验证：cargo test 非法档案用例
+- [x] FIX001.17 [P1] 容错白名单登记制缺口（A001#20）—— AGENTS.md 白名单补四条登记（rest serde(default) 置 0 / xmonitor 快照存档降级 / embed 失败退化 / LOCALAPPDATA 兜底——末者建议改严格抛错）；验证：文档三要素核对 + cargo test
+- [x] FIX001.18 [P1] capture 脚本全机杀 dosbox（A001#22）—— baseline-capture.sh:28,37 改按记录 PID 杀（PowerShell Stop-Process -Id），//IM 兜底删除或加警告；验证：并发第二个 dosbox 跑采集断言其存活
+- [x] FIX001.19 [P1] rebuild.bat rmdir 失败静默（A001#23）—— :16 rmdir 后 `if exist ...build exit /b 1`；验证：占用 build 目录跑脚本断言非 0
+- [x] FIX001.20 [P1] NumpadEnter 死条目与大小写（A001#24）—— GameCanvas.vue:32 Enter 特判提前于 Numpad 前缀分支；Numpad 分支统一小写；与 fork `/api/v2/input/event` 键名表核对 numpad* 契约；验证：vue-tsc + 注入小键盘回车人工验证
+- [x] FIX001.21 [P1] 仓库根解析依赖 cwd（A001#26）—— gameconf.rs resolve_repo_root 失败改显式报错并报告探测起点；exe 路径锚定留 Phase 3/4 打包形态一并处理；验证：cargo test + 非仓库根目录启动行为核对
+- [x] FIX001.22 [P2] release 无日志通道（A001#14）—— 引入文件日志（自写 append 落 runtime_dir 或 log+fern）替换关键 eprintln!；验证：release 构建跑一轮查日志文件落盘
+- [x] FIX001.23 [P2] 端口双处事实源（A001#15）—— xmonitor 增加 `--game-json` 从 GameConfig 派生端口或 help 注明与 game.json 同步关系；验证：cargo test + 帮助文本核对
+- [x] FIX001.24 [P2] runtime_dir 游戏身份硬编码（A001#16）—— gameconf.rs runtime_dir(game) 改传参由 config.name 小写派生；验证：cargo test 改断言
+- [x] FIX001.25 [P2] 版本第二处事实源（A001#21）—— game.json version 语义定案（游戏自身版本 → AGENTS.md 条目明示豁免；产品版本 → workspace 派生注入），package.json version 注明不参与发布；验证：文档核对
+- [x] FIX001.26 [P2] 画布每帧重分配（A001#25）—— GameCanvas.vue offscreen 尺寸变化才赋值 + ImageData 按尺寸缓存复用；验证：vue-tsc + 30fps 目视流畅
+- [x] FIX001.27 [P2] 魔法数未命名（A001#41）—— commands.rs:70 提 `POLL_INTERVAL_MS` 常量；GameCanvas.vue 提 `MOUSE_BATCH_MS`/`FPS_WINDOW_MS`；验证：clippy + vue-tsc
+- [x] FIX001.28 [P2] GameConfig.name 无校验（A001#43）—— validate() 补非空与 `[A-Za-z0-9_-]` 合法字符校验；验证：cargo test 非法名用例
+- [x] FIX001.29 [P3] frameFps 死代码（A001#27）—— GameCanvas.vue 删除 fps 统计机制或接入 UI 角标；验证：vue-tsc
+- [x] FIX001.30 [P3] window_rect 死代码（A001#28）—— 删除 winembed.rs:76-94（探针需要时移 .temp）；验证：cargo build
+- [x] FIX001.31 [P3] serde_json 未使用依赖（A001#29）—— 删 launcher/src-tauri/Cargo.toml:12；验证：cargo build
+- [x] FIX001.32 [P3] Registers 字段缺文档（A001#30）—— rest.rs:40-66 补齐 `///` 注释；验证：cargo doc 无警告
+- [x] FIX001.33 [P3] "无会话"返回语义不一致（A001#31）—— 统一三 command 返回约定并与前端核对；验证：cargo test + vue-tsc
+- [x] FIX001.34 [P3] 端口探测测试重复（A001#32）—— 删 launcher_session_test.rs 副本保留 commands.rs 内联版；验证：cargo test
+- [x] FIX001.35 [P3] use 位置违规（A001#33）—— launcher_session_test.rs:41 上移文件头 use 块；验证：cargo fmt
+- [x] FIX001.36 [P3] 快照目录相对 CWD（A001#34）—— xmonitor.rs:156 向上搜索仓库根或加 `--out-dir`；验证：非仓库根运行核对落点
+- [x] FIX001.37 [P3] HudBar listen 卸载竞态（A001#35）—— 加 disposed 标志守卫防晚 resolve 泄漏；验证：vue-tsc + HMR 手工启停
+- [x] FIX001.38 [P3] 窗口样式 API 返回值未检查（A001#36）—— winembed.rs:56-57 SetWindowLongPtrW 失败报 from_win32；验证：代码审查
+- [x] FIX001.39 [P3] 非 BMP UTF-16 截断（A001#37）—— winproc.rs:64-68 统一 `encode_utf16()`；验证：cargo test
+- [x] FIX001.40 [P3] HUD stop 最坏阻塞 500ms（A001#38）—— poll_loop 改短步进 sleep 或注明接受；验证：cargo test
+- [x] FIX001.41 [P3] capture CONF 无存在性检查（A001#39）—— baseline-capture.sh 启动前 `[ -f "$CONF" ]` 断言；验证：改错路径跑断言报错
+- [x] FIX001.42 [P3] 显示 ctx 每帧获取（A001#40）—— GameCanvas.vue:88 首帧缓存 context；验证：vue-tsc
+- [x] FIX001.43 [P3] 生产 CSP 为 null（A001#42）—— PL003 攻略渲染落地前设最小 CSP（本条随 PL003 执行，先登记）；验证：攻略渲染落地时核对
+- [x] FIX001.44 [P2] FIX001 收尾门禁与状态回写 —— 全量门禁（cargo fmt --check + clippy -D warnings + test --workspace + vue-tsc + npm build）全绿；A001 状态行回写 ✅ 已修复；y.problems #12 闭环核对（随 FIX001.6/测试修复路径处理）；验证：门禁全绿 + z.plan 附录 A001 状态更新

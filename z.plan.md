@@ -5,15 +5,16 @@
 
 ## 一、已完成 ✅
 
-（暂无）
+- **PL001 观察库与内存档案**（2026-09-05 收口）→ 附录 PL001
+- **PL002 launcher × DOSBox 结合**（2026-09-07 主线收口，备线休眠 [problems#16]）→ 附录 PL002
 
 ## 二、待完成
 
-（暂无）
+- **PL003 save 生命周期 + 补丁闭环**（待立项，方向已议）
 
 ## 三、主题规划
 
-（暂无）
+- （按需）跨附录主题出现时在此登记；远期与遗留项见 y.problems.md
 
 ## 四、审计观察项豁免定案清单
 
@@ -226,6 +227,7 @@
 
 - launcher 控制窗口（正常尺寸：启动 / 攻略 / 存档管理）+ 游戏独立窗口（Job Object 生命周期）+ HUD 贴边面板
 - 全部基于已验证机制（B 阶段编排 + PL001 REST），零新增技术风险；验证 BW1–BW4
+- **⏸ 休眠（2026-09-07）**：FB1 判 go、主线已全结，本备线不执行；仅帧流/注入路线出现不可修复缺陷时重开——登记 [problems#16]
 
 #### 7. 后期实施·HUD（两分支共用，形态随分支）
 
@@ -371,9 +373,123 @@ VC0 打样 → 过：C 阶段主攻路线一 / 核心崩：直接主攻路线二
 - **PL002.25/26 实施（I1/I2/M1/M3 全过）**：注入端点 `POST /api/v2/input/event`（input.{h,cpp}）——键盘 Bridge+`MAPPER_CheckEvent`（模拟线程，与真实事件泵同路），键名表 62 键+6 修饰键；I1 = 窗口 869×678→1536×864 全屏往返；**协议事实**：mapper 组合键须时序注入（leftalt down → return → up），单发带 mod 位事件不触发。26 设计修正：上游 v0.83 自带 `PUT /api/v1/memory/:seg/:off`（If-Match 乐观锁），唯一补丁 = error_handler 映射 400；M3 = 越界 400 不崩溃；M1 = 游戏内 PUT food=99 读回持久（**标题屏下人物数据区被游戏活跃代码覆盖——写入验证必须在游戏内状态**）。
 - **PL002.27/28 统一窗口集成与收尾（UW1–UW7 全过，nomouse 形态定案）**：launcher 侧 = winembed.rs（离屏 + TOOLWINDOW 摘任务栏，UW6 客观 rect x=-2560/TOOLWINDOW 置位）+ get_frame/inject_input 命令（ureq 透传 + 20 字节元数据头，零 CORS）+ GameCanvas.vue（30fps + 帧号去重 + BGRX→RGBA + PointerLock + 键盘鼠标转发）+ 双模式布局；HudBar 进顶栏（VD1/VD2/VD3 通道未变分别引用既有验证）。**实测根因链三条（集成测试价值实证）**：① 黑屏 = game.json 指官方版无帧流端点 → 改指 DosboxCapsule 构建产物（launcher 首次消费 fork）；② 注入光标不动 = 离屏窗口 cursor_is_outside 恒真丢弃鼠标事件 → **fork 补丁 #4** 注入原语 MOUSE_InjectMoved/Button（绕判定 + cursor_x_abs/y_abs 累进 clamp，nomouse 态驱动走 seamless 绝对路径必需）；③ 中键致宿主光标失效 = 非捕获态中键触发捕获、离屏窗口拖宿主光标进屏外 → **nomouse 形态定案**（dosbox 永不抓宿主光标，鼠标输入全走注入，宿主光标归画布 Pointer Lock）。全量门禁绿。**PL002 前期准备与后期实施主线全部完结**；备线（PL002.29-30）仅在上游升级 rebase 失败时回炉。
 
+#### PL002 主线完结结论（2026-09-07，收口）
+
+- **主线 28 条全结**：fork 三端点（帧流 / 输入注入 / 内存写入映射 400）+ 统一窗口（离屏托管 + 画布吃帧流 + 注入转发）+ HUD 收尾全过；全量门禁绿（cargo fmt / clippy -D warnings / test + vue-tsc + npm build）。
+- **nomouse 形态定案**：dosbox 永不抓宿主光标（capture/middle/热键全禁、int33 照常注册），宿主光标归画布 PointerLock、DOS 光标归注入原语；三根因链（错 exe / cursor_is_outside 丢事件 / 中键触发捕获拖光标进屏外）全部闭环。
+- **双仓终态**：DosboxCapsule main = v0.83.0 + 4 代码补丁 + 3 运维提交（FORK.md、dependabot.yml 移除；单分支 + v0.83.0 tag 锚点）；CapsuleRetro main = V0.1.0.3。dependabot 事件根因清除（继承 yml 的 github-actions 调度 + 独立于 yml 的安全更新通道；PR 建不出回落为 issue 的形态观察）。
+- **遗留登记**：帧流像素纵横比等 9 项挂账 [problems#9–17]；备线休眠 [problems#16]。
+
 #### FB1 基线复现判定书（2026-09-06，go——后期实施走主线）
 
 - **方法**：`.temp/fb1-capture.sh` + `fb1-compare.py`——官方发布版（assets 内 v0.83.0）与构建版（DosboxCapsule ClangCL 产物）串行启动 XEEN（同 conf 同工作副本，标题屏），各拍两份 1MB 全内存快照（间隔 2 秒），按 memory_map 档案 92 条目切片对照：自对照（a vs b）确认稳定、交叉对照（官方 vs 构建）字节级零偏差。
 - **判定过程含一次探针自证**：首轮构建版 5 秒稳定期不足（s2a 全零被自对照识别），暴露判定口径的空洞——静态集为 0 时"零偏差"为空真；改 12 秒等待重跑，双稳定条件真实成立后判定有效。
 - **结果**：92/92 条目静态、0 偏差（`fb1-report.json`）。构建版（ClangCL）与官方发布版在 DOS 内存行为上字节级一致，memory_map 档案在构建产物上完整有效。
 - **决策**：FB1 全过 → **PL002.23 起后期实施走主线**（fork 三端点 + 统一窗口）；备线（PL002.29-30）仅在上游升级 rebase 失败时回炉。
+
+---
+
+## 附录 A001：全量代码审计报告（第1轮，2026-09-07）
+
+> 范围：capsule-core + launcher 后端（src-tauri）+ Vue 前端 + tools/dosbox-fork 运维脚本 + retro/game.json（2026-09-07 修订版范围界定，首轮执行）；方式：三路并行子任务全文通读 + 主会话合并去重 + P1/关键 P2 锚点原文复核；规则版本 CR 2026-09-04；DosboxCapsule 独立仓在范围外（PATCHES.md + FB1 门槛自行约束）。
+> 状态：✅ 已修复（2026-09-08，FIX001 全组 44 条勾结；反向验收与 live 待验清单见 x.progress.md FIX001 组注记及 `.temp/fix001-verification.md`。例外：#42 CSP 随 PL003 落地执行；#21 game.json/package.json version 按 FIX001.25 豁免定案，不改代码）
+
+### 零、上轮修复复核清单
+
+无上轮（首轮审计）。y.problems #12（gameconf 测试读取 gitignored 参考文件）由后端组独立再发现，与登记一致，未重复立条。
+
+### 一、P0-P3 修复清单
+
+#### P1（高——确定性复现，3 条）
+
+| #   | 位置                                             | 类别 | 描述                                                                                                                                                              | 建议                                                         | 影响面                  |
+| --- | ------------------------------------------------ | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ----------------------- |
+| 1   | `winproc.rs:59-63`（文档 ：49）                  | 1    | dosbox args 未加引号，与文档"各段自动引号包裹"不符——只有 exe 走 `quoted()`，参数裸拼；conf 路径来自 `%LOCALAPPDATA%`，用户名含空格的机器上确定性截断，launch 必败 | args 统一走 `quoted()`；同步修正文档                         | DOSBox 会话             |
+| 2   | `tools/dosbox-fork/rebuild.bat:25-26`            | 2/13 | 构建失败仍退出码 0——build 步只 echo REBUILD-EXIT，无 errorlevel 判断，FB2"重建可重复"门禁失败被当成功                                                             | 末尾补 `exit /b %ERRORLEVEL%`                                | 跨模块（fork 升级门禁） |
+| 3   | `tools/dosbox-fork/baseline-compare.py:40-48,73` | 1    | FB1 假 GO 双路径：①"仅候选版自对照不稳定"被静默归入 dynamic 剔除（rebase 非确定性本身是回归信号）；② 静态集趋近空时空比对内容照常返回 GO                          | dynamic 细分稳定性，单侧不稳即非 0；静态条目数低于阈值判非 0 | 跨模块（FB1 判定）      |
+
+#### P2（中，23 条）
+
+| #   | 位置                                                                               | 类别 | 描述                                                                                                                          | 建议                                         | 影响面                |
+| --- | ---------------------------------------------------------------------------------- | ---- | ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | --------------------- |
+| 4   | `baseline-compare.py:22-25`                                                        | 2    | 切片无边界校验，越界静默截断——档案坐标出错时四快照同切空串恒等，条目形同未比对仍 GO（需验证：触发需档案坐标错误）             | `slice_at` 断言 `addr+length <= len(mem)`    | 跨模块                |
+| 5   | `commands.rs`（无退出监听）+ `App.vue:37-46`                                       | 8/10 | DOSBox 自退/崩溃后会话槽位不自清、前端无感知——`running` 恒真，再启恒报"已有会话"，画布 30fps 永久静默吃 503                   | 退出监听线程 + emit 事件清槽（跨组联动）     | 跨模块                |
+| 6   | `commands.rs:100` + `GameCanvas.vue:58-85`                                         | 2    | 帧协议静默错值链：后端 `take(16MB)` 静默截断，前端不校验长度与 pitch，像素循环读 undefined 静默写 0 → 花屏不报错              | 后端截断报错；前端加长度/pitch 断言          | Vue 前端 + Tauri 后端 |
+| 7   | `GameCanvas.vue:99-111`                                                            | 13/2 | 空 catch 域覆盖 drawFrame（解码异常被当瞬时抖动永久静默）；帧循环降级未登记容错白名单                                         | 缩小 try 域；警告 + 连续失败计数显式置错     | Vue 前端              |
+| 8   | `commands.rs:207-244`                                                              | 8/9  | 同步 command 主线程执行：get_frame 含 3s 超时 HTTP，launch 持锁全程 spawn——UI 冻结最长 3s（需验证 Tauri 2 调度）              | async / spawn_blocking；锁外构造 Session     | Tauri 后端            |
+| 9   | `winproc.rs:108-110`                                                               | 2    | ResumeThread 返回值未检查，失败仍 Ok → 进程永久挂起的静默假成功                                                               | 检查 `!= u32::MAX` 转错误                    | DOSBox 会话           |
+| 10  | `commands.rs:136-147`                                                              | 8    | probe_port 绑定后立即释放至 DOSBox bind 之间为 TOCTOU 窗口，被抢后 webserver 起不来且无诊断指向根因                           | 文档标注；launch 后做 webserver 就绪探测     | DOSBox 会话           |
+| 11  | `commands.rs:184-190`                                                              | 8    | Job assign 失败提前返回时挂起的 DOSBox 未进 Job、句柄 drop 不杀 → 无人认领僵尸                                                | 失败路径显式 TerminateProcess                | DOSBox 会话           |
+| 12  | `commands.rs:232-240`                                                              | 8    | embed 固定 2s 竞态无重试——慢机器上离屏托管静默失效                                                                            | 轮询重试若干次                               | DOSBox 会话           |
+| 13  | `commands.rs:169-171`                                                              | 2    | work_dir 直接 mount 但不校验存在性（释放逻辑属 PL003 未建）——缺失时用户只见黑窗                                               | launch 前校验，缺失严格抛错                  | DOSBox 会话           |
+| 14  | `main.rs:3` + 全部 `eprintln!`                                                     | 10   | release 无控制台，全部诊断输出丢失，无日志文件方案                                                                            | 文件日志统一落 runtime_dir                   | Tauri 后端            |
+| 15  | `retro/game.json` + `xmonitor.rs:30`                                               | 3    | 端口 18086 双处事实源无同步机制。修正：A 组"commands.rs 生产第三处硬编码"经核实不成立（:305/:310 为测试，生产 :168 正确派生） | xmonitor 加 `--game-json` 派生或注明同步关系 | 配置体系              |
+| 16  | `gameconf.rs:19-21`                                                                | 3    | 运行时目录 `join("xeen")` 游戏身份第二处硬编码，与 config.name 脱钩                                                           | 传 config.name 小写派生                      | 配置体系              |
+| 17  | `rest.rs:118-135`                                                                  | 2/6  | memory() 短读静默接受 + 返回值文档自相矛盾——短读污染快照后差分报 LengthMismatch 误导排查                                      | 读后校验长度报 ShortRead；统一文档           | DOSBox 会话           |
+| 18  | `xmonitor.rs:179-196`                                                              | 2    | search 离线参数不成对时静默混入交互模式；--s3 单独传时三种来源混用                                                            | clap requires 成对或显式报错                 | DOSBox 会话           |
+| 19  | `profile.rs:175-176` + `xmonitor.rs:129-130`                                       | 2/10 | 档案 len 与宽度一致性无加载期校验（len:0 必败）；WidthMismatch 错误不带条目名无法定位                                         | 加载期校验；错误附 entry.name                | DOSBox 会话           |
+| 20  | `rest.rs:40-66`、`xmonitor.rs:157-168`、`commands.rs:232-240`、`gameconf.rs:19-21` | 13   | 容错白名单登记制执行缺口（四处合并）：serde(default) 置 0 / 快照存档降级 / embed 退化形态 / LOCALAPPDATA 兜底 temp——均未登记  | 逐条登记或改严格抛错                         | 跨模块                |
+| 21  | `retro/game.json:3` + `launcher/package.json:4`                                    | 3/12 | 版本单一来源第二处事实：game.json "1.0" 硬编码（AGENTS.md 明文禁止且零消费）；package.json 版本同理                           | 派生或 AGENTS.md 条目明示豁免                | 配置体系              |
+| 22  | `baseline-capture.sh:28,37`                                                        | 8    | taskkill //IM 全机杀 dosbox——本机其他实例会被误杀                                                                             | 改按 PID 杀；//IM 兜底改可选并警告           | 跨模块                |
+| 23  | `tools/dosbox-fork/rebuild.bat:16`                                                 | 2    | rmdir 失败无检查，残留旧 build 继续构建——"清洁重建"被静默架空                                                                 | rmdir 后 `if exist ... exit /b 1`            | 跨模块                |
+| 24  | `GameCanvas.vue:32`                                                                | 1/5  | NumpadEnter 死条目（Numpad 前缀分支先执行）；Numpad 分支大小写不统一（fork 键名契约需验证）                                   | 特判提前；统一大小写                         | Vue 前端              |
+| 25  | `GameCanvas.vue:68-70`                                                             | 9    | 每帧无条件重设 offscreen 尺寸 + createImageData——30fps 重复分配 ~1.2MB/帧级 GC 压力                                           | 尺寸变化才赋值；ImageData 缓存               | Vue 前端              |
+| 26  | `commands.rs:165` + `gameconf.rs:24-35`                                            | 1/10 | 仓库根解析依赖进程 cwd（打包形态必败），探测失败静默返回 start、根因被掩盖（需验证打包形态）                                  | exe 路径锚定；探测失败显式报错               | Tauri 后端            |
+
+#### P3（低，17 条）
+
+| #   | 位置                                                      | 类别 | 描述                                                                           | 影响面      |
+| --- | --------------------------------------------------------- | ---- | ------------------------------------------------------------------------------ | ----------- |
+| 27  | `GameCanvas.vue:13,102-108,177`                           | 5    | frameFps 及 fps 统计机制只写不读（死代码）                                     | Vue 前端    |
+| 28  | `winembed.rs:76-94`                                       | 5    | window_rect 全仓零调用                                                         | Tauri 后端  |
+| 29  | `launcher/src-tauri/Cargo.toml:12`                        | 5/12 | serde_json 零引用依赖                                                          | Tauri 后端  |
+| 30  | `rest.rs:40-66`                                           | 6    | Registers/CpuState pub 字段缺 /// 文档                                         | DOSBox 会话 |
+| 31  | `commands.rs:249-251,262-263,283`                         | 11   | "无会话"返回语义不一致（stop=Ok，其余=Err），错误为中文裸串无法程序化分类      | Tauri 后端  |
+| 32  | `launcher_session_test.rs:61-67` vs `commands.rs:292-298` | 4    | 端口探测测试逐字重复两份                                                       | Tauri 后端  |
+| 33  | `launcher_session_test.rs:41`                             | 6    | use 语句在文件中部                                                             | Tauri 后端  |
+| 34  | `xmonitor.rs:156`                                         | 6    | 快照目录 `.temp` 相对 CWD                                                      | DOSBox 会话 |
+| 35  | `HudBar.vue:18-35`                                        | 8    | listen 异步注册与卸载竞态，unlisten 可能泄漏（需验证触发路径）                 | Vue 前端    |
+| 36  | `winembed.rs:56-57`                                       | 2    | GetWindowLongPtrW/SetWindowLongPtrW 返回值未检查                               | DOSBox 会话 |
+| 37  | `winproc.rs:64-68`                                        | 1    | 命令行 UTF-16 用 `c as u16` 截断非 BMP 字符（与 appname 的 encode_utf16 漂移） | DOSBox 会话 |
+| 38  | `hud.rs:99-143`                                           | 9    | poll_loop 轮末固定 sleep，stop 最坏阻塞 500ms                                  | DOSBox 会话 |
+| 39  | `baseline-capture.sh:14,16`                               | 2    | CONF 无启动前存在性检查                                                        | 跨模块      |
+| 40  | `GameCanvas.vue:88`                                       | 9    | 显示画布 ctx 每帧重复获取                                                      | Vue 前端    |
+| 41  | `commands.rs:70` + `GameCanvas.vue:137,104`               | 3    | 魔法数未命名：HUD 500ms / 合帧 30ms / fps 窗口 1000ms                          | 跨模块      |
+| 42  | `tauri.conf.json:18`                                      | 7    | 生产 csp null——PL003 攻略渲染前需设最小 CSP                                    | Tauri 后端  |
+| 43  | `game_config.rs:43-44`                                    | 2    | name 承担启动命令来源但无空名/合法字符校验（需验证消费方式）                   | 配置体系    |
+
+### 二、参考级观察项（23 条，2026-09-08 用户确认全部保持参考级）
+
+| #   | 位置                                        | 摘要                    | 回落理由                   |
+| --- | ------------------------------------------- | ----------------------- | -------------------------- |
+| 1   | `xmonitor.rs:93`                            | interval 下限 50        | 单次使用常量               |
+| 2   | `diff.rs:17-23,44-54`                       | 等长校验两处重复        | KISS 自洽，第三处再提取    |
+| 3   | `diff.rs`                                   | 复用 rest 错误枚举      | 错误类型收敛优先           |
+| 4   | `profile.rs:87-103`、`game_config.rs:82-87` | trait impl 缺文档首行   | rustdoc 不展示，惯例豁免   |
+| 5   | `rest.rs:129`                               | with_capacity 理论 4GB  | 无可达路径（需验证）       |
+| 6   | `rest.rs:78`                                | "默认 8086" 注释        | 需验证上游默认值           |
+| 7   | `xmonitor.rs:127-134`                       | poll_once 编排留 bin    | 第三消费方再下沉           |
+| 8   | `commands.rs:54`                            | wait_exit(5000)         | 单次使用魔数               |
+| 9   | `winembed.rs:18`                            | OFFSCREEN_X=-3200       | 有注释几何参数             |
+| 10  | `commands.rs:236`                           | embed 2s 数值           | 有注释（竞态部分已列 #12） |
+| 11  | `hud.rs:176`                                | food/18                 | 定案公式有注释             |
+| 12  | `jobctl.rs:15-18`                           | 句柄无 Drop             | 注释明示设计               |
+| 13  | `commands.rs:174-179`                       | dosbox.log 无轮转       | PL003 一并治理             |
+| 14  | `winproc.rs:59`                             | 含 .. 非规范路径        | 文件层正确解析，纯理论     |
+| 15  | `hud.rs:22-24` vs 测试                      | WATCHED 双处            | 双通道对照设计             |
+| 16  | `GameCanvas.vue:197-198`                    | 960×720 非整数拉伸      | y.problems #9 已挂账       |
+| 17  | `GameCanvas.vue:7`                          | FRAME_INTERVAL_MS=33    | 有注释常量                 |
+| 18  | `baseline-capture.sh`                       | 字面量路径/端口         | 文件头明示设计             |
+| 19  | `rebuild.bat:5,15`                          | 机器路径/代理           | 文件头明示换机改法         |
+| 20  | `GameCanvas.vue:59,69`                      | offCtx null             | 纯理论不可达               |
+| 21  | `GameCanvas.vue:174-181`                    | active=false 分支不可达 | 双保险，无错误行为         |
+| 22  | `vite-env.d.ts`                             | vue shim 冗余           | 惯例无行为影响             |
+| 23  | `rest_stub.rs:24-25,61-62`                  | 测试 stub expect/吞错   | 测试惯例                   |
+
+### 三、亮点
+
+- 补丁纪律（最高优先级安全项）三组零违规：全仓无任何对 `retro/` 的写路径
+- 帧协议两端一致：20 字节 LE 帧头与 BGRX→RGBA 映射逐字节核对无误；HudSnapshot TS↔Rust 无类型漂移
+- 严格抛错主线贯彻：thiserror 枚举齐全，业务代码无散落 unwrap/expect；版本单一来源 workspace 侧合规
+- winproc.rs 挂起→挂 Job→resume 时序注释清晰、Send/Sync 论证规范；hud.rs 回调注入可测性好
+- 审计过程修正一处子任务误报（生产端口硬编码指控），锚点复核有效

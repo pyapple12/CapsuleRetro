@@ -18,7 +18,8 @@ fn hud_双通道对照与cpu开销() {
     let mut session = start_session().expect("启动会话应成功");
     let (tx, rx) = mpsc::channel::<HudPollEvent>();
 
-    let repo_root = gameconf::resolve_repo_root(&std::env::current_dir().expect("cwd"));
+    let repo_root = gameconf::resolve_repo_root(&std::env::current_dir().expect("cwd"))
+        .expect("仓库根应可定位");
     let config_path = repo_root.join("retro").join("game.json");
     let config = capsule_core::game_config::GameConfig::load(&config_path).expect("加载配置");
     let map_path = repo_root.join(&config.assets.memory_map);
