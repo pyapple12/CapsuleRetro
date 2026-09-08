@@ -9,4 +9,5 @@ pub mod game_config;
 pub mod monitor;
 pub mod patch;
 pub mod paths;
+pub mod payload;
 pub mod save;

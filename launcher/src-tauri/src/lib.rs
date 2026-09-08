@@ -10,6 +10,8 @@ pub mod logging;
 pub mod winembed;
 pub mod winproc;
 
+use tauri::Manager as _;
+
 /// 组装并运行 Tauri 应用。
 pub fn run() {
     // 文件日志先于一切业务初始化（release 无控制台，日志是唯一诊断通道）；
@@ -20,6 +22,17 @@ pub fn run() {
     }
     let app = tauri::Builder::default()
         .manage(commands::SessionState::default())
+        .on_window_event(|window, event| {
+            // PL004.10：主窗口被直接关闭时兜底回写 save（会话存活则停会话 +
+            // 回写后再放行）；失败落日志不阻断关闭（回写失败已记录，旧 save
+            // 完整可自愈；进程退出后 Job Object 兜底杀树）
+            if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
+                let state = window.app_handle().state::<commands::SessionState>();
+                if let Err(err) = commands::writeback_on_close(&state) {
+                    logging::error(&format!("窗口关闭兜底回写失败: {err:#}"));
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             commands::launch_game,
             commands::stop_game,

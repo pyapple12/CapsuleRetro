@@ -9,10 +9,11 @@
 - **PL002 launcher × DOSBox 结合**（2026-09-07 主线收口，备线休眠 [problems#16]）→ 附录 PL002
 - **FIX001 第 1 轮全量审计修复**（2026-09-08 收口）→ 附录 A001
 - **PL003 save 生命周期 + 补丁闭环**（2026-09-08 收口）→ 附录 PL003
+- **PL004 capsule-pack + 打包形态落地**（2026-09-09 收口）→ 附录 PL004
 
 ## 二、待完成
 
-- （暂无——packer（capsule-pack）与三平台打包是下一个大件，未立项）
+- PL005 0.1.0 发布打磨（UI 去粗粝 / 图标元数据 / 发布工程与杀软对策）——立项待启
 
 ## 三、主题规划
 
@@ -586,3 +587,68 @@ VC0 打样 → 过：C 阶段主攻路线一 / 核心崩：直接主攻路线二
 - **live 揪出 2 个测试盖不住的 bug**：① CSP 未放行 `connect-src ipc: http://ipc.localhost` → 二进制帧通道全灭（FIX001.43 回归；JSON 命令走 postMessage 无恙，唯二进制被拦）——**安全配置回归必须 live 全链路验证**；② hack 选择被旧 save meta 覆盖 → UI 选择定为权威源。
 - **连带闭环**：y.problems #12（gameconf 测试资产转正）、#9（纵横比复核为非缺陷降级）、FIX001.43（CSP）；dosbox.log 5MB 轮转；容错白名单新增 2 条（save 损坏降级 / 轮转失败继续追加）。
 - **存档事实**：XEEN 为双面合体，存一次档同槽号双面各写一份（XEEN01.SAV + DARK01.SAV），`*.SAV` 通配符天然覆盖。
+
+---
+
+## 附录 PL004：capsule-pack + 打包形态落地（2026-09-09 立项）
+
+> 背景：PL003 收口后产品骨架闭环（能跑 / 存档能带 / 补丁能切 / 攻略能看），但形态仍是"仓库即游戏包"——launcher 只认 dev 仓库路径（resolve_repo_root），packer 未建，"两个文件走天下"的产品承诺尚未兑现。本期把"游戏"从"一个仓库"压缩成"一个 exe"：capsule-pack 打包器 + launcher 打包形态（双形态资源解析）+ 窗口关闭兜底回写，产出 dist 三文件。
+> 关键洞察：① 资源内嵌不必重编译——launcher release exe 尾部追加 zip payload + trailer（magic + 偏移/长度），packer 对任何 game.json 都能出包；PE loader 不读尾部追加字节，launcher 运行期读自身定位 payload，exe 与 payload 永远只读；② dev / packed 双形态只差"资源来源"一层抽象，capsule-core 全部逻辑（save / patch / paths）原样复用；③ save 落点两形态同构（产品根目录：dev = 仓库根、packed = exe 同目录），零迁移。
+> 目标：`npm run tauri build` + `cargo run -p capsule-pack -- retro/game.json --launcher <exe> -o dist/` 一条链产出可分发产物；干净 Windows（无 repo / 无工具链）双击即玩、存档能带走、直接关窗口存档不丢。
+> 状态：✅ 已完成（2026-09-09 收口；关窗兜底 / 改名无感 / VA1 干净环境 live 全过；任务清单见 x.progress.md「PL004」；实测结论见下）
+
+### 方向定案（2026-09-09，用户拍板）
+
+1. **内嵌方案 = exe 尾部追加 zip payload + trailer**：packer 复制 launcher release exe → 追加资源 zip → 写 trailer（magic + payload 偏移/长度）；launcher 启动读自身 exe，trailer 命中 = 打包形态，未命中 = dev 仓库形态。弃选 include_bytes!（按游戏重编译，packer 失去意义）与 Tauri bundle resources（安装器 / 文件夹形态，破坏单文件承诺）。
+2. **save 命名从 game.json `name` 派生**：用户改 exe 文件名（如"魔法门4.exe"）不影响 save 识别；`.save` 本身不可改名（改了视为无存档、新建空档，旧档改回名仍可识别）。
+3. **产品 = 三文件形态**：`GameName.exe` + `GameName.save` + `readme.md`（使用方法 / 两个数据文件角色 / exe 与 save 同目录 / 改名规则表 / SmartScreen"更多信息→仍要运行"指引）；readme 由 packer 从仓库模板生成，注入游戏名与版本。
+4. **窗口关闭兜底回写纳入本期**：现有回写挂点 exit-watcher 是 launcher 进程内线程——直接关窗口 = 进程亡、线程死、DOSBox 被 Job Object 连带杀、save 不回写。onCloseRequested 拦截（会话存活 → writeback → 退出）补上该生命周期漏洞。
+5. **UI 打磨不做动效**：0.1.0 发布打磨（待机页排版 / 攻略样式 / 错误 toast / 图标元数据 / 发布工程与验收）独立为 PL005，本期不做。
+6. **0.2.0 = 三端适配（登记不动）**：登记于 `CapsuleRetro_plan.md` §9 版本路线；0.1.x 稳定后再细化立项（最大风险项：Linux Wayland 输入注入）。
+
+### 数据格式（定案，PL004.1 打样验证 2026-09-09）
+
+- **trailer**（exe 尾部 28 字节）：`magic(8) = "CRPAYLD1"` + `format(u32 LE) = 1` + `payload_len(u64 LE)` + `payload_offset(u64 LE)`；magic 不匹配 = 非打包形态（launcher 走 dev 分支）；magic 命中但字段与文件大小矛盾 = 显式报错；payload 首字节须为 `PK`。打样：10.6MB launcher.exe 拼装 → 解析往返一致，篡改 magic/len/payload 字节三负例行为全部符合预期（.temp/pl004_probe.py）
+- **payload**（zip，deflate，布局镜像仓库——dev 相对路径在打包形态原样成立）：
+
+  ```
+  payload.json            # {"build": "<产品版本>+<unix秒>"}——extract-once 版本标记
+  retro/game.json         # 打包配置原样内嵌
+  retro/<game_dir>/**     # 原版游戏文件（只读源）
+  retro/<assets.guide>    # 攻略（如 retro/xeen-guide.md，保持仓库相对路径）
+  retro/<assets.memory_map>            # 内存档案
+  retro/<patches[].patch> # 补丁包（如 retro/patches/test-hack.zip）
+  dosbox/bin/<exe 名>     # fork DOSBox 可执行（文件名取 dosbox.exe_path 基名）
+  dosbox/bin/**           # dosbox 目录全量部署（递归，排除 .lib/.pdb 构建中间产物）
+  dosbox/Resources/**     # dosbox 目录的兄弟资源树（shaders/disk-noises，存在才带）
+  ```
+
+- **dosbox 来源定案**：打包源 = DosboxCapsule fork 构建产物（dosbox.exe + DLL，约 30MB），packer CLI `--dosbox-dir` 注入（默认 = game.json `dosbox.exe_path` 的父目录）；`assets/dosbox` 的 v0.83.0 zip 为未打补丁原版，不作打包源；payload 内布局**镜像构建树相对结构**（`dosbox/bin` 与 `dosbox/Resources` 互为兄弟——shader 等运行期资源的 exe 相对查找依赖它，live 实测缺失即 ABORT）；打包形态 dosbox 路径 = `<资源根>/dosbox/bin/<exe 名>`
+- **readme.md**：模板编译期内嵌 packer（`include_str!`，占位符 `{{GAME_NAME}}` / `{{VERSION}}`），出包时注入生成，与 exe 并排落 dist/
+
+### 双形态协议（定案）
+
+- 识别：launcher 启动读自身 exe 尾部 trailer——命中 = 打包形态，未命中 = dev 仓库形态（现行 `resolve_repo_root`）
+- 打包形态资源根 = `%LOCALAPPDATA%/CapsuleRetro/<game>/resources/`（payload extract-once 释放目的地，`payload.json` 即标记；标记缺失 / 损坏 / 不符 → 清空重释放）；save 根 = exe 同目录；dosbox = `<资源根>/dosbox/<exe 名>`
+- dev 形态：资源根 = 仓库根、save 根 = 仓库根、dosbox = 仓库根 + `dosbox.exe_path`（现状不变）
+- 两形态下游逻辑完全共用：config 加载（`<资源根>/retro/game.json`）、攻略 / 补丁 / 内存档案解析、prepare_session / writeback（PL003 三模块）
+
+### 运行时行为（打包形态）
+
+- 启动：payload 整体释放到 `runtime/<game>/resources/`（extract-once：标记不符才清空重释放，游戏 ~37MB + dosbox ~30MB 只在构建变更时付一次）；此后所有资源按 dev 同款相对路径从资源根读取
+- save：exe 同目录 `{name}.save`，生命周期复用 PL003 三模块（解压 → 运行 → 原子回写）
+- exe 自身与 payload 永远只读；补丁与存档只作用于 runtime 工作副本（补丁纪律不变）
+- dev 形态行为完全不变（cargo tauri dev 读仓库），双形态共存长期保留
+
+### 验收标准
+
+1. **VA1 干净环境全链路**：dist 产物拷到无 repo / 无工具链目录 → 双击 → 玩 → 存档 → 退出回写 → 重进读档继续
+2. **VA2 生命周期边界**：游戏中直接关窗口 → 存档不丢（日志含回写记录）；exe 改名 → save 识别不受影响
+3. **收尾**：全量门禁绿 + z.plan 实测结论回写 + x.progress 勾结
+
+### 实测结论（2026-09-09 收口）
+
+- **验收全过**：关窗兜底（游戏内存档后直接关 launcher 窗口 → 重进存档在）；exe 改名无感（魔法门4.exe 启动仍读写 XEEN.save，无第二 save 产生）；VA1 干净环境全链路（用户拷 dist 到非项目目录实测通过）。反向验收 11 项 + live 冒烟记录见 `.temp/pl004-verification.md`。
+- **落地形态**：capsule-core 新增 payload 模块（trailer 28 字节 `CRPAYLD1` + format + len + offset；区间游标 Read+Seek 不整段载内存；extract-once 版本标记释放）；capsule-pack 进 workspace（校验 → 镜像仓库布局收集 → payload zip → 拼装 exe + readme 注入，`--dosbox-dir` 默认取 `dosbox.exe_path` 父目录）；launcher 以 `resolve_resource_ctx` 单锚收敛双形态（资源根 = 仓库根 / runtime resources），save / patch / paths 三模块零改动复用。
+- **live 揪出 1 个测试盖不住的 bug**：首包 dosbox 启动即 ABORT（Error setting fallback shaders）——fork 构建树的 shader 资源在 exe 目录的**兄弟 `Resources/` 目录**，payload 只带 exe+DLL 时缺失。修复：payload 内 dosbox 布局**镜像构建树相对结构**（`dosbox/bin/` + `dosbox/Resources/`）。教训与 PL003 CSP 同类——产物形态的"相对布局假设"单元测试无法覆盖，新形态首包必须 live 验证。
+- **连带闭环**：计划书 §7 Phase 0–3 全部勾结（Windows 主线功能面收束）；产品从"仓库即游戏包"升级为三文件分发形态（dist/XEEN.exe 37.6MB / 413 payload 条目 + readme.md，save 首启生成）；0.1.0 = Windows 可玩可发布达成，余 PL005 发布打磨（UI 去粗粝 / 图标元数据 / 发布工程）。

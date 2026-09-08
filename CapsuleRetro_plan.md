@@ -30,6 +30,8 @@ MyGame.save                                ← 唯一用户数据：存档 + 设
 
 系统缓存目录（`%LOCALAPPDATA%` / `~/.cache` / `~/Library/Application Support`）存放释放的运行时与游戏文件，**丢失可自愈（重新释放）**，用户无需关心。
 
+> 实况修订（2026-09-09）：产品形态定为三文件——执行文件 + save + `readme.md`（随包说明：使用方法 / 改名规则 / SmartScreen 指引）；save 名从 game.json `name` 派生，执行文件改名无感；执行文件资源内嵌方式 = 尾部追加 zip payload。详见 z.plan.md 附录 PL004。
+
 ### 2.2 save 文件生命周期
 
 1. 启动：解压 `MyGame.save` 到临时工作区
@@ -150,47 +152,48 @@ config/          # 用户对 dosbox.conf 的覆盖片段
 
 > **排期原则（2026-09-07 用户决策）：Windows 优先**——Phase 0–4 全部以 Windows 为唯一目标平台交付，功能全量完成后再进入 Phase 5 做 macOS/Linux 适配；三平台产品的最终目标不变。跨平台问题在主线期间只登记 y.problems.md，不阻塞开发。
 
-### Phase 0 — POC 技术验证（约 1.5 周）✅ 主体完成
+### Phase 0 — POC 技术验证（约 1.5 周）✅ 完成（2026-09-08 收口）
 
 - [x] Tauri 2 项目骨架（三平台可跑通）——已完成（PL002.4；Windows 实测通过）
 - [x] DOSBox Staging sidecar 集成：进程启动、界面隐藏、独立 conf ——已完成（PL002 阶段 B + 后期主线；"界面隐藏"以 Windows 离屏托管实现）
 - [x] **4:3 填充验证**：Windows SetParent 嵌入 + macOS 覆盖层窗口，两者至少其一跑通 ——已完成（方案变更：SetParent 判死，由 fork 帧流 + 画布整数缩放达成，见下方实况备注）
-- [ ] save zip 打包/解包/原子替换（随 PL003 落地）
-- [ ] 验收：Windows 上跑通一个示例游戏，全屏填充图正确显示，存档能回写 save 文件（原 macOS 验收移 Phase 5）
+- [x] save zip 打包/解包/原子替换（随 PL003 落地）——已完成（capsule-core save/patch/paths 三模块 + 15 集成测试）
+- [x] 验收：Windows 上跑通一个示例游戏，全屏填充图正确显示，存档能回写 save 文件（原 macOS 验收移 Phase 5）——已完成（PL003 VA1 live：存档 → 停止回写 → 读档续玩；画面由帧流画布承担）
 
 > 实况备注（2026-09-07）：前三项已由 PL002 完成（界面隐藏 = DosboxCapsule 离屏托管；**4:3 填充方案变更**——SetParent 判死（VC0），改由 fork 帧流 + launcher 画布整数缩放达成，跨平台缺口仅剩 macOS/Linux 窗口隐藏，见 y.problems #10）；save 闭环未做，随 PL003 落地。
+> 实况收口（2026-09-08）：save 闭环已随 PL003 落地（打包/解包/原子替换 + 损坏降级 + 补丁纪律代码化），live 验收全过（z.plan 附录 PL003 实测结论）。
 
-### Phase 1 — 启动器核心（约 2.5 周，Windows）
+### Phase 1 — 启动器核心（约 2.5 周，Windows）✅ 主体完成（余项归 PL005）
 
-- [ ] 单游戏 UI：封面页、原版/hack 入口、攻略页（MD → HTML 渲染）
-- [ ] 全屏游戏会话：填充图、4:3 区域计算、热键呼出/隐藏启动器
-- [ ] DOSBox 生命周期管理：启动、退出、崩溃检测与恢复
-- [ ] 设置项：音量、填充图切换、分辨率
-- [ ] 验收：完整玩一局游戏，存档保存/恢复正确，界面无模拟器痕迹
+- [ ] 单游戏 UI：封面页、原版/hack 入口、攻略页（MD → HTML 渲染）——大半完成（原版/hack 入口 + save 状态 + 攻略渲染已落地：PL003.12/13 live 验证；封面页未做，归 PL005 UI 打磨）
+- [ ] 全屏游戏会话：填充图、4:3 区域计算、热键呼出/隐藏启动器 ——方案已被取代（PL002 统一窗口形态：帧流 + 画布整数缩放，4:3 正确显示 live 验证；填充图随 SetParent 一并淘汰；热键呼出/隐藏未做，PL005 评估）
+- [x] DOSBox 生命周期管理：启动、退出、崩溃检测与恢复 ——已完成（PL002 会话链路 + FIX001.5 exit-watcher：退出/被杀检测 → session-ended 事件 + save 回写；恢复 = 重新启动会话，存档由原子回写保障）
+- [ ] 设置项：音量、填充图切换、分辨率 ——未做（save meta 预留 settings 字段；填充图切换随方案变更失去对象；归 PL005 评估取舍）
+- [x] 验收：完整玩一局游戏，存档保存/恢复正确，界面无模拟器痕迹 ——已完成（PL003 VA1 live 验证；统一窗口无模拟器痕迹）
 
-### Phase 2 — 补丁与 save 闭环（约 1.5 周，Windows）
+### Phase 2 — 补丁与 save 闭环（约 1.5 周，Windows）✅ 完成（2026-09-08，PL003）
 
-- [ ] patch 格式定义 + 应用器（文件级替换）
-- [ ] save 完整闭环：启动解压 → 运行 → 退出回写（原子、防损坏）
-- [ ] hack 标记持久化（meta.json）
-- [ ] 验收：hack 版与原版切换互不污染，save 文件损坏时能恢复
+- [x] patch 格式定义 + 应用器（文件级替换）——已完成（capsule-core patch.rs：manifest replace/add，7 种路径穿越全拒）
+- [x] save 完整闭环：启动解压 → 运行 → 退出回写（原子、防损坏）——已完成（save.rs + paths.rs + exit-watcher/stop_game 双挂点；损坏白名单降级）
+- [x] hack 标记持久化（meta.json）——已完成（meta.hack 随 save 持久化，UI 选择为权威源）
+- [x] 验收：hack 版与原版切换互不污染，save 文件损坏时能恢复 ——已完成（VA2：retro/ 21 文件 MD5 三比照全等；VA3：垃圾字节 → .corrupt 备份 + 降级启动）
 
-### Phase 3 — 打包器 CLI（约 2 周，Windows 产物）
+### Phase 3 — 打包器 CLI（约 2 周，Windows 产物）✅ 完成（2026-09-09，PL004）
 
-- [ ] game.json 校验与解析
-- [ ] `capsule-pack`：Windows 单 exe 产物生成（macOS .app / Linux AppImage 移 Phase 5）
-- [ ] 资源内嵌 + 首次运行释放（含进度提示）
-- [ ] 游戏文件压缩存储
-- [ ] 验收：用一款真实 DOS 游戏跑通 Windows 打包 → 运行全流程
+- [x] game.json 校验与解析 ——已完成（capsule-core game_config.rs：v2 结构 game_dir/save_files/patches + 校验）
+- [x] `capsule-pack`：Windows 单 exe 产物生成（macOS .app / Linux AppImage 移 Phase 5）——已完成（exe 尾部追加 zip payload + trailer；dist/XEEN.exe 37.6MB / 413 条目）
+- [x] 资源内嵌 + 首次运行释放（含进度提示）——已完成（payload extract-once 释放 runtime/resources，版本标记自愈；进度提示不必要——实测秒级）
+- [x] 游戏文件压缩存储 ——已完成（payload zip deflate）
+- [x] 验收：用一款真实 DOS 游戏跑通 Windows 打包 → 运行全流程 ——已完成（VA1 干净环境用户 live 通过）
 
-### Phase 4 — Windows 打磨与发布（约 1.5 周）
+### Phase 4 — Windows 打磨与发布（约 1.5 周）→ 归 PL005（待 PL004 收口后立项）
 
-- [ ] Windows 杀软误报实测与对策（签名或降级方案）
+- [ ] Windows 杀软误报实测与对策（签名或降级方案）——0.1.0 倾向 zip 分发 + readme SmartScreen 指引，代码签名后续评估
 - [ ] GitHub Actions Windows 构建与产物分发流水线
-- [ ] UI 打磨（封面、填充图效果、攻略排版）
+- [ ] UI 打磨（封面、填充图效果、攻略排版）——不做动效（2026-09-09 定案）；填充图效果随方案变更由统一窗口画布承接
 - [ ] 验收：Windows 产物可从零运行，新机器首次启动无人工干预
 
-### Phase 5 — macOS / Linux 适配与发布（约 1.5 周，排期最后）
+### Phase 5 — macOS / Linux 适配与发布（约 1.5 周，排期最后）→ 0.2.0（登记不动，见 §9 版本路线）
 
 - [ ] 窗口隐藏等价手段：macOS NSWindow / Linux 窗管方案验证（y.problems #10）
 - [ ] `capsule-pack`：macOS .app / Linux AppImage 产物生成
@@ -226,3 +229,8 @@ config/          # 用户对 dosbox.conf 的覆盖片段
 **兼职投入：约 3-4 个月**（按每天 2-3 小时估算）
 
 关键里程碑：Phase 0 结束 = 技术可行性确认（最大风险已排除）；Phase 2 结束 = 产品闭环可用；Phase 4 结束 = 可发布。
+
+版本路线（2026-09-09 用户定案）：
+
+- **0.1.0 = Windows 可玩可发布**：对应 Phase 0–4（PL004 打包器落地 + PL005 发布打磨收口，打 V0.1.0.R）
+- **0.2.0 = 三端适配（登记不动）**：macOS / Linux，对应 Phase 5；0.1.x 稳定后再细化立项（最大风险项：Linux Wayland 输入注入）

@@ -1,8 +1,8 @@
 # CapsuleRetro — Agent Guide
 
-老 DOS 游戏现代包装系统：把任意 DOS 游戏打包成"看起来像移植的现代游戏"，三平台（Windows / macOS / Linux）通用。产物 = 执行文件 + save 文件两个文件走天下。总体规划见 `CapsuleRetro_plan.md`。
+老 DOS 游戏现代包装系统：把任意 DOS 游戏打包成"看起来像移植的现代游戏"，三平台（Windows / macOS / Linux）通用。产物 = 执行文件 + save 文件 + readme.md 三个文件走天下。总体规划见 `CapsuleRetro_plan.md`。
 
-**当前状态**：PL001、PL002 主线已完结（2026-09-07），FIX001 全量审计修复完结（2026-09-08）——`capsule-core`（monitor 观察库 + game.json 解析 + save/patch/paths 生命周期三模块）+ `xmonitor` 诊断 CLI + `launcher`（Tauri 2 + Vue 3；统一窗口形态 + save 闭环 + hack 切换 + 攻略渲染，见 z.plan.md 附录 PL002/PL003）。已有素材：`retro/XEEN/`（《魔法门 XEEN》DOS 版，含 CHINFONT 汉化字体与 CMM4.PAT 补丁）、`retro/` 根适配层（game.json v2、xeen-guide.md 攻略、zhuyin-keyboard.md 注音对照、memory_map.json 内存档案、patches/test-hack.zip 测试补丁包）、`.archived/`（mm4/mm5 原版 zip）、`.agents/skills/`（项目自建 skill）、独立模拟器仓 `DosboxCapsule`（`E:\GameMission\DosboxCapsule`，v0.83.0 + 4 代码补丁，维护套件见 `tools/dosbox-fork/`）。遗留与远期项登记 `y.problems.md`。下一步：PL003 live 验收收口（VA1–VA4）；`capsule-pack` 未建。
+**当前状态**：PL001–PL003 主线与 FIX001 审计修复完结（2026-09-05 / 07 / 08），PL004 capsule-pack 打包器 + 打包形态落地完结（2026-09-09，产品三文件闭环达成、dist 可产出，见 z.plan.md 附录 PL004）——`capsule-core`（monitor 观察库 + game.json 解析 + save/patch/paths 生命周期三模块）+ `xmonitor` 诊断 CLI + `launcher`（Tauri 2 + Vue 3；统一窗口形态 + save 闭环 + hack 切换 + 攻略渲染，见 z.plan.md 附录 PL002/PL003）。已有素材：`retro/XEEN/`（《魔法门 XEEN》DOS 版，含 CHINFONT 汉化字体与 CMM4.PAT 补丁）、`retro/` 根适配层（game.json v2、xeen-guide.md 攻略、zhuyin-keyboard.md 注音对照、memory_map.json 内存档案、patches/test-hack.zip 测试补丁包）、`.archived/`（mm4/mm5 原版 zip）、`.agents/skills/`（项目自建 skill）、独立模拟器仓 `DosboxCapsule`（`E:\GameMission\DosboxCapsule`，v0.83.0 + 4 代码补丁，维护套件见 `tools/dosbox-fork/`）。遗留与远期项登记 `y.problems.md`。下一步：PL005 0.1.0 发布打磨（UI 去粗粝 / 图标元数据 / 发布工程与杀软对策，立项待启）。
 
 ## 技术栈
 
@@ -19,7 +19,8 @@
 ```bash
 cargo run -p launcher                            # 开发运行启动器（或 cargo tauri dev）
 npm run dev                                      # 前端热更开发
-cargo run -p capsule-pack -- game.json -o dist/  # 打包器：game.json → 游戏包
+cargo run -p capsule-pack -- retro/game.json --launcher target/release/launcher.exe -o dist
+                                                 # 打包器：→ dist/XEEN.exe + readme.md（save 首启生成）
 cargo test --workspace                           # 全量测试
 npm run build                                    # 前端构建校验
 ```
@@ -28,7 +29,7 @@ npm run build                                    # 前端构建校验
 
 ## 架构要点
 
-- **两个文件架构**：`GameName.exe/.app/.AppImage`（只读：DOSBox + 游戏 + 启动器 + 攻略 + 补丁）+ `GameName.save`（唯一用户数据：存档 + 设置 + hack 状态，zip 格式）
+- **三文件架构**：`GameName.exe/.app/.AppImage`（只读：DOSBox + 游戏 + 启动器 + 攻略 + 补丁，资源以 zip payload 内嵌 exe 尾部）+ `GameName.save`（唯一用户数据：存档 + 设置 + hack 状态，zip 格式；名字从 game.json `name` 派生，exe 改名无感）+ `readme.md`（随包说明：使用方法 / 改名规则 / SmartScreen 指引）
 - **capsule-core**：save 打包/解包（原子替换）、补丁应用、路径管理——launcher 与 packer 共用，逻辑只写这一份
 - **launcher**（Tauri 2 + Vue 3）：UI、DOSBox 进程管理（sidecar）、全屏游戏会话、攻略 Markdown 渲染
 - **packer**（capsule-pack CLI）：读 game.json → 校验 → 资源内嵌 → 生成三平台产物
@@ -40,17 +41,19 @@ npm run build                                    # 前端构建校验
 ## 目录规划
 
 ```
-Cargo.toml       # workspace 根（version 单一来源；当前 members=["capsule-core", "launcher"]）
+Cargo.toml       # workspace 根（version 单一来源；当前 members=["capsule-core", "launcher", "capsule-pack"]）
 capsule-core/    # Rust crate：save 打包/解包、补丁应用、配置、路径管理
                  #   src/monitor/      REST 观察库（PL001）
                  #   src/save.rs       save 档案打包/解包/原子替换（PL003）
                  #   src/patch.rs      补丁包解析与应用（PL003）
                  #   src/paths.rs      运行时释放与生命周期编排（PL003）
+                 #   src/payload.rs    exe 尾部 payload 拼装/解析/extract-once（PL004）
                  #   src/bin/xmonitor  诊断 CLI（watch/search/bench）
                  #   tests/            集成测试（cargo test 自动发现）
 launcher/        # Tauri 2 应用（src-tauri/：commands / gameconf / hud / winembed / winproc / jobctl
                  #   + src/：App / GameCanvas / HudBar）
-capsule-pack/    # Rust CLI 打包器——未建
+capsule-pack/    # Rust CLI 打包器（PL004）：game.json + launcher exe → dist 三文件
+                 #   （GameName.exe 资源内嵌 + readme.md；save 由产品首启生成）
 assets/dosbox/   # DOSBox Staging v0.83.0 sidecar（锁版本，进 git 的是 zip；
                  #   解压目录 dosbox-staging/ 为派生产物，已 gitignore）
 tools/dosbox-fork/ # DosboxCapsule fork 维护套件（版本化）：PATCHES.md（补丁登记

@@ -1,5 +1,5 @@
 [workspace]
-members = ["capsule-core", "launcher/src-tauri"]
+members = ["capsule-core", "launcher/src-tauri", "capsule-pack"]
 resolver = "2"
 
 [workspace.package]

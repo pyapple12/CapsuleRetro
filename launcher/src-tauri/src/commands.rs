@@ -7,6 +7,9 @@
 //! save 生命周期（PL003）：启动前置序列（释放工作副本 → 补丁 → 解包 save）
 //! 在 [`start_session`] 内完成；退出回写在 exit-watcher 与 stop_game 两个
 //! 挂点走同一 `writeback_save`（幂等，先到先写）。
+//! 双形态资源解析（PL004）：读自身 exe 尾部 trailer 识别 dev / 打包形态
+//! （`resolve_resource_ctx`），打包形态把 payload 释放到运行时 resources/
+//! 目录作为资源根，两形态下游逻辑完全共用。
 //! "无会话"约定：get_frame / inject_input 返回 `Err(NO_SESSION: ...)`（前端
 //! 据前缀识别并停轮询）；stop_game 对无会话是幂等成功（Ok）。
 //! 安全边界：spawn 参数全部来自仓库内 `retro/game.json` 与 u16 端口探测值，
@@ -53,6 +56,73 @@ struct SessionLifecycle {
 
 /// "无会话"错误前缀：前端据此程序化识别并停帧轮询（见模块文档约定）。
 const NO_SESSION: &str = "NO_SESSION";
+
+/// 双形态资源上下文（PL004）：资源解析的锚点集合。
+///
+/// dev 形态：资源根 = 仓库根、save 根 = 仓库根、dosbox 路径随 game.json
+/// `dosbox.exe_path` 解析；打包形态（自身 exe 尾部含 payload）：资源根 =
+/// 运行时 `resources/` 释放目录、save 根 = exe 同目录（exe 改名无感，save
+/// 名从 game.json `name` 派生）、dosbox 路径固定为 `<资源根>/dosbox/<exe 名>`。
+struct ResourceCtx {
+    /// 资源根（dev = 仓库根；打包形态 = payload 释放目录）
+    root: PathBuf,
+    /// save 根（`<name>.save` 的所在目录）
+    save_root: PathBuf,
+    /// 打包形态的 dosbox 可执行路径（dev 形态为 None，走 game.json exe_path）
+    packed_dosbox: Option<PathBuf>,
+}
+
+/// 解析双形态资源上下文：读自身 exe 尾部 trailer 识别形态（PL004 定案）。
+///
+/// 打包形态按需 extract-once 释放 payload 到运行时 `resources/` 目录。
+///
+/// # Errors
+/// payload trailer 非法 / 内嵌 game.json 非法 / 资源释放失败严格报错；dev
+/// 形态仓库根定位失败同样报错（现行语义不变）。
+fn resolve_resource_ctx() -> Result<ResourceCtx> {
+    let exe = std::env::current_exe().context("读取自身路径失败")?;
+    let mut reader = match capsule_core::payload::PayloadReader::open(&exe)
+        .context("读取自身 payload 失败")?
+    {
+        Some(reader) => reader,
+        None => {
+            let cwd = std::env::current_dir().context("读取当前目录失败")?;
+            let root = gameconf::resolve_repo_root(&cwd).context("定位仓库根失败")?;
+            return Ok(ResourceCtx {
+                save_root: root.clone(),
+                root,
+                packed_dosbox: None,
+            });
+        }
+    };
+    let config_text = reader
+        .read_entry_to_string(capsule_core::payload::GAME_JSON_ENTRY)
+        .context("读取内嵌 game.json 失败")?;
+    let config: capsule_core::game_config::GameConfig =
+        config_text.parse().context("解析内嵌 game.json 失败")?;
+    let resources = gameconf::runtime_dir(&config.name)?.join("resources");
+    let extracted = reader
+        .extract_once(&resources)
+        .map_err(|e| anyhow!("payload 资源释放失败: {e}"))?;
+    if extracted {
+        logging::info(&format!("payload 资源已释放: {}", resources.display()));
+    }
+    let dosbox_name = config
+        .dosbox
+        .exe_path
+        .file_name()
+        .context("内嵌配置 dosbox.exe_path 缺少文件名")?
+        .to_string_lossy()
+        .into_owned();
+    let save_root = exe.parent().context("自身路径缺少父目录")?.to_path_buf();
+    Ok(ResourceCtx {
+        // 布局镜像 dosbox 构建树：bin（exe+DLL）与 Resources（shader 等资源）
+        // 互为兄弟，运行期资源查找依赖该相对结构
+        packed_dosbox: Some(resources.join("dosbox").join("bin").join(dosbox_name)),
+        root: resources,
+        save_root,
+    })
+}
 
 /// 全局会话槽（同一时刻至多一个游戏会话）。Arc 包装以便退出监听线程
 /// 持有同一槽位引用（State 内部不转移所有权）。
@@ -250,7 +320,7 @@ fn rotate_dosbox_log(log_path: &Path) {
 
 /// 解析 hack 选择对应的补丁包路径；选了补丁但 id 不在 game.json 里严格报错。
 fn resolve_patch_zip(
-    repo_root: &Path,
+    resource_root: &Path,
     config: &capsule_core::game_config::GameConfig,
     hack: Option<&str>,
 ) -> Result<Option<PathBuf>> {
@@ -262,7 +332,7 @@ fn resolve_patch_zip(
         .iter()
         .find(|p| p.id == id)
         .ok_or_else(|| anyhow!("hack id {id:?} 在 game.json patches 中不存在"))?;
-    Ok(Some(repo_root.join("retro").join(&patch.patch)))
+    Ok(Some(resource_root.join("retro").join(&patch.patch)))
 }
 
 /// 启动游戏会话：加载 game.json → 生命周期前置序列（释放工作副本 → 补丁 →
@@ -272,18 +342,26 @@ fn resolve_patch_zip(
 /// # 参数
 /// - `hack`：本次会话的补丁选择（None = 原版；随 save meta 持久化）
 pub fn start_session(hack: Option<String>) -> Result<Session> {
-    let cwd = std::env::current_dir().context("读取当前目录失败")?;
-    let repo_root = gameconf::resolve_repo_root(&cwd).context("定位仓库根失败")?;
-    let config = capsule_core::game_config::GameConfig::load(&repo_root.join("retro/game.json"))
+    let ctx = resolve_resource_ctx()?;
+    let config = capsule_core::game_config::GameConfig::load(&ctx.root.join("retro/game.json"))
         .context("加载 retro/game.json 失败")?;
+    logging::info(&format!(
+        "资源根: {}（{}）",
+        ctx.root.display(),
+        if ctx.packed_dosbox.is_some() {
+            "打包形态"
+        } else {
+            "dev 仓库形态"
+        }
+    ));
 
     // 生命周期前置序列（PL003）：每次启动全量重建工作副本（自愈 + hack
     // 切换互不污染），补丁只作用于释放出的工作副本，原版目录零写入
     let runtime = gameconf::runtime_dir(&config.name)?;
     let work_dir = runtime.join("work");
-    let original_dir = repo_root.join("retro").join(&config.paths.game_dir);
-    let save_path = gameconf::save_path(&repo_root, &config.name);
-    let patch_zip = resolve_patch_zip(&repo_root, &config, hack.as_deref())?;
+    let original_dir = ctx.root.join("retro").join(&config.paths.game_dir);
+    let save_path = gameconf::save_path(&ctx.save_root, &config.name);
+    let patch_zip = resolve_patch_zip(&ctx.root, &config, hack.as_deref())?;
     let default_meta = capsule_core::save::SaveMeta::new("1", hack.clone());
     let (mut meta, recovered) = capsule_core::paths::prepare_session(
         &original_dir,
@@ -324,7 +402,10 @@ pub fn start_session(hack: Option<String>) -> Result<Session> {
     let conf_text = gameconf::generate_conf(&config, &work_dir);
     let conf_path = gameconf::write_conf(&conf_text, &runtime)?;
 
-    let exe = repo_root.join(&config.dosbox.exe_path);
+    let dosbox_exe = ctx
+        .packed_dosbox
+        .clone()
+        .unwrap_or_else(|| ctx.root.join(&config.dosbox.exe_path));
     let log_path = runtime.join("dosbox.log");
     rotate_dosbox_log(&log_path);
     let log = std::fs::OpenOptions::new()
@@ -336,9 +417,13 @@ pub fn start_session(hack: Option<String>) -> Result<Session> {
 
     winproc::make_inheritable(log_handle).context("日志句柄设置可继承失败")?;
 
-    let process =
-        WinProcess::spawn_suspended(&exe, &dosbox_args(port, &conf_path), log_handle, log_handle)
-            .context("创建 DOSBox 进程失败")?;
+    let process = WinProcess::spawn_suspended(
+        &dosbox_exe,
+        &dosbox_args(port, &conf_path),
+        log_handle,
+        log_handle,
+    )
+    .context("创建 DOSBox 进程失败")?;
     // Job 挂载失败路径必须显式终止挂起进程，否则留下无人认领的僵尸
     let job = match JobHandle::create() {
         Ok(job) => job,
@@ -369,7 +454,7 @@ pub fn start_session(hack: Option<String>) -> Result<Session> {
         process,
         job,
         port,
-        profile: repo_root.join(&config.assets.memory_map),
+        profile: ctx.root.join(&config.assets.memory_map),
         hud: None,
         agent,
         lifecycle: Some(SessionLifecycle {
@@ -573,6 +658,29 @@ pub async fn stop_game(
     }
 }
 
+/// 窗口关闭兜底回写（PL004.10）：主窗口被直接关闭时，会话仍在运行则先停
+/// 会话再回写 save（与 stop_game / exit-watcher 同一幂等 `writeback_save`），
+/// 随后放行关闭；被杀 / 崩溃路径仍由 exit-watcher + Job Object 现状兜底。
+///
+/// # Errors
+/// 会话停止或回写失败时返回错误（调用方落日志；关闭流程继续放行，旧 save
+/// 保持完整可自愈）。
+pub fn writeback_on_close(state: &SessionState) -> Result<()> {
+    let mut slot = state
+        .inner
+        .lock()
+        .map_err(|e| anyhow!("会话槽锁失败: {e}"))?;
+    match slot.as_mut() {
+        Some(session) => {
+            session.stop().context("窗口关闭前停止会话失败")?;
+            let result = writeback_save(session);
+            *slot = None;
+            result
+        }
+        None => Ok(()),
+    }
+}
+
 /// 攻略 Markdown 原文（前端 marked 解析 + DOMPurify 消毒后渲染，CSP 兜底）。
 #[tauri::command]
 pub async fn get_guide() -> Result<String, String> {
@@ -581,11 +689,10 @@ pub async fn get_guide() -> Result<String, String> {
 
 /// get_guide 的同步实现（读 game.json assets.guide 指向的适配层文档）。
 fn get_guide_impl() -> Result<String> {
-    let cwd = std::env::current_dir().context("读取当前目录失败")?;
-    let repo_root = gameconf::resolve_repo_root(&cwd).context("定位仓库根失败")?;
-    let config = capsule_core::game_config::GameConfig::load(&repo_root.join("retro/game.json"))
+    let ctx = resolve_resource_ctx()?;
+    let config = capsule_core::game_config::GameConfig::load(&ctx.root.join("retro/game.json"))
         .context("加载 retro/game.json 失败")?;
-    let guide_path = repo_root.join(&config.assets.guide);
+    let guide_path = ctx.root.join(&config.assets.guide);
     std::fs::read_to_string(&guide_path)
         .with_context(|| format!("读取攻略失败: {}", guide_path.display()))
 }
@@ -629,11 +736,10 @@ pub async fn get_game_info() -> Result<GameInfo, String> {
 
 /// get_game_info 的同步实现（便于错误上下文组织）。
 fn get_game_info_impl() -> Result<GameInfo> {
-    let cwd = std::env::current_dir().context("读取当前目录失败")?;
-    let repo_root = gameconf::resolve_repo_root(&cwd).context("定位仓库根失败")?;
-    let config = capsule_core::game_config::GameConfig::load(&repo_root.join("retro/game.json"))
+    let ctx = resolve_resource_ctx()?;
+    let config = capsule_core::game_config::GameConfig::load(&ctx.root.join("retro/game.json"))
         .context("加载 retro/game.json 失败")?;
-    let save_path = gameconf::save_path(&repo_root, &config.name);
+    let save_path = gameconf::save_path(&ctx.save_root, &config.name);
     let save = match capsule_core::save::read_meta(&save_path)
         .with_context(|| format!("读取 save 状态失败: {}", save_path.display()))?
     {
@@ -692,5 +798,19 @@ mod tests {
                 "E:/rt/game.conf".to_string(),
             ]
         );
+    }
+
+    /// PL004.8 验证：dev 形态识别——测试二进制无 payload，应走仓库根分支
+    /// （资源根含 retro/game.json，save 根与资源根同目录，无打包 dosbox）。
+    #[test]
+    fn 双形态识别dev形态() {
+        let ctx = resolve_resource_ctx().expect("dev 形态应可解析");
+        assert!(ctx.packed_dosbox.is_none(), "测试二进制不应携带 payload");
+        assert!(
+            ctx.root.join("retro/game.json").is_file(),
+            "dev 资源根应为仓库根: {}",
+            ctx.root.display()
+        );
+        assert_eq!(ctx.save_root, ctx.root);
     }
 }

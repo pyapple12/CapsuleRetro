@@ -180,6 +180,40 @@
 
 ---
 
+### PL004: capsule-pack 打包器 + 打包形态落地 [plan#PL004]
+
+> 来源：附录 PL004（2026-09-09 立项，六条定案：exe 尾部 zip payload + trailer / save 名从 game.json name 派生 / 产品三文件形态 / 窗口关闭兜底回写纳入 / UI 打磨不做动效（PL005）/ 0.2.0 三端登记 CapsuleRetro_plan.md 不动）。目标 = `GameName.exe`（资源全内嵌）+ `GameName.save` + `readme.md` 三文件产品闭环；0.1.0 = Windows 可玩可发布。
+> **✅ 全组完成（2026-09-09）**：12/12 勾结。TDD 新增 14 集成测试全绿，全量门禁绿（fmt/clippy -D warnings/test --workspace/doc 零警告/prettier/npm build）；构建链从零跑通，打包形态 live 全过（帧流渲染 / HUD / 回写 / exe 改名无感 / 关窗兜底 / VA1 干净环境），live 揪出 dosbox shader 资源缺失 1 bug 已修；反向验收 11 项 + live 记录见 `.temp/pl004-verification.md`。
+
+#### 阶段 A：定案与实验先行（格式 + 事实收集）
+
+- [x] PL004.1 trailer 格式与 payload 布局打样定案 —— .temp 打样：手工拼装"exe + zip payload + trailer"并解析回来，定 trailer 字段字节布局（magic / 格式版本 / 偏移 / 长度）与 payload zip 内部布局（game.json / game_dir / dosbox.zip / 攻略 / 补丁）；验证：拼装 → 解析往返一致，定案回写附录 PL004 数据格式小节（2026-09-09 已验证：探针 .temp/pl004_probe.py 对 10.6MB 真实 launcher.exe 拼装 → 解析往返一致，magic/len/payload 三负例行为符合预期；trailer 28 字节（CRPAYLD1 + format u32 LE + len u64 LE + offset u64 LE）与镜像仓库 payload 布局定案回写附录）
+- [x] PL004.2 双形态资源来源协议定案 —— launcher 侧判定规则（读自身 exe，trailer 命中 = 打包形态）与资源解析接口抽象（game.json / 游戏文件 / dosbox zip / 攻略 / 补丁五类来源）；save 落点确认（产品根：dev = 仓库根 / packed = exe 同目录，名字从 game.json name 派生）；验证：协议落附录小节，接口签名 cargo check 过（2026-09-09 已验证：协议落附录「双形态协议」小节；payload 布局镜像仓库使两形态仅"资源根"不同——实现 `resolve_resource_ctx` 返回 ResourceCtx，下游逻辑零分叉；workspace clippy/check 全绿）
+- [x] PL004.3 readme 模板定案 —— 模板落盘（使用方法 / 两个数据文件角色 / 同目录要求 / 改名规则表 / SmartScreen 指引），占位符（游戏名 / 版本）注入方式定案；验证：模板 prettier 过，packer 输入清单含模板路径（2026-09-09 已验证：**文案用户审阅通过**；模板 include_str! 编译期内嵌（比运行期输入清单更强），占位符 {{GAME_NAME}} / {{VERSION}} 出包注入实测生效，prettier 过）
+
+#### 阶段 B：capsule-core payload 模块（TDD）
+
+- [x] PL004.4 src/payload.rs 拼装与解析 —— append_payload（exe + zip + trailer）与 open（读 exe → 定位 trailer → payload zip 只读读取）；缺失 / 非法 trailer 显式错误；验证：集成测试——往返一致 / 无 trailer 报错 / trailer 损坏报错 FAIL→PASS（2026-09-09 已验证：E0432 FAIL → 7 集成测试 PASS——往返一致 / 无 trailer None / format 与 len 篡改 BadTrailer / 重复拼装 AlreadyPacked；payload 区间用区间游标 Read+Seek，不整段载入内存）
+- [x] PL004.5 payload 资源枚举与 extract-once 释放 —— 按协议枚举 payload 资源 + dosbox/game 释放到 runtime 目录（版本标记，已释放跳过，标记损坏或缺失重释放）；验证：集成测试——释放产物齐全 / 二次调用跳过 / 标记损坏重释放（2026-09-09 已验证：三态 + 越界条目 UnsafeEntry 全过；live 复现——第二次打包新 build_id 后启动自动重释放（launcher.log 21:25:19），释放目标 = runtime/<game>/resources/ 与 work/ 隔离）
+
+#### 阶段 C：capsule-pack CLI 本体
+
+- [x] PL004.6 crate 骨架与打包前校验 —— workspace members 加 capsule-pack；clap CLI（game.json 路径 + `--launcher <exe>` + `-o dist/`）；打包前校验（game_dir / patches / 攻略 / dosbox zip / readme 模板全部存在，缺一严格报错）；验证：缺失资源逐一报错用例 + 合法样例通过（2026-09-09 已验证：E0432 FAIL → 7 集成测试 PASS——缺游戏目录/攻略/补丁/dosbox/launcher 五用例逐一报错 + 已打包 launcher 拒绝再打包；readme 模板升级为 include_str! 编译期内嵌，无运行期路径可失）
+- [x] PL004.7 产物拼装 —— 资源 zip 构造 → 复制 launcher exe → append_payload → dist/{name}.exe + readme.md（模板注入游戏名 / 版本）；验证：产物回读资源清单与输入一致 + 体积 40-60MB 量级合理（2026-09-09 已验证：产物回读条目/内嵌 game.json 真实解析一致；实测 dist/XEEN.exe = 37.6MB（413 条目，deflate 后低于预估——游戏与 dosbox 压缩率高，更小更好））
+
+#### 阶段 D：launcher 打包形态改造
+
+- [x] PL004.8 双形态资源接入 —— 启动读自身 exe 识别形态；打包形态：game.json / 攻略 / 补丁从 payload 读、dosbox/game 走 extract-once 释放；dev 形态行为不变；验证：集成测试双形态识别 + live get_game_info 双形态表现一致（2026-09-09 已验证：dev 单测（资源根=仓库根）+ live 打包形态——双击 dist/XEEN.exe 待机页（游戏名/补丁/存档状态）全部来自 payload 与 exe 同目录，会话启动帧流渲染 + HUD 全量正常；live 揪出 1 bug：dosbox shader 资源在构建树兄弟 Resources/ 目录，payload 布局改镜像构建树（dosbox/bin + dosbox/Resources）后修复）
+- [x] PL004.9 save 落点定案落地 —— 打包形态 save = exe 同目录/{name}.save（name 从 game.json 派生，exe 改名无感）；dev 形态维持仓库根；验证：live 改 exe 名 → 启动 → 回写后 save 名不变（2026-09-09 已验证：live 复制 dist/XEEN.exe → 魔法门4.exe，待机页正确显示 dist/XEEN.save 状态（原版 · v1 · 4 文件），启动/停止回写仍落 XEEN.save、无 魔法门4.save 产生；测试副本已清理）
+- [x] PL004.10 窗口关闭兜底回写 —— onCloseRequested 拦截：会话存活 → writeback → 退出；被杀 / 崩溃路径由 exit-watcher + Job Object 现状兜底；验证：live 游戏中直接关窗口 → 重进存档在 + 日志含回写记录（2026-09-09 已验证：代码（lib.rs on_window_event CloseRequested → commands::writeback_on_close：停会话 + 幂等 writeback_save 后放行，失败落日志不阻断关闭）；**live 用户通过——游戏内存档后直接关窗口，重进存档在**）
+
+#### 阶段 E：连带收尾
+
+- [x] PL004.11 构建链与文档回改 —— 构建链跑通并落文档（npm tauri build → capsule-pack → dist 三文件）；AGENTS.md（三文件架构 / capsule-pack 状态 / workspace members）；z.plan 实测结论回写 + x.progress 勾结；验证：从零跑完整构建链 + 门禁全绿 + 文档一致性（2026-09-09 已验证：构建链 npm build → cargo build --release -p launcher → capsule-pack → dist/XEEN.exe + readme.md 从零跑通；AGENTS.md（members/payload.rs/capsule-pack 行/启动命令）与 z.plan 状态行已回改；z.plan 实测结论待 live VA 收口后一并回写；门禁 fmt/clippy -D warnings/test 全 workspace/doc 零警告/npm build 全绿）
+- [x] PL004.12 发布形态 live 验收（VA1/VA2）—— VA1：dist 产物拷到无 repo / 无工具链目录全链路（双击 → 玩 → 存档 → 回写 → 重进续档）；VA2：直接关窗口存档不丢 + exe 改名无感；验证：live 全链路 + 证据落 .temp（2026-09-09 已验证：**用户 live 全过**——VA1 干净环境全链路；VA2 关窗口存档不丢（随 PL004.10）+ exe 改名无感（随 PL004.9）；反向验收 11 项 + live 冒烟记录见 .temp/pl004-verification.md）
+
+---
+
 ## 未完成
 
 （暂无——任务完成后整组上移至已完成区）
