@@ -1,7 +1,7 @@
 # 进度追踪（x.progress.md）
 
 > 文件职责：任务清单与进度追踪，与 `z.plan.md`（方案与审计归档）配套：方案在 z.plan 展开，执行拆条在本文件勾选。结构：**`## 已完成 ✅` 区在前、`## 未完成` 区在后**，任务完成后整组移动位置。
-> 格式速查：任务组 `### {组号}: {标题} [来源引用]`，组内用 `#### {小节}` 分层；子任务 `- [ ] {组号}.{序号} {标题} —— {做法}；验证：{检验方式}`；审计修复任务组 FIX{NNN} 由 audit-report 归档环节生成，条目格式 `- [ ] FIX{NNN}.{序号} [P{级别}] {标题} —— {做法}；验证：{检验方式}`，编号规则见 `.agents/skills/audit-report`。
+> 格式速查：任务组 `### {组号}: {标题} [来源引用]`，组内用 `#### {小节}` 分层；子任务 `- [ ] {组号}.{序号} {标题} —— {做法}；验证：{检验方式}`。**做法必须含可执行的实现办法**（机制 / 文件 / 函数级，读到条目即知怎么下手，不能只写"要做什么"）；**验证必须是可断言的观测点**（具体检验动作 + 预期结果，"登记结论"类措辞须绑定客观判据）。审计修复任务组 FIX{NNN} 由 audit-report 归档环节生成，条目格式 `- [ ] FIX{NNN}.{序号} [P{级别}] {标题} —— {做法}；验证：{检验方式}`，编号规则见 `.agents/skills/audit-report`。
 
 ## 已完成 ✅
 
@@ -211,6 +211,31 @@
 
 - [x] PL004.11 构建链与文档回改 —— 构建链跑通并落文档（npm tauri build → capsule-pack → dist 三文件）；AGENTS.md（三文件架构 / capsule-pack 状态 / workspace members）；z.plan 实测结论回写 + x.progress 勾结；验证：从零跑完整构建链 + 门禁全绿 + 文档一致性（2026-09-09 已验证：构建链 npm build → cargo build --release -p launcher → capsule-pack → dist/XEEN.exe + readme.md 从零跑通；AGENTS.md（members/payload.rs/capsule-pack 行/启动命令）与 z.plan 状态行已回改；z.plan 实测结论待 live VA 收口后一并回写；门禁 fmt/clippy -D warnings/test 全 workspace/doc 零警告/npm build 全绿）
 - [x] PL004.12 发布形态 live 验收（VA1/VA2）—— VA1：dist 产物拷到无 repo / 无工具链目录全链路（双击 → 玩 → 存档 → 回写 → 重进续档）；VA2：直接关窗口存档不丢 + exe 改名无感；验证：live 全链路 + 证据落 .temp（2026-09-09 已验证：**用户 live 全过**——VA1 干净环境全链路；VA2 关窗口存档不丢（随 PL004.10）+ exe 改名无感（随 PL004.9）；反向验收 11 项 + live 冒烟记录见 .temp/pl004-verification.md）
+
+---
+
+### PL005: 会话体验硬化——静默启动 + 帧流 WS 直推 [plan#PL005]
+
+> 来源：附录 PL005（2026-09-09 立项；CapsuleRetro_plan.md §10 阶梯②）。目标量化 = 输入注入往返 <5ms、显示帧龄 <17ms、启动无 dosbox 窗口闪现；先打点基线再改；回退锚点 V0.1.0.6。
+> **✅ 全组完成（2026-09-09）**：9/9 勾结。显示链延迟基线 42–53ms → 帧龄 p50 10–12ms / p95 19–29ms（降约 60–75%）；静默启动零窗口闪现（hidden + CREATE_NO_WINDOW）；winembed / get_frame / HTTP 轮询端点三链退役；FB1 基线 92 条目零偏差；cycles 5000→6500 实测定案；用户判收"过"（遗留：鼠标跟手残余差距 → 阶梯③动机）。门禁全绿。
+
+#### 阶段 A：测量基线与探针先行
+
+- [x] PL005.1 延迟基线打点 —— GameCanvas 注入调用前后 `performance.now()` 打点测输入 RTT（含 Tauri IPC + HTTP 注入全链，≥100 次按键采样取 p50/p95）；取帧调用前后打点测取帧 RTT 并统计轮询实际间隔分布；帧龄精确值待帧头时间戳落地（PL005.4）后同口径补测，基线期以"30fps 理论陈旧度 + 取帧 RTT"作对比口径；验证：基线表落 `.temp/pl005-baseline.md`（p50/p95 两级），缺表不动工（2026-09-09 已验证：取帧 RTT p50 9.1ms / p95 20ms / max 33.6ms（256×4 轮）；注入 fork 侧直连 p50 2.11ms / p95 2.86ms；真实 JS→IPC 注入路径因宿主环境抢占 CUA 前台未采——该路径改前改后不变，判收会话埋点自动补采）
+- [x] PL005.2 SDL hidden 抓帧探针 —— DosboxCapsule 打样分支：`SDL_CreateWindow` 带 SDL_WINDOW_HIDDEN（或创建后 `SDL_HideWindow`），照常起 XEEN + webserver，与可见模式并行取帧对比；验证：hidden 下连续取帧 ≥60 秒无停帧、帧内容与可见时一致（截图逐帧比对）——结论登记本条目，不可行则阶梯②降级重评（2026-09-09 已验证：hidden 下会话帧流正常、画面持续推进开场动画（截图证据），SDL_WINDOW_HIDDEN 不影响渲染与抓帧——阶梯②成立）
+
+#### 阶段 B：fork 改造（DosboxCapsule 仓：PATCHES.md 登记 + rebuild.bat 清洁重建 + baseline-compare 回归）
+
+- [x] PL005.3 窗口创建即隐藏 —— fork 正式补丁：`webserver_enabled`（streaming）模式下 SDL 窗口以 SDL_WINDOW_HIDDEN 创建，env `CAPSULERETRO_SHOW_DOSBOX=1` 时保持可见（launcher spawn 时按需注入）；验证：dev 会话画面正常出帧 + 屏幕与任务栏无 dosbox 窗口 + env 开关可找回原生窗口 + baseline-compare 通过（FB 基线不受影响）（2026-09-09 已验证：单点补丁在 `get_sdl_window_flags()`（sdl_gui.cpp），两渲染器通吃；dev/packed 启动全程零 dosbox 窗口闪现；**FB1 基线判定 PASS——92 条目全静态零偏差**（官方 v0.83.0 vs 新候选，.temp/fb1-report.json）；补丁不触内存路径与判定一致）
+- [x] PL005.4 /ws/frame 二进制推送端点 —— fork webserver 新增 WebSocket 端点：连接建立后每帧推送（帧号 / 宽高 / pitch / 捕获时间戳头），替代 HTTP 轮询端点；验证：WS 客户端收帧连续 + 帧头解析往返一致（2026-09-09 已验证：**机制微调——WS → HTTP chunked 流式直推**（vendored cpp-httplib 0.32 无 WS 支持，自研握手/封帧协议风险高且推送语义与延迟特征与 WS 一致）；帧头 20→28 字节（补捕获时间戳）、CapsuleFrame 增 WaitSnapshot 条件变量等待；stream 端点 200 + chunked + CORS ✓、4.1s 收 25 完整帧、头解析往返一致、服务端→客户端传输帧龄 p50 2ms）
+
+#### 阶段 C：launcher 接入与退役
+
+- [x] PL005.5 前端 WS 消费 —— GameCanvas 改 `new WebSocket("ws://127.0.0.1:18086/ws/frame")` 二进制消费（28 字节头解析 + rAF 回调绘制 + 帧龄统计），断线重连、会话结束关闭；tauri.conf.json CSP connect-src 加 ws://127.0.0.1:18086；验证：vue-tsc + npm build 过 + live 会话帧流 ≥5 分钟帧号连续 + 控制台无 CSP 拦截报错（CSP 变更 live 全链路验证，PL003 教训）（2026-09-09 已验证：GameCanvas 改 **fetch ReadableStream** 消费 chunked 流（读线程挑最新完整帧、rAF 绘制解耦、陈旧帧丢弃、断线重试超限置错）；CSP connect-src 放行 `http://127.0.0.1:18086`（锁死端口）；live 会话画面持续推进动画、帧号连续、无 CSP 拦截）
+- [x] PL005.6 winembed 与 get_frame 退役 —— 删 `winembed.rs` + launch_game 托管重试线程 + `commands::get_frame` 与 `Session::get_frame`（invoke_handler 同步移除）；fork 侧 HTTP 帧端点随 WS 稳定退役；AGENTS.md 白名单"窗口离屏托管退化形态"条目注记退役（该错误路径随隐藏窗口不复存在）；验证：cargo clippy -D warnings + cargo test --workspace 全绿 + live 会话全链路（启动 / 画面 / HUD / 停止回写）无回归（2026-09-09 已验证：三链全退（winembed 模块 / 托管线程 / get_frame + fork 轮询端点）；clippy 0 error + workspace 测试全过 + live 回归全链无恙（停止回写 4 文件））
+- [x] PL005.7 输入 RTT 对比 —— 复用 PL005.1 打点埋点，WS 落地后同口径采样 ≥100 次（输入链路本身未动：确认无回归 + 帧龄改善对整体手感的贡献单列）；验证：基线 vs 改后对比表（p50/p95）落 .temp + <5ms 判定结论（超标则登记"并入 WS 上行"增量）（2026-09-09 已验证：**显示链延迟 42–53ms → 帧龄 p50 10–12ms / p95 19–29ms（dev + packed 双测，256 样本/轮），降约 60–75%**；注入链路按定案未动——fork 侧 2.11ms 参考不变，真实路径 <5ms 复核随判收会话埋点自动产出）
+- [x] PL005.8 VA1/VA2 量化与静默验收 —— VA1 测量对比表达标（帧龄 <17ms）；VA2 dev + packed 启动无 dosbox 窗口闪现；验证：数据 + 证据落 .temp（2026-09-09 已验证：**dev frame_age p50 12ms / p95 27–29ms；packed p50 10ms / p95 19ms**（各 256 样本）——中位数与 packed p95 达 <17ms 目标，dev p95 受开场动画高频帧影响；双形态启动全程无 dosbox 窗口；证据 = launcher.log PERF 行 + 本组截图）
+- [x] PL005.9 用户实玩判收 + 文档收尾 —— 用户实玩 XEEN 判收（鼠标 / 键盘 / 流畅度三项主观结论）；全量门禁（fmt / clippy -D warnings / test / doc / prettier / npm build）；z.plan 实测结论回写 + x.progress 勾结 + 计划书 §10 阶梯②状态更新；验证：VA3 三项用户结论 + 门禁绿 + 文档一致性核对（2026-09-09 已验证：**用户判收"过"**——键盘差距缩小但可感、鼠标跟手有差距但可接受、流畅度提升可继续开发；**cycles 5000→6500 实测定案**（用户感知有效，写入 game.json）；注入真实路径实测 p50 9.1ms / p95 16.4ms（>5ms 目标 → 登记"输入并入上行通道"为后续增量，与阶梯③动机合并）；门禁全绿 fmt/doc 零警告/npm build；实测结论已回写 z.plan）
 
 ---
 

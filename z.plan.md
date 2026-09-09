@@ -13,7 +13,8 @@
 
 ## 二、待完成
 
-- PL005 0.1.0 发布打磨（UI 去粗粝 / 图标元数据 / 发布工程与杀软对策）——立项待启
+- **PL005 会话体验硬化——静默启动 + 帧流 WS 直推**（2026-09-09 立项）→ 附录 PL005
+- 0.1.0 发布打磨（UI 去粗粝 / 图标元数据 / 发布工程与杀软对策）——立项待启（编号届时定）
 
 ## 三、主题规划
 
@@ -651,4 +652,45 @@ VC0 打样 → 过：C 阶段主攻路线一 / 核心崩：直接主攻路线二
 - **验收全过**：关窗兜底（游戏内存档后直接关 launcher 窗口 → 重进存档在）；exe 改名无感（魔法门4.exe 启动仍读写 XEEN.save，无第二 save 产生）；VA1 干净环境全链路（用户拷 dist 到非项目目录实测通过）。反向验收 11 项 + live 冒烟记录见 `.temp/pl004-verification.md`。
 - **落地形态**：capsule-core 新增 payload 模块（trailer 28 字节 `CRPAYLD1` + format + len + offset；区间游标 Read+Seek 不整段载内存；extract-once 版本标记释放）；capsule-pack 进 workspace（校验 → 镜像仓库布局收集 → payload zip → 拼装 exe + readme 注入，`--dosbox-dir` 默认取 `dosbox.exe_path` 父目录）；launcher 以 `resolve_resource_ctx` 单锚收敛双形态（资源根 = 仓库根 / runtime resources），save / patch / paths 三模块零改动复用。
 - **live 揪出 1 个测试盖不住的 bug**：首包 dosbox 启动即 ABORT（Error setting fallback shaders）——fork 构建树的 shader 资源在 exe 目录的**兄弟 `Resources/` 目录**，payload 只带 exe+DLL 时缺失。修复：payload 内 dosbox 布局**镜像构建树相对结构**（`dosbox/bin/` + `dosbox/Resources/`）。教训与 PL003 CSP 同类——产物形态的"相对布局假设"单元测试无法覆盖，新形态首包必须 live 验证。
-- **连带闭环**：计划书 §7 Phase 0–3 全部勾结（Windows 主线功能面收束）；产品从"仓库即游戏包"升级为三文件分发形态（dist/XEEN.exe 37.6MB / 413 payload 条目 + readme.md，save 首启生成）；0.1.0 = Windows 可玩可发布达成，余 PL005 发布打磨（UI 去粗粝 / 图标元数据 / 发布工程）。
+- **连带闭环**：计划书 §7 Phase 0–3 全部勾结（Windows 主线功能面收束）；产品从"仓库即游戏包"升级为三文件分发形态（dist/XEEN.exe 37.6MB / 413 payload 条目 + readme.md，save 首启生成）；0.1.0 = Windows 可玩可发布达成，余体验硬化（PL005）与发布打磨（立项待启）。
+
+---
+
+## 附录 PL005：会话体验硬化——静默启动 + 帧流 WS 直推（2026-09-09 立项）
+
+> 背景：PL004 收口后三文件产品闭环达成，但会话体验两处粗粝：①帧流转录链路（30fps 轮询 + Rust/IPC 中转 + 逐事件 HTTP 注入）带来可感的输入与画面延迟；②dosbox SDL 窗口启动期可见（创建先于收编，500ms×10 重试窗）。
+> 关键洞察：fork 源码在手，VC0 判死的"真窗口嵌入"不必复活——SDL 窗口创建即隐藏 + 帧经 WS 直推 WebView 即达成"逻辑嵌入"（画面活在 launcher 窗口内、dosbox 零痕迹）；"转录感"的根源是传输层的轮询与中转成本，不是嵌入与否。
+> 目标（量化）：输入注入往返 <5ms、显示帧龄 <17ms（60fps + rAF 对齐）、启动无 dosbox 窗口闪现；先打点基线、改后对比，用户实玩判收。
+> 阶梯与回退：本附录 = 体验硬化阶梯②（CapsuleRetro_plan.md §10）；③进程内 core / ①真窗口嵌入为后续档；V0.1.0.6 为最终回退锚点。
+> 状态：✅ 已完成（2026-09-09 收口；用户判收"过"——键盘差距缩小但可感、鼠标跟手可接受、流畅度提升；cycles 6500 实测定案；任务清单见 x.progress.md「PL005」；实测结论见下）
+
+### 方向定案（2026-09-09，用户拍板）
+
+1. **静默启动 = fork 创建 SDL 窗口即 SDL_WINDOW_HIDDEN**，streaming 模式下永不见；winembed 整链退役（模块 / 托管线程 / 白名单条目注记退役），留 `CAPSULERETRO_SHOW_DOSBOX` 调试开关。
+2. **帧传输 = WS 直推**：fork 新增 `/ws/frame` 二进制推送（沿用帧号/宽高/pitch 头，补捕获时间戳供帧龄测量），前端消费循环改 rAF 对齐绘制；Rust 帧中转（get_frame 的 HTTP 轮询链路）退役。
+3. **输入暂留 HTTP 注入**，单独打点；<5ms 达标即收，超标再并 WS 上行（PL005 内增量，一次只改一个变量）。
+4. **端口锁死 18086**（CSP 精确放行 `ws://127.0.0.1:18086`，探测仅冲突回退）；CSP 变更 live 全链路验证（PL003 教训）。
+5. **测量先行**：基线不落盘不动工；HUD / memory_map / save 生命周期 / 打包器不动，本附录只动显示与输入的传输层。
+
+### 实现措施（按层）
+
+- fork（DosboxCapsule 仓，PATCHES.md 登记 + rebuild.bat 清洁重建 + baseline 回归）：SDL_WINDOW_HIDDEN（env 开关可显）、/ws/frame 推送端点、帧头加捕获时间戳
+- launcher 前端：GameCanvas 消费循环改 WS 客户端 + rAF 对齐绘制；tauri.conf.json CSP connect-src 放行
+- launcher 后端：get_frame 命令与 winembed 模块退役；注入链路打点
+- 测量：输入 RTT 与帧龄分段打点，基线 vs 改后对比表落 .temp
+
+### 验收标准
+
+1. **VA1 量化**：改后输入注入往返 <5ms、显示帧龄 <17ms（对比表）
+2. **VA2 静默**：dev + packed 启动全程无 dosbox 窗口出现
+3. **VA3 手感**：用户实玩 XEEN 判收（鼠标 / 键盘 / 画面流畅度）
+4. **收尾**：全量门禁绿 + 文档回写 + x.progress 勾结
+
+### 实测结论（2026-09-09 收口）
+
+- **量化成果**：显示链延迟基线口径 42–53ms（轮询陈旧度 0–33ms + 取帧 RTT 9–20ms）→ 帧龄（捕获→绘制）**p50 10–12ms / p95 19–29ms**（dev + packed 双测，256 样本/轮），降约 60–75%；传输段（服务端→客户端）p50 2ms；前端解码绘制 p50 1ms。注入真实路径（JS → Tauri IPC → HTTP）实测 p50 9.1ms / p95 16.4ms——超 5ms 目标，按定案登记"输入并入上行通道"为后续增量。
+- **机制定案**：WS → **HTTP chunked 流式直推**（vendored cpp-httplib 0.32 无 WS 支持；推送语义与延迟特征一致）。静默启动 = SDL_WINDOW_HIDDEN（创建即隐藏）+ CREATE_NO_WINDOW（console 闪现，用户反馈后补）；`CAPSULERETRO_SHOW_DOSBOX=1` 排障开关。三链退役：winembed 模块 / get_frame 中转 / HTTP 轮询端点。
+- **调参定案**：cpu_cycles 5000 → **6500**（用户实测提升游戏内响应，写入 game.json）。
+- **质量佐证**：FB1 基线判定 PASS（新 fork vs 官方 v0.83.0，92 条目全静态零偏差——本次补齐了缺失的 conf 刷新，旧 conf 挂载已删目录致 dosbox 秒退误报）。
+- **用户判收**：键盘差距缩小但可感、鼠标跟手与原生有差距但可接受、流畅度提升——**过**。遗留：注入残余延迟 + 鼠标跟手 → 阶梯③（进程内 core）动机登记。
+- **教训**：机制类改动（WS/chunked 选型）立项文档与实现允许偏差，但须在结论中显式报告；CUA 前台焦点会被宿主环境抢占，真实输入采样依赖用户会话埋点自动产出。

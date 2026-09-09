@@ -14,7 +14,7 @@ use windows::Win32::Foundation::{
 };
 use windows::Win32::System::Threading::{
     CreateProcessW, GetCurrentProcess, ResumeThread, TerminateProcess, WaitForSingleObject,
-    CREATE_SUSPENDED, PROCESS_INFORMATION, STARTF_USESTDHANDLES, STARTUPINFOW,
+    CREATE_NO_WINDOW, CREATE_SUSPENDED, PROCESS_INFORMATION, STARTF_USESTDHANDLES, STARTUPINFOW,
 };
 
 /// 可跨线程传递的 Win32 句柄包装。
@@ -95,7 +95,10 @@ impl WinProcess {
                 None,
                 None,
                 true,
-                CREATE_SUSPENDED,
+                // CREATE_NO_WINDOW：dosbox 是控制台程序，不加此 flag 会弹出
+                // 可见的 console 窗口（PL005 静默启动收尾）；stdout/stderr 仍
+                // 经 STARTF_USESTDHANDLES 重定向到 dosbox.log
+                CREATE_SUSPENDED | CREATE_NO_WINDOW,
                 None,
                 PCWSTR::null(),
                 &si,

@@ -7,7 +7,6 @@ pub mod gameconf;
 pub mod hud;
 pub mod jobctl;
 pub mod logging;
-pub mod winembed;
 pub mod winproc;
 
 use tauri::Manager as _;
@@ -38,8 +37,8 @@ pub fn run() {
             commands::stop_game,
             commands::get_game_info,
             commands::get_guide,
-            commands::get_frame,
-            commands::inject_input
+            commands::inject_input,
+            commands::log_perf_stats
         ]);
     if let Err(err) = app.run(tauri::generate_context!()) {
         logging::error(&format!("launcher 运行失败: {err}"));

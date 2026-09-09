@@ -10,7 +10,7 @@
 //! 双形态资源解析（PL004）：读自身 exe 尾部 trailer 识别 dev / 打包形态
 //! （`resolve_resource_ctx`），打包形态把 payload 释放到运行时 resources/
 //! 目录作为资源根，两形态下游逻辑完全共用。
-//! "无会话"约定：get_frame / inject_input 返回 `Err(NO_SESSION: ...)`（前端
+//! "无会话"约定：inject_input 返回 `Err(NO_SESSION: ...)`（前端
 //! 据前缀识别并停轮询）；stop_game 对无会话是幂等成功（Ok）。
 //! 安全边界：spawn 参数全部来自仓库内 `retro/game.json` 与 u16 端口探测值，
 //! 无任何外部用户输入参与；进程创建经 `winproc` 的 CreateProcessW 参数列表完成。
@@ -30,7 +30,6 @@ use crate::gameconf;
 use crate::hud::{HudPollEvent, HudPoller};
 use crate::jobctl::JobHandle;
 use crate::logging;
-use crate::winembed;
 use crate::winproc::{self, SendHandle, WinProcess};
 
 /// HUD 轮询间隔毫秒（VD3 实测口径：launcher 进程 CPU 增量 < 2%）。
@@ -175,58 +174,6 @@ impl Session {
             HUD_POLL_INTERVAL_MS,
             on_event,
         ));
-    }
-
-    /// 取帧流快照：`GET /api/v2/frame` 的二进制透传，前置 20 字节会话内元数据头
-    /// （帧号 u64 LE + 宽/高/行距 u32 LE ×3），前端据此解码与去重。
-    ///
-    /// # Errors
-    /// 无会话、元数据头缺失、帧体长度与元数据不符（截断或膨胀都是协议错位，
-    /// 静默传递会在前端表现为花屏——严格报错）、上游 503（尚无帧）或 HTTP
-    /// 失败时返回错误消息。
-    pub fn get_frame(&self) -> Result<Vec<u8>, String> {
-        let resp = self
-            .agent
-            .get(&format!("http://127.0.0.1:{}/api/v2/frame", self.port))
-            .call()
-            .map_err(|e| format!("帧流请求失败: {e}"))?;
-
-        let header = |name: &str| -> Result<u64, String> {
-            resp.header(name)
-                .ok_or_else(|| format!("帧流响应缺少 {name}"))?
-                .parse()
-                .map_err(|e| format!("{name} 解析失败: {e}"))
-        };
-        let number = header("X-Capsule-Frame-Number")?;
-        let width = header("X-Capsule-Frame-Width")? as u32;
-        let height = header("X-Capsule-Frame-Height")? as u32;
-        let pitch = header("X-Capsule-Frame-Pitch")? as u32;
-
-        let mut pixels = Vec::new();
-        resp.into_reader()
-            .read_to_end(&mut pixels)
-            .map_err(|e| format!("帧体读取失败: {e}"))?;
-        // 帧体完整性：最小 = 最后一行的有效像素；最大 = pitch×height 全缓冲。
-        // 越界说明上游协议漂移或传输截断，宁可报错不可静默错值。
-        let min_len = (pitch as usize) * (height as usize - 1) + (width as usize) * 4;
-        let max_len = (pitch as usize) * (height as usize);
-        if pixels.len() < min_len || pixels.len() > max_len {
-            return Err(format!(
-                "帧体长度异常: {} 字节（元数据 {}x{} pitch {} 允许 {min_len}..={max_len}）",
-                pixels.len(),
-                width,
-                height,
-                pitch
-            ));
-        }
-
-        let mut out = Vec::with_capacity(20 + pixels.len());
-        out.extend_from_slice(&number.to_le_bytes());
-        out.extend_from_slice(&width.to_le_bytes());
-        out.extend_from_slice(&height.to_le_bytes());
-        out.extend_from_slice(&pitch.to_le_bytes());
-        out.extend_from_slice(&pixels);
-        Ok(out)
     }
 
     /// 注入输入事件：JSON body 透传 `POST /api/v2/input/event`。
@@ -559,21 +506,6 @@ pub async fn launch_game(
             }
         }
     }));
-    // 窗口离屏托管：SDL 窗口创建约需 1-2 秒（慢机器更久），轮询重试而非固定
-    // 2s 竞速；多次失败不阻断会话（窗口仍在屏幕上，退化形态可用）
-    let embed_pid = session.pid;
-    std::thread::spawn(move || {
-        for attempt in 0..10 {
-            std::thread::sleep(Duration::from_millis(500));
-            match winembed::embed_offscreen(embed_pid) {
-                Ok(()) => return,
-                Err(err) if attempt == 9 => {
-                    logging::error(&format!("窗口离屏托管失败（退化为本机窗口形态）: {err}"));
-                }
-                Err(_) => continue, // 窗口尚未创建，下一轮重试
-            }
-        }
-    });
     // 退出监听：句柄副本 + 槽位 Arc 引用，进程自退/崩溃时自动清槽并通知 UI
     let watch_handle = session
         .process
@@ -595,22 +527,6 @@ pub async fn launch_game(
     }
     *slot = Some(session);
     Ok(format!("游戏已启动（webserver 端口 {port}）"))
-}
-
-/// 取帧流快照（UI 命令，二进制：20 字节元数据头 + BGRX 像素）。async 化：
-/// 上游最坏 3s 超时不占主线程。
-#[tauri::command]
-pub async fn get_frame(
-    state: tauri::State<'_, SessionState>,
-) -> Result<tauri::ipc::Response, String> {
-    let bytes = {
-        let slot = state.inner.lock().map_err(|e| e.to_string())?;
-        let session = slot
-            .as_ref()
-            .ok_or_else(|| format!("{NO_SESSION}: 没有运行中的游戏会话"))?;
-        session.get_frame()?
-    };
-    Ok(tauri::ipc::Response::new(bytes))
 }
 
 /// 注入输入事件（UI 命令，body 为注入端点的 JSON 字符串透传）。async 化理由同 get_frame。
@@ -679,6 +595,32 @@ pub fn writeback_on_close(state: &SessionState) -> Result<()> {
         }
         None => Ok(()),
     }
+}
+
+/// 性能采样分布（PL005 测量）：前端环形采样的摘要，经 log_perf_stats 落
+/// launcher.log 的 PERF 行——基线与改后对比共用同一通道。
+#[derive(serde::Deserialize)]
+pub struct PerfStats {
+    /// 采样类别（inject_rtt / frame_fetch_rtt / frame_age / parse_draw）
+    pub kind: String,
+    /// 样本数
+    pub count: u32,
+    /// p50（毫秒）
+    pub p50: f64,
+    /// p95（毫秒）
+    pub p95: f64,
+    /// 最大值（毫秒）
+    pub max: f64,
+}
+
+/// 上报一条性能采样摘要（PL005 测量通道）。
+#[tauri::command]
+pub async fn log_perf_stats(stats: PerfStats) -> Result<(), String> {
+    logging::info(&format!(
+        "PERF {} count={} p50={:.2}ms p95={:.2}ms max={:.2}ms",
+        stats.kind, stats.count, stats.p50, stats.p95, stats.max
+    ));
+    Ok(())
 }
 
 /// 攻略 Markdown 原文（前端 marked 解析 + DOMPurify 消毒后渲染，CSP 兜底）。

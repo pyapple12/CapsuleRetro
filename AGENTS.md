@@ -2,7 +2,7 @@
 
 老 DOS 游戏现代包装系统：把任意 DOS 游戏打包成"看起来像移植的现代游戏"，三平台（Windows / macOS / Linux）通用。产物 = 执行文件 + save 文件 + readme.md 三个文件走天下。总体规划见 `CapsuleRetro_plan.md`。
 
-**当前状态**：PL001–PL003 主线与 FIX001 审计修复完结（2026-09-05 / 07 / 08），PL004 capsule-pack 打包器 + 打包形态落地完结（2026-09-09，产品三文件闭环达成、dist 可产出，见 z.plan.md 附录 PL004）——`capsule-core`（monitor 观察库 + game.json 解析 + save/patch/paths 生命周期三模块）+ `xmonitor` 诊断 CLI + `launcher`（Tauri 2 + Vue 3；统一窗口形态 + save 闭环 + hack 切换 + 攻略渲染，见 z.plan.md 附录 PL002/PL003）。已有素材：`retro/XEEN/`（《魔法门 XEEN》DOS 版，含 CHINFONT 汉化字体与 CMM4.PAT 补丁）、`retro/` 根适配层（game.json v2、xeen-guide.md 攻略、zhuyin-keyboard.md 注音对照、memory_map.json 内存档案、patches/test-hack.zip 测试补丁包）、`.archived/`（mm4/mm5 原版 zip）、`.agents/skills/`（项目自建 skill）、独立模拟器仓 `DosboxCapsule`（`E:\GameMission\DosboxCapsule`，v0.83.0 + 4 代码补丁，维护套件见 `tools/dosbox-fork/`）。遗留与远期项登记 `y.problems.md`。下一步：PL005 0.1.0 发布打磨（UI 去粗粝 / 图标元数据 / 发布工程与杀软对策，立项待启）。
+**当前状态**：PL001–PL003 主线与 FIX001 审计修复完结（2026-09-05 / 07 / 08），PL004 capsule-pack 打包器 + 打包形态落地完结（2026-09-09，产品三文件闭环达成、dist 可产出，见 z.plan.md 附录 PL004）——`capsule-core`（monitor 观察库 + game.json 解析 + save/patch/paths 生命周期三模块）+ `xmonitor` 诊断 CLI + `launcher`（Tauri 2 + Vue 3；统一窗口形态 + save 闭环 + hack 切换 + 攻略渲染，见 z.plan.md 附录 PL002/PL003）。已有素材：`retro/XEEN/`（《魔法门 XEEN》DOS 版，含 CHINFONT 汉化字体与 CMM4.PAT 补丁）、`retro/` 根适配层（game.json v2、xeen-guide.md 攻略、zhuyin-keyboard.md 注音对照、memory_map.json 内存档案、patches/test-hack.zip 测试补丁包）、`.archived/`（mm4/mm5 原版 zip）、`.agents/skills/`（项目自建 skill）、独立模拟器仓 `DosboxCapsule`（`E:\GameMission\DosboxCapsule`，v0.83.0 + 4 代码补丁，维护套件见 `tools/dosbox-fork/`）。遗留与远期项登记 `y.problems.md`。下一步：PL005 会话体验硬化——静默启动 + 帧流 WS 直推（2026-09-09 立项，方案见 z.plan.md 附录 PL005；体验硬化阶梯与回退锚点 V0.1.0.6 见 CapsuleRetro_plan.md §10）；0.1.0 发布打磨顺延其后（编号届时定）。
 
 ## 技术栈
 
@@ -35,7 +35,7 @@ npm run build                                    # 前端构建校验
 - **packer**（capsule-pack CLI）：读 game.json → 校验 → 资源内嵌 → 生成三平台产物
 - **save 生命周期**：启动解压到临时工作区 → 运行 → 退出原子回写（防损坏，丢失可自愈）
 - **补丁纪律（产品核心，代码与 Agent 操作双重遵守）**：hack 版 = 原版文件副本 + 运行时应用补丁；**原版游戏文件永不被修改**，补丁只作用于释放出来的工作副本
-- **4:3 填充**：已由 fork 帧流方案实现——launcher 画布消费 pre-shader 帧自行整数缩放（SetParent 路线 VC0 判死，见 z.plan 附录 PL002）；nomouse 形态定案：dosbox 永不抓宿主光标，宿主光标归画布 PointerLock、DOS 光标归注入原语；macOS/Linux 窗口隐藏手段待验证 [problems#10]
+- **4:3 填充**：已由 fork 帧流方案实现——launcher 画布消费 pre-shader 帧自行整数缩放（SetParent 路线 VC0 判死，见 z.plan 附录 PL002）；PL005 起帧经 chunked 流式直推（每帧即推，无轮询）+ fork 窗口创建即隐藏（静默启动，winembed 退役）；nomouse 形态定案：dosbox 永不抓宿主光标，宿主光标归画布 PointerLock、DOS 光标归注入原语；macOS/Linux 窗口隐藏同用 SDL_WINDOW_HIDDEN（跨平台 flag），0.2.0 实机验证 [problems#10]
 - **运行时目录**：系统缓存目录（如 `%LOCALAPPDATA%/CapsuleRetro/<GameName>/`）存放释放的 game/work/dosbox，丢失可自愈重新释放
 
 ## 目录规划
@@ -169,7 +169,7 @@ y.problems.md    # 问题与远期改进备忘录（只增不删、编号递增�
 - **HUD 轮询瞬时失败**（PL002 登记，2026-09-06）：场景——launcher 内 HUD 线程按 500ms 轮询 webserver 读取关注条目；降级行为——单次失败跳过本轮（前端保留上次快照），连续 5 次失败向 UI 发停滞事件并停止轮询（显式暴露、不吞错）；理由——与 watch 同类的伴生轮询，瞬时抖动不应打崩 UI，停滞最终显式呈现给用户。
 - **REST Registers 缺字段兜 0**（FIX001.17 登记，2026-09-08）：场景——`cpu_state` 解析时 DOSBox 响应可能省略部分寄存器字段（实测无 `es`）；降级行为——`#[serde(default)]` 缺字段置 0，不报错；理由——上游 API 字段可选属事实契约，缺字段非错误状态。
 - **xmonitor 快照存档降级**（FIX001.17 登记，2026-09-08）：场景——`search` 交互拍快照后的本地存档（目录创建失败/目录定位失败退化相对 `.temp`）；降级行为——存档失败仅警告、快照内存数据照常参与差分；理由——存档是离线回放的便利品，不是功能必需，拍取与差分本身不受影响。
-- **窗口离屏托管退化形态**（FIX001.17 登记，2026-09-08）：场景——`embed_offscreen` 轮询重试（500ms×10）仍找不到/改不动 SDL 窗口；降级行为——打日志，游戏保留本机顶层窗口形态继续运行；理由——托管是统一窗口形态的增强层，帧流显示与输入注入均不依赖窗口位置，会话功能完整。
+- **窗口离屏托管退化形态**（FIX001.17 登记，2026-09-08；**PL005 退役（2026-09-09）**——fork 改为 SDL 窗口创建即隐藏，原生窗口不再存在，托管链路整体移除）：场景——`embed_offscreen` 轮询重试（500ms×10）仍找不到/改不动 SDL 窗口；降级行为——打日志，游戏保留本机顶层窗口形态继续运行；理由——托管是统一窗口形态的增强层，帧流显示与输入注入均不依赖窗口位置，会话功能完整。
 - **GameCanvas 帧轮询瞬时失败**（FIX001.7/17 登记，2026-09-08）：场景——前端 30fps 消费循环中单次 `get_frame` 失败（会话启动早期 503/瞬时网络抖动）；降级行为——console.warn 计数并跳过本轮，连续 5 次显式置错误态并停循环（`NO_SESSION` 前缀例外：会话已结束属正常终止）；理由——与 watch/HUD 同类的伴生轮询，瞬时抖动不应打崩画面，最终显式暴露。
 - **文件日志写失败静默**（FIX001.17/22 登记，2026-09-08）：场景——`logging.rs` 追加写 launcher.log 失败（磁盘满/句柄失效）；降级行为——静默忽略该行，不影响业务流程；理由——日志组件不得反噬主流程；init 未调用时为空操作同此登记。
 - **save 档案损坏降级**（PL003.5 登记，2026-09-08）：场景——启动解包 `GameName.save` 时检测损坏（非 zip / 缺 meta / meta 非法）；降级行为——损坏档案备份为 `<原名>.save.corrupt`（仅保留最新一份），以全新空 save 继续运行并 ERROR 级落日志；理由——存档损坏若严格报错会让游戏整体不可玩，降级保住"可继续游玩"，损失仅限已损坏数据；其余错误（IO/越界条目）仍严格上抛不走降级。
