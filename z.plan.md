@@ -15,7 +15,8 @@
 
 ## 二、待完成
 
-- 0.1.0 发布打磨（UI 去粗粝 / 图标元数据 / 发布工程与杀软对策）——立项待启（编号届时定）
+- **PL006 UI 第一遍打磨——黑金典藏版落地**（2026-09-10 立项）→ 附录 PL006
+- 发布工程与杀软对策（GitHub Actions 流水线 / DosboxCapsule Release / 杀软实测）——UI 打磨完毕后另行立项（编号届时定）
 
 ## 三、主题规划
 
@@ -834,3 +835,57 @@ A001 的 43 项 P 级修复经 PL003/PL004/PL005 三次大改后整体稳固：*
 - **live 揪出 2 个清单外问题并顺带修复**（同族"快速重启"竞态）：①上一会话刚结束时 `remove_dir_all(work)` 撞杀软扫描句柄报 error 5 → paths.rs 短重试（耗尽仍严格报错）；②监听端点内核延迟清理窗口的瞬时 WSAEADDRINUSE → probe_port 对 10048 短重试（不回退端口，锁死契约不变）。
 - **测试 harness 教训**：两条 `#[ignore]` 真实进程测试首次以 `-- --ignored` 成对激活即暴露并行竞争同一锁死端口的假阳性——单端口测试必须 `--test-threads=1` 串行；五轮测试"端口可重绑"断言同步加了清理窗口重试。另修正一处陈旧断言（game.json cpu_cycles 5000 → 6500，PL005 定案值）。
 - **契约变更同步**：launch_game 返回 `LaunchInfo{port,seq}`、session-ended 载荷 `{pid,seq,saved}`（前端按 seq 过滤陈旧事件、按 saved 区分存档文案）；capsule-pack `PackInputs` 增 `config` 字段、`BuildOutcome` 增 `warnings`（Resources 缺失告警）。
+
+---
+
+## 附录 PL006：UI 第一遍打磨——黑金典藏版落地（2026-09-10 立项）
+
+> 背景：FIX002 收口后产品闭环、两轮审计修复完毕（V0.1.0.8），但界面仍是开发期糙态——待机页为默认样式。本期只做一件事：以已定案的 v3 黑金典藏版视觉稿对 launcher 界面做**第一遍打磨**（明确不是最终形态）。
+> 范围纪律（2026-09-10 用户纠偏定案）：**本期不含发布工程**——GitHub Actions 流水线 / DosboxCapsule Release / 杀软实测等原 Phase 4 余项已拆出，UI 打磨完毕后另行立项。
+> 关键洞察：视觉方向已完成实稿定案（assets/design/ 五版稿库入库，v3 为定案），UI 施工从"设计什么"退化为"照稿移植"；封面/主视觉真图就位（retro/artwork/），剩余是资产管线（字段位 + 压缩 + 随包）。
+> 目标：待机页 / 会话顶栏与画布 / 攻略面板 / HudBar 按 v3 稿完成第一遍落地；exe 具备图标与产品名；封面资产随包可显示、无图可回落。
+> 状态：✅ 完结（2026-09-10，9/9；VA1 用户目测判收通过；证据 `.temp/pl006-verification.md`）
+
+### 方向定案（2026-09-10，用户拍板）
+
+1. **视觉定案 = v3 黑金典藏版**（`assets/design/v3-黑金典藏版.html`）：近黑底、烫金渐变标题、金框典藏卡带封面、金描边按钮；五版稿全部入库 `assets/design/`，未选用四版留作后续 theme 迭代参考。
+2. **UI = 第一遍打磨**：布局骨架与气质按稿定案落地；不做动效（既定纪律）；像素级细节与后续形态演进不在本期——**本附录不是 UI 的最终形态**。
+3. **封面资产入品**：game.json `assets.cover` 新字段位（可缺省回落占位）；hero 大图压缩（7.7MB → 数百 KB 级）后随包。
+4. **图标与产品名**：launcher exe 图标（金框卡带母题）与窗口标题/产品名——产品视觉身份，随 UI 一并落地。
+
+### 实现措施（按层拆解到文件/函数级）
+
+#### A. 资产与配置
+
+- `assets/design/` 入库（五稿 + README 定案说明，已完成）；`retro/game.json` assets 增 `"cover": "retro/artwork/xeen2x3.jpg"`
+- `capsule-core/src/game_config.rs`：AssetsSection 增 `cover: Option<String>`；`capsule-pack/src/lib.rs` build_package 校验（ensure_safe_rel，缺失时 warnings 告警不阻断）并收集为 payload 条目
+- hero 压缩：xeed16x9.jpeg 2848×1600/7.7MB → 1920×1080 JPEG q≈80（脚本落 `.temp/`，产物覆盖回 `retro/artwork/`）
+
+#### B. UI 第一遍（v3 施工）
+
+- `launcher/src/App.vue`：待机页按 v3 稿重构——品牌条（CAPSULERETRO 典藏系列 + HUD/版本 chip）、hero 区（16:9 keyart 渐变压暗 + 金框卡带封面 + 烫金渐变标题 + meta chips + 存档行）、形态切换与按钮行（金描边启动 / ghost 停止攻略）；设计 token 收敛为 :root CSS 变量
+- 会话态：顶栏（品牌 + HUD + 停止按钮金边）+ GameCanvas 画布容器（金边深底）
+- `HudBar.vue` 与攻略 overlay（guide-overlay/panel/body）配色对齐 v3 色板
+- `commands.rs` GameInfo 增封面路径字段，前端绑定 + 无 cover 回落占位
+
+#### C. 图标与产品名
+
+- 图标源（金框卡带母题 PNG 1024²）→ `npx tauri icon` 生成全尺寸 icons；`tauri.conf.json` productName 确认；前端 `document.title` 设 "CapsuleRetro · \<游戏名\>"
+
+### 验收标准
+
+1. **VA1 UI 第一遍**：launcher 待机页 / 会话顶栏 / 攻略面板与 v3 稿并排对照结构一致（用户目测判收）
+2. **VA2 资产链**：无 cover 配置时打包有告警不阻断、待机页回落占位；有 cover 时 payload 含封面且待机页显示
+3. **VA3 图标与产品名**：exe 图标、任务栏名、窗口标题正确
+4. **收尾**：全量门禁绿 + z.plan 实测结论回写 + x.progress 勾结
+
+### 实测结论（2026-09-10 收口回写）
+
+1. **VA1 UI 第一遍**：live 会话截图对照 v3 稿——待机页全要素在位（品牌条 + 金线 + 版本 chip、金框卡带 + COLLECTOR'S CAPSULE 铭牌、烫金渐变标题、meta chips、存档行金值、金描边启动/ghost 停止攻略）；会话态金边深底画布直推游戏画面 + s-top HUD 金值单元格；攻略 overlay 深面板金描边、金标题。连带修复两处施工糙点：顶栏 flex auto-margin 收缩包裹（改与 `.stage` 同宽 `min(92vw, 1116px)` 对齐）、`.btn` 加 nowrap 防按钮文字换行。
+2. **VA2 资产链**：`assets.cover/hero`（`Option<PathBuf>`）TDD 全过——配置在位收集为 payload 条目、缺省仅告警不阻断、文件缺失/路径越界严格报错；真实打包 415 条目无告警；dist 首启释放目录两图在位且待机页显示真封面；临时删配置 → NO COVER 占位无报错（验后还原）。hero 2848×1600/7.9MB → 1920×1080/479KB（原件备份 `.temp/`）。
+3. **VA3 图标与产品名**：System.Drawing 合成金框卡带源图（1024²，CR 标签）→ `npx tauri icon` 全尺寸；debug 与 dist exe 图标探针均卡带；窗口标题 `CapsuleRetro · XEEN` 实证。**陷阱登记**：icons 变更后 tauri-build 资源编译有 profile 级缓存，dev/release 两侧各需 `cargo clean -p launcher [--release]` 才重嵌入。
+4. **门禁**：fmt --check / clippy -D warnings / cargo doc / vue-tsc + npm build 全绿；单测 59 + ignored live 探针 3（hud 双通道、五轮启动停止无残留、启动会话日志与 REST 可达）串行全过。
+
+### 拆分 todo
+
+见 x.progress.md「PL006」任务组。

@@ -372,42 +372,52 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* v3 黑金典藏版：金边深底画布（token 继承自 App.vue .shell） */
 .stage-wrap {
   position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
+  flex: 1;
+  padding: 26px;
+  background: #020203;
 }
 .game-canvas {
-  width: min(90vw, calc(75vh * 4 / 3));
+  width: min(90vw, calc(78vh * 4 / 3));
   aspect-ratio: 4 / 3;
   background: #000;
-  border: 1px solid #3a3f4b;
-  border-radius: 6px;
-  outline: none;
+  border: 1px solid var(--gold-dim, #8a743e);
+  outline: 4px solid #0a0a0b;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.8);
+  border-radius: 0;
+  outline-offset: 0;
   cursor: crosshair;
 }
 .game-canvas.locked {
   cursor: none;
-  border-color: #4a8;
+  border-color: var(--gold, #d4af5a);
 }
 .hint {
   position: absolute;
-  bottom: 8px;
-  font-size: 12px;
-  opacity: 0.6;
+  bottom: 36px;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--gold-dim, #8a743e);
+  background: rgba(2, 2, 3, 0.7);
+  padding: 3px 14px;
+  border: 1px solid var(--panel-line, #26241c);
 }
 .hint.hidden {
   display: none;
 }
 .frame-error {
   position: absolute;
-  top: 8px;
+  top: 34px;
   padding: 4px 12px;
   font-size: 12px;
   color: #ff7b72;
-  background: #1e222b;
+  background: rgba(2, 2, 3, 0.85);
   border: 1px solid #ff7b72;
-  border-radius: 6px;
+  border-radius: 2px;
 }
 </style>

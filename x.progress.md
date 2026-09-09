@@ -285,6 +285,29 @@
 
 ---
 
+### PL006: UI 第一遍打磨——黑金典藏版落地 [plan#PL006]（✅ 2026-09-10 收口，9/9；v3 稿 live 目测对照 + 反向验证全过，证据见 `.temp/pl006-verification.md`）
+
+#### 阶段 A：资产与配置
+
+- [x] PL006.1 assets/design 入库与定案标注 —— 做法：五稿 + README.md 定案说明（v3 黑金典藏版为 PL006 视觉定案，其余四版留作 theme 迭代参考）已自 .temp 迁入 assets/design/；验证：git 跟踪生效 + v3 稿浏览器打开真图（../../retro/artwork/ 相对引用）正常加载（✅ 2026-09-10：五稿 + README 在位、相对引用两图实存，随 PL 完成一并提交）
+- [x] PL006.2 game.json 封面字段位与随包 —— 做法：retro/game.json assets 增 `"cover": "retro/artwork/xeen2x3.jpg"`；game_config.rs AssetsSection 增 `cover: Option<String>`；capsule-pack lib.rs build_package 对 cover 走 ensure_safe_rel + require_file 校验但缺失时仅 warnings 告警不阻断，命中时收集为 payload 条目；验证：pack_test 新用例——有 cover 打包 payload 含封面条目、无 cover 打包成功且 warnings 非空（✅ 2026-09-10：实作为 `Option<PathBuf>` 并同式附带 `hero` 可选主视觉（方向定案 3 随包）；TDD 先红后绿 + 真实打包 415 条目无告警；缺文件/越界仍严格报错）
+- [x] PL006.3 hero 图压缩 —— 做法：.temp 脚本（PowerShell System.Drawing）把 xeed16x9.jpeg 2848×1600/7.7MB 压到 1920×1080 JPEG q≈80 覆盖回 retro/artwork/；验证：产物 ≤500KB 且 1920×1080、目测无可见劣化（✅ 2026-09-10：479KB/1920×1080 双断言过 + 目检无劣化；原件备份 `.temp/xeed16x9-original-backup.jpeg`）
+- [x] PL006.4 封面路径下发与回落 —— 做法：commands.rs GameInfo 增 `cover: Option<String>`（get_game_info_impl 把 config.assets.cover 解析为资源根绝对路径），App.vue 待机页 img 绑定、None 时回落占位；验证：vue-tsc/npm build 过 + 临时删 cover 配置启动 → 待机页占位显示不报错（验后还原）（✅ 2026-09-10：实为内联 data URL 下发——复用 CSP img-src data:，不引入 asset protocol 暴露面；roundtrip 单测 + 删配置回落占位探针过，配置已还原）
+
+#### 阶段 B：UI 第一遍（v3 施工）
+
+- [x] PL006.5 待机页按 v3 稿重构 —— 做法：App.vue template/style 照 assets/design/v3 稿施工——品牌条（CAPSULERETRO 典藏系列 + HUD/版本 chip）、hero 区（16:9 keyart 渐变压暗 + 金框卡带封面 + 烫金渐变标题 + meta chips + 存档行）、形态切换与按钮行（金描边启动 / ghost 停止攻略）；色板收敛 :root 变量（--gold/--panel/--text-dim 系）；验证：与 v3 稿并排目测结构层级一致 + vue-tsc/npm build 过（✅ 2026-09-10：live 截图对照全要素在位；连带修复顶栏 flex auto-margin 收缩包裹→与 .stage 同宽对齐）
+- [x] PL006.6 会话顶栏与画布容器 —— 做法：会话态顶栏（品牌 + HudBar + 停止按钮金边样式）与 GameCanvas 画布容器按 v3 稿改金边深底样式；验证：live 会话目测 + build 过（✅ 2026-09-10：live 启动/停止全通——金边画布直推 XEEN 画面、停止回待机且存档行刷新；连带修 `.btn` nowrap 防按钮文字换行）
+- [x] PL006.7 攻略面板与 HudBar 对齐 —— 做法：HudBar.vue 数值条与攻略 overlay（guide-overlay/panel/body）按 v3 色板（深底金描边）对齐；验证：攻略开合目测 + build 过（✅ 2026-09-10：overlay 金标题/深面板/pre 深底目测过，HudBar 金值单元格会话同场验证）
+
+#### 阶段 C：图标与产品名
+
+- [x] PL006.8 exe 图标与产品名 —— 做法：金框卡带母题 PNG（1024²，可由封面合成）经 `npx tauri icon` 生成 launcher icons 全尺寸；tauri.conf.json 复核 productName/windowTitle；App.vue onMounted 设 `document.title = "CapsuleRetro · " + gameName`；验证：dist exe 文件图标显示、任务栏名与窗口标题正确（✅ 2026-09-10：System.Drawing 合成卡带源图 + 全尺寸 icons；debug/dist exe 图标探针均卡带；窗口标题 `CapsuleRetro · XEEN` a11y 实证；陷阱——icons 变更后 dev/release profile 各需 clean 才重嵌入）
+
+#### 阶段 D：验收收尾
+
+- [x] PL006.9 验收收尾 —— 做法：launcher 待机页/会话顶栏/攻略面板与 assets/design/v3 稿并排对照目测判收（VA1）；无 cover 回落占位与有 cover 显示双向验证（VA2）；图标/任务栏名/窗口标题正确（VA3）；全量门禁（fmt/clippy/test/doc + vue-tsc/npm build）绿；z.plan 实测结论回写 + 本组勾结上移；验证：VA1–VA3 全过 + 门禁绿（✅ 2026-09-10：VA1/VA2/VA3 全过 + dist 端到端首启（payload 含封面、释放目录两图在位）；门禁全绿——单测 59 + live 探针 3 串行全过；VA1 用户目测判收通过（2026-09-10））
+
 ## 未完成
 
 （暂无——任务完成后整组上移至已完成区）

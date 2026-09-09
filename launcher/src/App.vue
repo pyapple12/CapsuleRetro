@@ -2,6 +2,7 @@
 import DOMPurify from "dompurify";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getVersion } from "@tauri-apps/api/app";
 import { marked } from "marked";
 import { ref } from "vue";
 import GameCanvas from "./components/GameCanvas.vue";
@@ -16,6 +17,8 @@ interface PatchView {
 /** 待机页聚合信息（后端 GameInfo）。 */
 interface GameInfo {
   name: string;
+  /** 封面 data URL（null = 未配置封面，回落占位）。 */
+  cover: string | null;
   save: { version: string; hack: string | null; files: number } | null;
   patches: PatchView[];
 }
@@ -38,14 +41,27 @@ const busy = ref(false);
 const running = ref(false);
 // 当前会话序号：session-ended 事件据此比对归属（FIX002.23）
 let currentSeq = 0;
-// 待机页数据：游戏名 / 补丁列表 / 当前选择 / save 状态
+// 待机页数据：游戏名 / 封面 data URL / 补丁列表 / 当前选择 / save 状态
 const gameName = ref("");
+const coverUrl = ref<string | null>(null);
 const patches = ref<PatchView[]>([]);
 const selectedHack = ref<string | null>(null);
-const saveStatus = ref("");
+const saveHackLabel = ref("—");
+const saveDetail = ref("");
+// 产品版本（tauri.conf 注入；非 Tauri 环境下显示占位）
+const appVersion = ref("…");
 // 攻略视图开关与净化后的 HTML（marked 解析 + DOMPurify 消毒，防 XSS）
 const showGuide = ref(false);
 const guideHtml = ref("");
+
+// 顶栏版本 chip：读 tauri.conf 注入的产品版本（getVersion API）
+void getVersion()
+  .then((v) => {
+    appVersion.value = v;
+  })
+  .catch(() => {
+    appVersion.value = "—";
+  });
 
 // 后端退出监听线程在 DOSBox 自退/崩溃时广播此事件：UI 回待机态，不停留在假会话
 void listen<SessionEndedEvent>("session-ended", (event) => {
@@ -64,12 +80,16 @@ async function loadLobby(): Promise<void> {
   try {
     const info = await invoke<GameInfo>("get_game_info");
     gameName.value = info.name;
+    coverUrl.value = info.cover;
+    // 窗口标题跟随游戏（产品名 · 游戏名）
+    document.title = `CapsuleRetro · ${info.name}`;
     patches.value = info.patches;
     if (info.save == null) {
-      saveStatus.value = "尚无存档（首次运行将创建）";
+      saveHackLabel.value = "—";
+      saveDetail.value = "尚无存档（首次运行将创建）";
     } else {
-      const hack = info.save.hack == null ? "原版" : `补丁 ${info.save.hack}`;
-      saveStatus.value = `存档：${hack} · 格式 v${info.save.version} · ${info.save.files} 个数据文件`;
+      saveHackLabel.value = info.save.hack == null ? "原版" : `补丁 ${info.save.hack}`;
+      saveDetail.value = `格式 v${info.save.version} · ${info.save.files} 个数据文件`;
       // 待选补丁默认跟随 save 里记录的上次选择
       selectedHack.value = info.save.hack;
     }
@@ -114,42 +134,66 @@ async function onStop(): Promise<void> {
 </script>
 
 <template>
-  <main class="shell" :class="{ wide: running }">
+  <main class="shell" :class="{ running }">
     <template v-if="running">
-      <div class="topline">
-        <h1 class="brand">CapsuleRetro</h1>
+      <div class="s-top">
+        <span class="brand2">CAPSULERETRO</span>
         <HudBar />
-        <button class="action stop" :disabled="busy" @click="onStop">停止游戏</button>
+        <span class="spacer"></span>
+        <button class="btn ghost small" :disabled="busy" @click="onStop">停止游戏</button>
       </div>
       <GameCanvas :active="running" />
       <p class="status">{{ status }}</p>
     </template>
     <template v-else>
-      <h1>CapsuleRetro</h1>
-      <p class="subtitle">{{ gameName || "…" }}</p>
-      <p class="status">{{ status }}</p>
-      <HudBar />
-      <label class="hack-row">
-        版本
-        <select v-model="selectedHack" class="hack-select" :disabled="busy">
-          <option :value="null">原版</option>
-          <option v-for="p in patches" :key="p.id" :value="p.id">{{ p.name }}</option>
-        </select>
-      </label>
-      <p class="save-status">{{ saveStatus }}</p>
-      <div class="actions">
-        <button class="action" :disabled="busy" @click="onLaunch">
-          启动 {{ gameName || "游戏" }}
-        </button>
-        <button class="action" :disabled="busy" @click="onStop">停止</button>
-        <button class="action secondary" :disabled="guideHtml === ''" @click="showGuide = true">
-          攻略
-        </button>
+      <div class="topbar">
+        <span class="brand">CAPSULERETRO <small>典藏系列</small></span>
+        <span class="rule"></span>
+        <span class="chip">V{{ appVersion }}</span>
+      </div>
+      <div class="stage">
+        <div class="cart">
+          <div class="cart-inner">
+            <img v-if="coverUrl" :src="coverUrl" alt="封面" />
+            <div v-else class="cart-placeholder"><span>NO COVER</span></div>
+            <div class="plate">
+              COLLECTOR'S CAPSULE
+              <small>No.001 — {{ gameName || "…" }}</small>
+            </div>
+          </div>
+        </div>
+        <div class="info">
+          <p class="kicker">CAPSULERETRO CLASSICS</p>
+          <h1>
+            {{ gameName || "…" }}
+            <small>DOS 原版精确运行 · 关闭窗口自动保存</small>
+          </h1>
+          <div class="meta">
+            <span>DOS</span>
+            <span>{{ patches.length > 0 ? "原版 / 补丁双形态" : "原版形态" }}</span>
+          </div>
+          <p class="save">
+            存档：<b>{{ saveHackLabel }}</b> · {{ saveDetail }}
+          </p>
+          <div class="row">
+            <select v-model="selectedHack" class="hack-select" :disabled="busy">
+              <option :value="null">原版</option>
+              <option v-for="p in patches" :key="p.id" :value="p.id">{{ p.name }}</option>
+            </select>
+            <button class="btn" :disabled="busy" @click="onLaunch">启 动</button>
+            <button class="btn ghost" :disabled="busy" @click="onStop">停止</button>
+            <button class="btn ghost" :disabled="guideHtml === ''" @click="showGuide = true">
+              攻略
+            </button>
+          </div>
+          <p class="hint">启动后点击画面接管键鼠 · Esc 释放光标 · 关闭窗口自动保存</p>
+          <p class="status">{{ status }}</p>
+        </div>
       </div>
       <div v-if="showGuide" class="guide-overlay">
         <div class="guide-panel">
           <div class="guide-toolbar">
-            <button class="action stop" @click="showGuide = false">关闭攻略</button>
+            <button class="btn ghost" @click="showGuide = false">关闭攻略</button>
           </div>
           <!-- 内容经 DOMPurify 消毒 + CSP 兜底，无脚本执行面 -->
           <article class="guide-body" v-html="guideHtml"></article>
@@ -160,97 +204,272 @@ async function onStop(): Promise<void> {
 </template>
 
 <style scoped>
+/* v3 黑金典藏版 token（设计定案 assets/design/v3-黑金典藏版.html；
+   自定义属性沿 DOM 继承进子组件，HudBar/GameCanvas 同源取色） */
 .shell {
+  --bg: #070708;
+  --panel: #101013;
+  --panel-line: #26241c;
+  --gold: #d4af5a;
+  --gold-hi: #f0d894;
+  --gold-dim: #8a743e;
+  --text: #ece7db;
+  --text-dim: #8f897a;
+
   display: flex;
   flex-direction: column;
   align-items: center;
+  min-height: 100vh;
+  color: var(--text);
+  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+  background:
+    radial-gradient(900px 420px at 50% -80px, rgba(212, 175, 90, 0.1), transparent 65%),
+    linear-gradient(180deg, #0d0d10, var(--bg) 60%);
+}
+.shell:not(.running) {
   justify-content: center;
-  height: 100vh;
-  background: #181a20;
-  color: gainsboro;
-  font-family: "Segoe UI", sans-serif;
-  gap: 16px;
 }
-.shell.wide {
-  justify-content: flex-start;
-  padding-top: 12px;
-}
-.topline {
+/* ===================== 待机页（v3 稿移植） ===================== */
+/* 宽度与 .stage 同源（min(92vw, 1116px)）：flex 子项的 auto margin 会压过
+   stretch 收缩包裹，显式同宽才能保证品牌条与卡带/信息列同列对齐 */
+.topbar {
   display: flex;
-  width: min(96vw, 1400px);
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 14px;
+  align-self: center;
+  width: min(92vw, 1116px);
+  padding: 20px 0 18px;
+  box-sizing: border-box;
 }
 .brand {
-  font-size: 18px;
+  font-size: 15px;
+  letter-spacing: 5px;
+  color: var(--gold);
+  font-weight: 600;
+}
+.brand small {
+  color: var(--text-dim);
   letter-spacing: 2px;
+  font-weight: 400;
 }
-h1 {
-  font-size: 28px;
-  letter-spacing: 2px;
+.rule {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--gold-dim), transparent);
 }
-.subtitle {
-  margin: 0;
-  font-size: 16px;
-  opacity: 0.85;
+.chip {
+  font-size: 11px;
+  color: var(--text-dim);
+  border: 1px solid var(--panel-line);
+  padding: 4px 12px;
+  border-radius: 2px;
 }
-.status {
-  opacity: 0.7;
-  font-size: 13px;
+.stage {
+  display: flex;
+  gap: 34px;
+  width: min(92vw, 1116px);
+  margin-top: 8px;
 }
-.hack-row {
+.cart {
+  flex: 0 0 250px;
+  align-self: flex-start;
+  border-radius: 4px;
+  padding: 4px;
+  background: linear-gradient(145deg, #3a3220, #191510);
+  border: 1px solid var(--gold-dim);
+  box-shadow:
+    0 22px 60px rgba(0, 0, 0, 0.7),
+    0 0 0 1px #000,
+    inset 0 0 18px rgba(0, 0, 0, 0.6);
+}
+.cart-inner {
+  border: 1px solid rgba(212, 175, 90, 0.4);
+  padding: 10px 10px 12px;
+  background: #0c0b09;
+}
+.cart img {
+  width: 100%;
+  display: block;
+  filter: saturate(1.05) contrast(1.03);
+}
+.cart-placeholder {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  aspect-ratio: 2 / 3;
+  border: 1px dashed var(--panel-line);
+  background: repeating-linear-gradient(45deg, #0e0d0b 0 12px, #12100c 12px 24px);
+}
+.cart-placeholder span {
+  font-size: 11px;
+  letter-spacing: 4px;
+  color: var(--gold-dim);
+}
+.plate {
+  margin-top: 10px;
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 4px;
+  color: var(--gold);
+  font-family: Georgia, serif;
+}
+.plate small {
+  display: block;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+  margin-top: 4px;
+  font-size: 9px;
+}
+.info {
+  flex: 1;
+  min-width: 0;
+}
+.kicker {
+  font-size: 11px;
+  letter-spacing: 6px;
+  color: var(--gold-dim);
+  margin: 4px 0 10px;
+}
+h1 {
+  margin: 0;
+  font-size: 42px;
+  font-family: Georgia, "SimSun", serif;
+  font-weight: 600;
+  letter-spacing: 2px;
+  line-height: 1.15;
+  background: linear-gradient(180deg, var(--gold-hi), var(--gold) 55%, #93743a);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+h1 small {
+  display: block;
   font-size: 14px;
+  letter-spacing: 3px;
+  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+  color: var(--text-dim);
+  -webkit-text-fill-color: var(--text-dim);
+  margin-top: 10px;
+  font-weight: 400;
+}
+.meta {
+  display: flex;
+  gap: 10px;
+  margin: 18px 0 4px;
+}
+.meta span {
+  font-size: 11px;
+  color: var(--gold);
+  letter-spacing: 1px;
+  padding: 4px 12px;
+  border: 1px solid rgba(212, 175, 90, 0.35);
+  border-radius: 2px;
+  background: rgba(212, 175, 90, 0.05);
+}
+.save {
+  margin: 16px 0 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.save b {
+  color: var(--gold);
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0 16px;
 }
 .hack-select {
-  padding: 6px 12px;
+  padding: 10px 14px;
   font-size: 14px;
-  border: 1px solid #3a3f4b;
-  border-radius: 6px;
-  background: #23262e;
-  color: gainsboro;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: 2px;
+  outline: none;
 }
-.save-status {
-  margin: 0;
-  font-size: 12px;
-  opacity: 0.6;
-}
-.actions {
-  display: flex;
-  gap: 12px;
-}
-.action {
-  padding: 12px 36px;
+.btn {
+  padding: 13px 46px;
   font-size: 16px;
-  border: 1px solid #3a3f4b;
-  border-radius: 8px;
-  background: #23262e;
-  color: gainsboro;
+  letter-spacing: 6px;
+  white-space: nowrap;
   cursor: pointer;
+  font-family: inherit;
+  color: var(--gold-hi);
+  background: linear-gradient(180deg, #1a1710, #0e0d0a);
+  border: 1px solid var(--gold-dim);
+  border-radius: 2px;
+  box-shadow:
+    inset 0 1px 0 rgba(240, 216, 148, 0.25),
+    0 10px 30px rgba(0, 0, 0, 0.5);
 }
-.action:hover:not(:disabled) {
-  background: #2d313b;
+.btn:hover:not(:disabled) {
+  border-color: var(--gold);
+  box-shadow:
+    inset 0 1px 0 rgba(240, 216, 148, 0.35),
+    0 0 24px rgba(212, 175, 90, 0.15);
 }
-.action:disabled {
-  opacity: 0.5;
+.btn:disabled {
+  opacity: 0.45;
   cursor: default;
 }
-.action.secondary {
-  padding: 12px 20px;
-}
-.stop {
-  padding: 8px 18px;
+.btn.ghost {
+  color: var(--text-dim);
   font-size: 13px;
+  letter-spacing: 2px;
+  padding: 13px 24px;
 }
+.btn.small {
+  padding: 5px 14px;
+  font-size: 12px;
+}
+.hint {
+  font-size: 12px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  margin: 0;
+}
+.status {
+  font-size: 12px;
+  color: var(--text-dim);
+  opacity: 0.8;
+  letter-spacing: 1px;
+  margin: 6px 0 0;
+}
+/* ===================== 会话态顶栏（v3 稿 s-top） ===================== */
+.shell.running {
+  justify-content: flex-start;
+  gap: 0;
+  padding: 0 0 16px;
+}
+.s-top {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  align-self: stretch;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--panel-line);
+  background: var(--panel);
+}
+.brand2 {
+  font-size: 12px;
+  letter-spacing: 4px;
+  color: var(--gold);
+}
+.spacer {
+  flex: 1;
+}
+/* ===================== 攻略 overlay（v3 色板） ===================== */
 .guide-overlay {
   position: fixed;
   inset: 0;
   display: flex;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.72);
+  z-index: 10;
 }
 .guide-panel {
   display: flex;
@@ -258,9 +477,10 @@ h1 {
   width: min(92vw, 860px);
   margin: 24px 0;
   padding: 16px;
-  background: #1e222b;
-  border: 1px solid #3a3f4b;
-  border-radius: 10px;
+  background: var(--panel);
+  border: 1px solid var(--gold-dim);
+  border-radius: 2px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.8);
 }
 .guide-toolbar {
   display: flex;
@@ -274,16 +494,19 @@ h1 {
 }
 .guide-body :deep(h1) {
   font-size: 22px;
+  color: var(--gold-hi);
 }
 .guide-body :deep(h2) {
   font-size: 18px;
-  border-bottom: 1px solid #3a3f4b;
+  color: var(--gold);
+  border-bottom: 1px solid var(--panel-line);
   padding-bottom: 4px;
 }
 .guide-body :deep(pre) {
   padding: 10px;
-  background: #15171d;
-  border-radius: 6px;
+  background: #0c0b09;
+  border: 1px solid var(--panel-line);
+  border-radius: 2px;
   overflow-x: auto;
 }
 .guide-body :deep(table) {
@@ -292,6 +515,6 @@ h1 {
 .guide-body :deep(td),
 .guide-body :deep(th) {
   padding: 4px 10px;
-  border: 1px solid #3a3f4b;
+  border: 1px solid var(--panel-line);
 }
 </style>

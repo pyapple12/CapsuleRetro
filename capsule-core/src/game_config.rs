@@ -87,6 +87,10 @@ pub struct AssetsSection {
     pub memory_map: PathBuf,
     /// 攻略文档路径
     pub guide: PathBuf,
+    /// 封面图路径（可选，2:3 卡带封面；缺省打包告警、待机页回落占位——PL006.2）
+    pub cover: Option<PathBuf>,
+    /// 16:9 主视觉路径（可选；缺省不入包——PL006.2，供后续 theme 使用）
+    pub hero: Option<PathBuf>,
 }
 
 /// 运行路径节。

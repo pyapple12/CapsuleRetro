@@ -1,8 +1,8 @@
 # CapsuleRetro —— 老 DOS 游戏的现代包装系统
 
-[![Version](https://img.shields.io/badge/Version-0.1.0.8-blue.svg)](Cargo.toml)
+[![Version](https://img.shields.io/badge/Version-0.1.0.9-blue.svg)](Cargo.toml)
 [![Rust](https://img.shields.io/badge/Rust-1.96-orange.svg)](https://www.rust-lang.org)
-[![Phase](https://img.shields.io/badge/Phase-PL005%20%2B%20FIX002%E5%AE%8C%E6%88%90-brightgreen.svg)](z.plan.md)
+[![Phase](https://img.shields.io/badge/Phase-PL006%E5%AE%8C%E6%88%90-brightgreen.svg)](z.plan.md)
 
 把任意 DOS 游戏打包成"看起来像移植的现代游戏"：玩家拿到 **三个文件**，双击即玩，无安装、无模拟器痕迹。当前以 Windows 为交付目标，macOS / Linux 为 0.2.0 目标。
 

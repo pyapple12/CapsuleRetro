@@ -199,6 +199,66 @@ fn game_dir越界拒绝() {
     assert!(err.to_string().contains("仓库相对路径"), "{err:#}");
 }
 
+/// PL006.2 验证：cover/hero 可选资产链——cover 缺省打包成功但告警（待机页
+/// 回落占位的前置）；配置且文件在位则严格校验并收集为 payload 条目；文件
+/// 缺失或路径越界仍严格报错（错误策略主线不因"可选"放宽已配置项）。
+#[test]
+fn 封面主视觉随包与缺失告警() {
+    // 缺省：打包成功但带 cover 告警（hero 静默可选，不告警）
+    let root = fixture_repo("no-cover");
+    let outcome = capsule_pack::build_package(&inputs(&root)).expect("无 cover 应打包成功");
+    assert!(
+        outcome.warnings.iter().any(|w| w.contains("assets.cover")),
+        "无 cover 应产生告警: {:?}",
+        outcome.warnings
+    );
+
+    // 配置且在位：收集为 payload 条目且无 cover 告警
+    let with_text = GAME_JSON.replace(
+        r#""guide": "retro/test-guide.md" }"#,
+        r#""guide": "retro/test-guide.md",
+        "cover": "retro/artwork/xeen2x3.jpg", "hero": "retro/artwork/xeed16x9.jpeg" }"#,
+    );
+    write(&root.join("retro/game.json"), with_text.as_bytes());
+    write(&root.join("retro/artwork/xeen2x3.jpg"), b"JPGCOVER");
+    write(&root.join("retro/artwork/xeed16x9.jpeg"), b"JPGHERO");
+    let mut with_inputs = inputs(&root);
+    with_inputs.config = with_text.parse().expect("含 cover/hero 的配置应可解析");
+    with_inputs.out_dir = root.join("out2");
+    let outcome2 = capsule_pack::build_package(&with_inputs).expect("打包应成功");
+    assert!(
+        !outcome2.warnings.iter().any(|w| w.contains("assets.cover")),
+        "已配置 cover 不应告警: {:?}",
+        outcome2.warnings
+    );
+    let mut reader = PayloadReader::open(&outcome2.exe)
+        .expect("解析")
+        .expect("产物应识别为打包形态");
+    let names = reader.entry_names();
+    for expect in ["retro/artwork/xeen2x3.jpg", "retro/artwork/xeed16x9.jpeg"] {
+        assert!(names.contains(&expect.to_string()), "缺条目 {expect}");
+    }
+
+    // 配置但文件缺失：严格报错不静默
+    std::fs::remove_file(root.join("retro/artwork/xeen2x3.jpg")).expect("删封面");
+    let err = capsule_pack::build_package(&with_inputs).expect_err("封面缺失应报错");
+    assert!(err.to_string().contains("assets.cover"), "{err:#}");
+
+    // 越界路径：写侧 ensure_safe_rel 拒绝
+    let evil_text = with_text.replace(
+        r#""cover": "retro/artwork/xeen2x3.jpg""#,
+        r#""cover": "../evil.jpg""#,
+    );
+    write(&root.join("retro/artwork/xeen2x3.jpg"), b"JPGCOVER");
+    let mut evil_inputs = inputs(&root);
+    evil_inputs.config = evil_text
+        .parse()
+        .expect("越界 cover 的配置应可解析（拒绝发生在打包校验层）");
+    evil_inputs.out_dir = root.join("out3");
+    let err = capsule_pack::build_package(&evil_inputs).expect_err("越界 cover 应报错");
+    assert!(err.to_string().contains("仓库相对路径"), "{err:#}");
+}
+
 /// FIX002.36 / FIX002.38 验证：dosbox 兄弟 Resources 目录收集为
 /// `dosbox/Resources/**` 条目（PL004 shader 教训的回归点）；缺失时打包
 /// 成功但产出告警。
@@ -217,13 +277,14 @@ fn dosbox_resources收集与缺失告警() {
         outcome.warnings
     );
 
-    // 存在：收集为 dosbox/Resources/** 条目且无告警
+    // 存在：收集为 dosbox/Resources/** 条目且无 Resources 告警
+    //（无 cover 等可选资产缺省告警不算数——只看本条目口径）
     write(&root.join("tools/Resources/shaders/x.glsl"), b"shader");
     let mut with_res = inputs(&root);
     with_res.out_dir = root.join("out2");
     let outcome2 = capsule_pack::build_package(&with_res).expect("打包应成功");
     assert!(
-        outcome2.warnings.is_empty(),
+        !outcome2.warnings.iter().any(|w| w.contains("Resources")),
         "有 Resources 不应告警: {:?}",
         outcome2.warnings
     );

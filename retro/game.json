@@ -8,7 +8,9 @@
   },
   "assets": {
     "memory_map": "retro/memory_map.json",
-    "guide": "retro/xeen-guide.md"
+    "guide": "retro/xeen-guide.md",
+    "cover": "retro/artwork/xeen2x3.jpg",
+    "hero": "retro/artwork/xeed16x9.jpeg"
   },
   "paths": {
     "game_dir": "XEEN",

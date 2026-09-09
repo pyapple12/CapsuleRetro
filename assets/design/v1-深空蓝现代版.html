@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>v1 · 深空蓝现代版 — CapsuleRetro 视觉稿</title>
+<style>
+  /* ============ v1 深空蓝现代版：现代平台层级，深蓝玻璃 + 金色点缀，取色自主视觉 ============ */
+  :root {
+    --bg0: #0b101d; --bg1: #121a2e;
+    --card: rgba(26, 36, 64, .72); --card-line: rgba(140, 160, 210, .16);
+    --text: #e9edf6; --text-dim: #9aa7c4;
+    --gold: #d8b04c; --gold-deep: #a8842f;
+    --btn: #1d2a4a; --btn-line: #33436e;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh; color: var(--text); font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: radial-gradient(1200px 600px at 70% -10%, #1b2a4e 0%, transparent 60%),
+                linear-gradient(180deg, var(--bg1), var(--bg0) 70%);
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 20px 32px 48px; }
+
+  /* 品牌条 */
+  .topbar { display: flex; align-items: center; gap: 14px; padding: 14px 2px; }
+  .brand { font-size: 15px; letter-spacing: 3px; color: var(--gold); font-weight: 600; }
+  .brand small { color: var(--text-dim); letter-spacing: 1px; font-weight: 400; }
+  .spacer { flex: 1; }
+  .chip {
+    font-size: 11px; color: var(--text-dim); padding: 4px 10px;
+    border: 1px solid var(--card-line); border-radius: 999px;
+  }
+
+  /* hero：主视觉打底 + 渐变压暗 */
+  .hero {
+    position: relative; border-radius: 14px; overflow: hidden;
+    border: 1px solid var(--card-line);
+    background: #000 url("../../retro/artwork/xeed16x9.jpeg") center 30% / cover no-repeat;
+  }
+  .hero .scrim {
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, rgba(9,13,24,.94) 0%, rgba(9,13,24,.72) 42%, rgba(9,13,24,.10) 78%);
+  }
+  .hero-inner { position: relative; display: flex; gap: 36px; padding: 40px 44px 44px; }
+
+  /* 卡带（C 点缀）：竖版封面嵌在带握槽的壳里，玻璃质感 */
+  .cart {
+    flex: 0 0 246px; border-radius: 12px; padding: 12px 12px 16px;
+    background: linear-gradient(160deg, rgba(40,52,88,.9), rgba(16,22,40,.94));
+    border: 1px solid rgba(160,180,230,.25);
+    box-shadow: 0 18px 50px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.10);
+  }
+  .cart .grip { display: flex; gap: 6px; justify-content: center; margin: 2px 0 10px; }
+  .cart .grip i { width: 26px; height: 5px; border-radius: 3px; background: rgba(150,170,220,.28); }
+  .cart img { width: 100%; display: block; border-radius: 6px; }
+  .cart .label {
+    margin-top: 10px; text-align: center; font-size: 11px; letter-spacing: 2px;
+    color: var(--gold); border-top: 1px dashed rgba(216,176,76,.35); padding-top: 8px;
+  }
+
+  .info { flex: 1; display: flex; flex-direction: column; }
+  h1 { font-size: 40px; line-height: 1.15; text-shadow: 0 2px 18px rgba(0,0,0,.6); }
+  h1 small { display: block; font-size: 15px; font-weight: 400; color: var(--text-dim); letter-spacing: 1px; margin-top: 8px; }
+  .meta { display: flex; gap: 10px; margin: 14px 0 4px; }
+  .meta span { font-size: 12px; color: var(--text-dim); border: 1px solid var(--card-line); border-radius: 6px; padding: 3px 10px; background: rgba(13,18,32,.5); }
+
+  .save { margin: 18px 0 6px; font-size: 13px; color: var(--text-dim); }
+  .save b { color: var(--gold); font-weight: 600; }
+
+  .row { display: flex; align-items: center; gap: 12px; margin: 18px 0 26px; }
+  select {
+    padding: 10px 14px; border-radius: 8px; font-size: 14px; color: var(--text);
+    background: var(--btn); border: 1px solid var(--btn-line); outline: none;
+  }
+  .btn {
+    padding: 12px 42px; font-size: 17px; border-radius: 9px; cursor: pointer;
+    color: #10141f; font-weight: 700; letter-spacing: 1px;
+    background: linear-gradient(180deg, #ecc669, var(--gold) 55%, var(--gold-deep));
+    border: 1px solid #7c6220; box-shadow: 0 6px 22px rgba(216,176,76,.28);
+  }
+  .btn:hover { filter: brightness(1.07); }
+  .btn.ghost {
+    background: var(--btn); color: var(--text); font-weight: 400; font-size: 14px;
+    border: 1px solid var(--btn-line); box-shadow: none; padding: 12px 26px;
+  }
+  .hint { font-size: 12px; color: var(--text-dim); }
+
+  /* 会话形态预览 */
+  .sect { margin-top: 42px; }
+  .sect h2 { font-size: 13px; letter-spacing: 2px; color: var(--text-dim); font-weight: 400; margin-bottom: 12px; }
+  .session {
+    border: 1px solid var(--card-line); border-radius: 14px; overflow: hidden;
+    background: rgba(16,22,40,.7);
+  }
+  .s-top { display: flex; align-items: center; gap: 18px; padding: 10px 16px; border-bottom: 1px solid var(--card-line); }
+  .s-top .brand2 { font-size: 12px; letter-spacing: 2px; color: var(--gold); }
+  .hud { display: flex; gap: 14px; font-size: 12px; color: var(--text-dim); }
+  .hud b { color: var(--text); font-weight: 600; }
+  .s-body { display: flex; justify-content: center; padding: 22px; background: #05070d; }
+  .canvas {
+    width: 560px; aspect-ratio: 4/3; border-radius: 8px; border: 1px solid #223055;
+    background: #000 url("../../retro/artwork/xeed16x9.jpeg") center 35% / cover no-repeat;
+    box-shadow: 0 0 0 6px #0a0f1c, 0 20px 60px rgba(0,0,0,.6);
+    position: relative;
+  }
+  .canvas i {
+    position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%);
+    font-style: normal; font-size: 11px; color: rgba(233,237,246,.55);
+    background: rgba(5,8,15,.6); padding: 3px 12px; border-radius: 999px;
+  }
+  .foot { margin-top: 26px; text-align: center; font-size: 11px; color: var(--text-dim); letter-spacing: 1px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <span class="brand">CAPSULERETRO <small>胶囊复古</small></span>
+    <span class="spacer"></span>
+    <span class="chip">HUD 食物 46 天 · 第 3 天</span>
+    <span class="chip">V0.1.0.8</span>
+  </div>
+
+  <div class="hero">
+    <div class="scrim"></div>
+    <div class="hero-inner">
+      <div class="cart">
+        <div class="grip"><i></i><i></i><i></i><i></i></div>
+        <img src="../../retro/artwork/xeen2x3.jpg" alt="封面">
+        <div class="label">CAPSULE · XEEN</div>
+      </div>
+      <div class="info">
+        <h1>魔法门外传：希恩世界<small>XEEN · Swords of Xeen 汉化版 · DOS 原版精确运行</small></h1>
+        <div class="meta"><span>DOS 1992</span><span>汉化 CHINFONT</span><span>原版精确模拟</span></div>
+        <p class="save">存档：<b>原版</b> · 格式 v1 · 6 个数据文件 · 上次冒险 2026-09-09</p>
+        <div class="row">
+          <select><option>原版</option><option>测试补丁</option></select>
+          <button class="btn">启 动</button>
+          <button class="btn ghost">停止</button>
+          <button class="btn ghost">攻略</button>
+        </div>
+        <p class="hint">启动后点击画面接管键鼠 · Esc 释放光标 · 关闭窗口自动保存</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="sect">
+    <h2>游戏会话形态（画布 4:3 帧流直推 · 示意图）</h2>
+    <div class="session">
+      <div class="s-top">
+        <span class="brand2">CAPSULERETRO</span>
+        <span class="hud"><span>HP <b>12/12</b></span><span>MP <b>2</b></span><span>GOLD <b>750</b></span><span>食物 <b>46 天</b></span></span>
+        <span class="spacer"></span>
+        <button class="btn ghost" style="padding:6px 14px;font-size:12px;">停止游戏</button>
+      </div>
+      <div class="s-body"><div class="canvas"><i>帧流直推 · 4:3 整数缩放 · 点击接管键鼠</i></div></div>
+    </div>
+  </div>
+
+  <p class="foot">CapsuleRetro 视觉稿 · v1 深空蓝现代版 · 仅静态示意，无动效</p>
+</div>
+</body>
+</html>

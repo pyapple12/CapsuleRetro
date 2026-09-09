@@ -134,6 +134,22 @@ pub fn build_package(inputs: &PackInputs) -> Result<BuildOutcome> {
                 .unwrap_or_else(|| "dosbox 目录父级的 Resources/".to_string())
         )),
     }
+    // 封面/主视觉（PL006.2）：可选资产——cover 缺省仅告警不阻断（待机页
+    // 回落占位）；已配置则按必需资源严格校验并随包，越界路径照常拒绝
+    if let Some(cover) = &config.assets.cover {
+        ensure_safe_rel(cover, "封面（assets.cover）")?;
+        let path = inputs.repo_root.join(cover);
+        require_file(&path, "封面（assets.cover）")?;
+        entries.push((slash(cover), path));
+    } else {
+        warnings.push("未配置封面（assets.cover），待机页将显示占位".to_string());
+    }
+    if let Some(hero) = &config.assets.hero {
+        ensure_safe_rel(hero, "主视觉（assets.hero）")?;
+        let path = inputs.repo_root.join(hero);
+        require_file(&path, "主视觉（assets.hero）")?;
+        entries.push((slash(hero), path));
+    }
     entries.sort_by(|a, b| a.0.cmp(&b.0));
 
     // 产物：payload zip → 复制 launcher → 拼装 → readme 注入

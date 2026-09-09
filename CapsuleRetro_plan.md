@@ -186,7 +186,7 @@ config/          # 用户对 dosbox.conf 的覆盖片段
 - [x] 游戏文件压缩存储 ——已完成（payload zip deflate）
 - [x] 验收：用一款真实 DOS 游戏跑通 Windows 打包 → 运行全流程 ——已完成（VA1 干净环境用户 live 通过）
 
-### Phase 4 — Windows 打磨与发布（约 1.5 周）→ 发布打磨（待 PL005 体验硬化后立项，编号届时定）
+### Phase 4 — Windows 打磨与发布（约 1.5 周）→ 拆分立项：UI 第一遍打磨 = PL006（进行中，黑金典藏版定案）；发布工程与杀软对策待 UI 打磨完毕后另行立项
 
 - [ ] Windows 杀软误报实测与对策（签名或降级方案）——0.1.0 倾向 zip 分发 + readme SmartScreen 指引，代码签名后续评估
 - [ ] GitHub Actions Windows 构建与产物分发流水线

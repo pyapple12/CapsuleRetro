@@ -23,6 +23,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Context, Result};
+use base64::Engine as _;
 use tauri::Emitter;
 use windows::Win32::Foundation::HANDLE;
 
@@ -731,11 +732,14 @@ fn get_guide_impl() -> Result<String> {
         .with_context(|| format!("读取攻略失败: {}", guide_path.display()))
 }
 
-/// 待机页聚合信息：游戏名 / save 档案状态 / 可选补丁列表（hack 切换数据源）。
+/// 待机页聚合信息：游戏名 / 封面 / save 档案状态 / 可选补丁列表（hack 切换数据源）。
 #[derive(serde::Serialize)]
 pub struct GameInfo {
     /// 游戏名（game.json name）
     pub name: String,
+    /// 封面 data URL（None = 未配置封面，前端回落占位）；以内联 data: 下发，
+    /// 复用 CSP 已放行的 img-src data:，不引入 asset protocol 文件暴露面
+    pub cover: Option<String>,
     /// save 档案 meta（None = 尚无 save 用户数据）
     pub save: Option<SaveMetaView>,
     /// 可选补丁列表
@@ -773,6 +777,15 @@ fn get_game_info_impl() -> Result<GameInfo> {
     let ctx = resolve_resource_ctx()?;
     let config = capsule_core::game_config::GameConfig::load(&ctx.root.join("retro/game.json"))
         .context("加载 retro/game.json 失败")?;
+    let cover = match &config.assets.cover {
+        Some(cover) => {
+            let path = ctx.root.join(cover);
+            let bytes = std::fs::read(&path)
+                .with_context(|| format!("读取封面失败: {}", path.display()))?;
+            Some(cover_data_url(&bytes, &path)?)
+        }
+        None => None,
+    };
     let save_path = gameconf::save_path(&ctx.save_root, &config.name);
     let save = match capsule_core::save::read_meta(&save_path)
         .with_context(|| format!("读取 save 状态失败: {}", save_path.display()))?
@@ -799,14 +812,51 @@ fn get_game_info_impl() -> Result<GameInfo> {
         .collect();
     Ok(GameInfo {
         name: config.name,
+        cover,
         save,
         patches,
     })
 }
 
+/// 封面字节转 data URL（按扩展名定 MIME；未知扩展名严格报错不猜类型）。
+///
+/// # Errors
+/// 封面扩展名非 jpg/jpeg/png 时返回错误。
+fn cover_data_url(bytes: &[u8], path: &Path) -> Result<String> {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase());
+    let mime = match ext.as_deref() {
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("png") => "image/png",
+        _ => return Err(anyhow!("封面仅支持 jpg/png: {}", path.display())),
+    };
+    Ok(format!(
+        "data:{mime};base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(bytes)
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// PL006.4 验证：封面按扩展名转 data URL（大小写不敏感），编码可无损
+    /// 解码回原字节；未知扩展名严格报错。
+    #[test]
+    fn 封面data_url按扩展名判定() {
+        let raw = b"\x89PNG\r\n\x1a\nfake";
+        let url = cover_data_url(raw, Path::new("cover.PNG")).expect("png 应可转");
+        assert!(url.starts_with("data:image/png;base64,"), "{url}");
+        let decoded = base64::engine::general_purpose::STANDARD
+            .decode(url.trim_start_matches("data:image/png;base64,"))
+            .expect("data URL 应可解码");
+        assert_eq!(decoded, raw);
+
+        let err = cover_data_url(b"GIF", Path::new("cover.gif")).expect_err("未知扩展名应报错");
+        assert!(err.to_string().contains("jpg/png"), "{err:#}");
+    }
 
     /// FIX002.1 验证：端口锁死无回退——被占端口显式报错（含占用提示），
     /// 空闲端口原样返回。

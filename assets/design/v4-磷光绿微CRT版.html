@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>v4 · 磷光绿微CRT版 — CapsuleRetro 视觉稿</title>
+<style>
+  /* ============ v4 磷光绿微CRT版：DOS 终端气质，磷光绿点缀，扫描线只做装饰不做全屏 ============ */
+  :root {
+    --bg0: #050b06; --bg1: #0a140c;
+    --phos: #4ade80; --phos-dim: #2a7a4a; --phos-glow: rgba(74, 222, 128, .35);
+    --text: #d7e8da; --text-dim: #7d9683;
+    --panel: rgba(12, 24, 15, .8); --line: rgba(74, 222, 128, .18);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh; color: var(--text); font-family: Consolas, "Cascadia Mono", "Microsoft YaHei", monospace;
+    background: radial-gradient(1000px 500px at 50% -100px, #0e2013 0%, transparent 60%),
+                linear-gradient(180deg, var(--bg1), var(--bg0) 70%);
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 20px 32px 48px; }
+
+  .topbar { display: flex; align-items: center; gap: 14px; padding: 12px 2px 16px; }
+  .brand { font-size: 14px; letter-spacing: 2px; color: var(--phos); text-shadow: 0 0 12px var(--phos-glow); }
+  .brand small { color: var(--text-dim); text-shadow: none; }
+  .prompt { color: var(--phos-dim); font-size: 12px; }
+  .spacer { flex: 1; }
+  .chip { font-size: 11px; color: var(--text-dim); border: 1px solid var(--line); padding: 4px 10px; border-radius: 2px; }
+
+  .stage { display: flex; gap: 32px; }
+  /* 卡带 = 深色 PCB 载体 + 荧光丝印 */
+  .cart {
+    flex: 0 0 246px; border-radius: 8px; padding: 14px 14px 14px;
+    background: linear-gradient(165deg, #0f1a12, #081009 70%);
+    border: 1px solid var(--phos-dim); position: relative;
+    box-shadow: 0 16px 46px rgba(0,0,0,.6), inset 0 0 26px rgba(74,222,128,.05);
+  }
+  .cart::after {
+    content: "XEEN.SYS — LOADED"; position: absolute; left: 14px; top: -9px;
+    font-size: 9px; letter-spacing: 2px; color: var(--phos-dim); background: var(--bg0); padding: 0 8px;
+  }
+  .cart img { width: 100%; display: block; border-radius: 4px; border: 1px solid #16301d; }
+  .cart .pin { display: flex; gap: 5px; justify-content: center; margin-top: 12px; }
+  .cart .pin i { width: 18px; height: 4px; background: var(--phos-dim); border-radius: 1px; }
+
+  .info { flex: 1; }
+  .term { font-size: 12px; color: var(--phos-dim); margin-bottom: 10px; }
+  .term b { color: var(--phos); font-weight: 400; }
+  h1 { font-size: 38px; letter-spacing: 1px; font-family: "Microsoft YaHei", sans-serif; text-shadow: 0 0 18px var(--phos-glow); }
+  h1 small { display: block; font-size: 14px; color: var(--text-dim); font-weight: 400; margin-top: 8px; text-shadow: none; letter-spacing: 1px; }
+  .meta { margin: 14px 0 4px; font-size: 12px; color: var(--text-dim); }
+  .meta b { color: var(--phos); font-weight: 400; }
+  .save { margin: 14px 0 6px; font-size: 13px; color: var(--text-dim); }
+  .save b { color: var(--phos); }
+  .row { display: flex; align-items: center; gap: 12px; margin: 20px 0 22px; }
+  select {
+    padding: 10px 12px; font-size: 14px; font-family: inherit; color: var(--phos);
+    background: #081109; border: 1px solid var(--phos-dim); border-radius: 2px; outline: none;
+  }
+  .btn {
+    padding: 12px 40px; font-size: 15px; font-family: inherit; letter-spacing: 2px; cursor: pointer;
+    color: #05130a; background: linear-gradient(180deg, #6ff0a0, var(--phos) 60%, #2fae62);
+    border: 1px solid #1f7a45; border-radius: 2px;
+    box-shadow: 0 0 26px var(--phos-glow), 0 4px 16px rgba(0,0,0,.5);
+  }
+  .btn:hover { box-shadow: 0 0 40px var(--phos-glow), 0 4px 16px rgba(0,0,0,.5); }
+  .btn.ghost { background: transparent; color: var(--phos-dim); border: 1px solid var(--phos-dim); box-shadow: none; font-size: 13px; padding: 12px 22px; }
+  .hint { font-size: 12px; color: var(--text-dim); }
+
+  /* 装饰扫描线：只压在装饰条上 */
+  .strip {
+    margin-top: 14px; height: 14px; border: 1px solid var(--line); border-radius: 2px;
+    background: repeating-linear-gradient(0deg, rgba(74,222,128,.16) 0 1px, transparent 1px 4px);
+  }
+
+  .sect { margin-top: 40px; }
+  .sect h2 { font-size: 12px; letter-spacing: 2px; color: var(--text-dim); font-weight: 400; margin-bottom: 12px; }
+  .session { border: 1px solid var(--line); background: var(--panel); border-radius: 4px; overflow: hidden; }
+  .s-top { display: flex; align-items: center; gap: 18px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+  .s-top .brand2 { font-size: 12px; letter-spacing: 2px; color: var(--phos); }
+  .hud { display: flex; gap: 16px; font-size: 12px; color: var(--text-dim); }
+  .hud b { color: var(--phos); }
+  .spacer { flex: 1; }
+  .s-body { display: flex; justify-content: center; padding: 24px; background: #020604; }
+  .canvas {
+    width: 560px; aspect-ratio: 4/3; border: 1px solid var(--phos-dim); border-radius: 4px;
+    box-shadow: 0 0 34px rgba(74,222,128,.10), 0 18px 50px rgba(0,0,0,.6);
+    background: #000 url("../../retro/artwork/xeed16x9.jpeg") center 35% / cover no-repeat; position: relative;
+  }
+  .canvas::after {
+    content: ""; position: absolute; inset: 0; border-radius: 4px; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,.10) 0 1px, transparent 1px 3px);
+  }
+  .canvas i {
+    position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 1; font-style: normal;
+    font-size: 11px; color: var(--phos); background: rgba(2,8,4,.75); padding: 3px 12px; border: 1px solid var(--phos-dim);
+  }
+  .foot { margin-top: 24px; text-align: center; font-size: 11px; color: var(--text-dim); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <span class="brand">CAPSULERETRO <small>v0.1.0.8</small></span>
+    <span class="prompt">C:\&gt; RUN XEEN_</span>
+    <span class="spacer"></span>
+    <span class="chip">HUD 食物 46 天 · 第 3 天</span>
+  </div>
+
+  <div class="stage">
+    <div class="cart">
+      <img src="../../retro/artwork/xeen2x3.jpg" alt="封面">
+      <div class="pin"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+    <div class="info">
+      <p class="term"><b>CAPSULERETRO</b> 已载入 1 个胶囊 — 内存档案 92 条目 OK</p>
+      <h1>魔法门外传：希恩世界<small>XEEN 汉化版 · DOS 原版精确运行 · 1992</small></h1>
+      <p class="meta">汉化 <b>CHINFONT</b> · 形态 <b>原版 / 补丁</b> · 模拟 <b> cycles 6500</b></p>
+      <p class="save">存档：<b>原版</b> · 格式 v1 · 6 个数据文件</p>
+      <div class="row">
+        <select><option>原版</option><option>测试补丁</option></select>
+        <button class="btn">启 动</button>
+        <button class="btn ghost">停止</button>
+        <button class="btn ghost">攻略</button>
+      </div>
+      <p class="hint">启动后点击画面接管键鼠 · Esc 释放光标 · 关闭窗口自动保存</p>
+      <div class="strip"></div>
+    </div>
+  </div>
+
+  <div class="sect">
+    <h2>游戏会话形态（画布 4:3 帧流直推 · 示意图）</h2>
+    <div class="session">
+      <div class="s-top">
+        <span class="brand2">CAPSULERETRO</span>
+        <span class="hud"><span>HP <b>12/12</b></span><span>MP <b>2</b></span><span>GOLD <b>750</b></span><span>食物 <b>46 天</b></span></span>
+        <span class="spacer"></span>
+        <button class="btn ghost" style="padding:5px 14px;font-size:12px;">停止游戏</button>
+      </div>
+      <div class="s-body"><div class="canvas"><i>帧流直推 · 4:3 整数缩放 · 点击接管键鼠</i></div></div>
+    </div>
+  </div>
+
+  <p class="foot">CapsuleRetro 视觉稿 · v4 磷光绿微CRT版 · 仅静态示意，无动效</p>
+</div>
+</body>
+</html>

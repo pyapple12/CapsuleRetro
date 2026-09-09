@@ -56,30 +56,47 @@ onUnmounted(() => {
         class="cell"
         :class="{ danger: hp <= 0 }"
       >
-        HP{{ index + 1 }} {{ hp }}
+        HP{{ index + 1 }} <b>{{ hp }}</b>
       </span>
-      <span class="cell">金币 {{ snapshot.gold }}</span>
-      <span class="cell">宝石 {{ snapshot.gems }}</span>
-      <span class="cell">食物 {{ snapshot.food }}（{{ snapshot.food_days }} 天）</span>
+      <span class="cell"
+        >金币 <b>{{ snapshot.gold }}</b></span
+      >
+      <span class="cell"
+        >宝石 <b>{{ snapshot.gems }}</b></span
+      >
+      <span class="cell"
+        >食物 <b>{{ snapshot.food }}</b
+        >（{{ snapshot.food_days }} 天）</span
+      >
     </template>
     <span v-else class="cell muted">HUD 等待游戏会话…</span>
   </section>
 </template>
 
 <style scoped>
+/* v3 黑金典藏版色板（token 继承自 App.vue .shell，回落值保独立可用） */
 .hud {
   display: flex;
-  gap: 10px;
+  gap: 16px;
   flex-wrap: wrap;
-  font-size: 13px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-dim, #8f897a);
 }
 .cell {
-  padding: 4px 10px;
-  border: 1px solid #3a3f4b;
-  border-radius: 6px;
-  background: #1e222b;
+  padding: 3px 10px;
+  border: 1px solid var(--panel-line, #26241c);
+  border-radius: 2px;
+  background: rgba(7, 7, 8, 0.55);
+}
+.cell b {
+  color: var(--gold, #d4af5a);
+  font-weight: 600;
 }
 .danger {
+  color: #ff7b72;
+}
+.danger b {
   color: #ff7b72;
 }
 .muted {
