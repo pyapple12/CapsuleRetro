@@ -16,10 +16,12 @@ use zip::ZipWriter;
 /// readme 模板（编译期内嵌；占位符 `{{GAME_NAME}}` / `{{VERSION}}`）。
 pub const README_TEMPLATE: &str = include_str!("../readme-template.md");
 
-/// 打包输入（路径全部解析完毕，库函数不做 CLI 语义推导）。
+/// 打包输入（路径与配置全部解析完毕，库函数不做 CLI 语义推导）。
 pub struct PackInputs {
     /// 仓库根（game.json 应位于 `<仓库根>/retro/game.json`，仓库相对路径基准）
     pub repo_root: PathBuf,
+    /// 适配层聚合配置（调用方已加载校验——同一份打包只读一次，FIX002.34）
+    pub config: capsule_core::game_config::GameConfig,
     /// launcher release exe（裸 launcher，不得已含 payload）
     pub launcher_exe: PathBuf,
     /// dosbox 构建产物目录（内含 dosbox exe 与运行期 DLL）
@@ -39,6 +41,8 @@ pub struct BuildOutcome {
     pub entries: usize,
     /// 产物 exe 体积（字节）
     pub exe_bytes: u64,
+    /// 非致命告警（如 dosbox Resources 缺失——打包可完成但产物不完整）
+    pub warnings: Vec<String>,
 }
 
 /// 打包主流程：校验 → 收集条目 → payload zip → 拼装 exe → 注入 readme。
@@ -47,9 +51,8 @@ pub struct BuildOutcome {
 /// 任一必需资源缺失、launcher 已含 payload、或 zip / IO 失败时严格报错
 /// （错误信息指明缺失资源，缺一不打）。
 pub fn build_package(inputs: &PackInputs) -> Result<BuildOutcome> {
+    let config = &inputs.config;
     let game_json = inputs.repo_root.join("retro/game.json");
-    let config = capsule_core::game_config::GameConfig::load(&game_json)
-        .with_context(|| format!("加载 {}", game_json.display()))?;
 
     // 打包前校验：缺一严格报错（错误策略主线）；launcher 先查存在与 payload
     // 状态，避免白拷贝 10MB 后才在拼装步报错
@@ -112,13 +115,24 @@ pub fn build_package(inputs: &PackInputs) -> Result<BuildOutcome> {
     // 运行期资源的查找依赖该相对结构，实测缺失即 ABORT）；.lib/.pdb 为构建
     // 中间产物不作部署
     collect_deploy_tree(&inputs.dosbox_dir, "dosbox/bin", &mut entries)?;
-    let dosbox_resources = inputs
+    // Resources 兄弟目录缺失不阻断打包，但必须告警（FIX002.38）：异常构建树
+    // 会复现 PL004 的 shader ABORT，打包期提示优于运行期排障
+    let mut warnings: Vec<String> = Vec::new();
+    match inputs
         .dosbox_dir
         .parent()
         .map(|p| p.join("Resources"))
-        .filter(|p| p.is_dir());
-    if let Some(res) = dosbox_resources {
-        collect_deploy_tree(&res, "dosbox/Resources", &mut entries)?;
+        .filter(|p| p.is_dir())
+    {
+        Some(res) => collect_deploy_tree(&res, "dosbox/Resources", &mut entries)?,
+        None => warnings.push(format!(
+            "dosbox Resources 目录缺失（期望 {}），shader 等运行期资源将不随包——请确认构建树完整",
+            inputs
+                .dosbox_dir
+                .parent()
+                .map(|p| p.join("Resources").display().to_string())
+                .unwrap_or_else(|| "dosbox 目录父级的 Resources/".to_string())
+        )),
     }
     entries.sort_by(|a, b| a.0.cmp(&b.0));
 
@@ -144,6 +158,9 @@ pub fn build_package(inputs: &PackInputs) -> Result<BuildOutcome> {
     }
     let readme_text = README_TEMPLATE
         .replace("{{GAME_NAME}}", &config.name)
+        // 运行时目录按 name 小写派生（gameconf::runtime_dir 同规则），模板
+        // 单独占位注入，避免大小写漂移（FIX002.35）
+        .replace("{{GAME_DIR}}", &config.name.to_ascii_lowercase())
         .replace("{{VERSION}}", env!("CARGO_PKG_VERSION"));
     let readme = inputs.out_dir.join("readme.md");
     std::fs::write(&readme, readme_text)
@@ -156,6 +173,7 @@ pub fn build_package(inputs: &PackInputs) -> Result<BuildOutcome> {
         readme,
         entries: count,
         exe_bytes,
+        warnings,
     })
 }
 

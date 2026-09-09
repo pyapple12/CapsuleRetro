@@ -2,7 +2,7 @@
 
 老 DOS 游戏现代包装系统：把任意 DOS 游戏打包成"看起来像移植的现代游戏"，三平台（Windows / macOS / Linux）通用。产物 = 执行文件 + save 文件 + readme.md 三个文件走天下。总体规划见 `CapsuleRetro_plan.md`。
 
-**当前状态**：PL001–PL003 主线与 FIX001 审计修复完结（2026-09-05 / 07 / 08），PL004 capsule-pack 打包器 + 打包形态落地完结（2026-09-09，产品三文件闭环达成、dist 可产出，见 z.plan.md 附录 PL004）——`capsule-core`（monitor 观察库 + game.json 解析 + save/patch/paths 生命周期三模块）+ `xmonitor` 诊断 CLI + `launcher`（Tauri 2 + Vue 3；统一窗口形态 + save 闭环 + hack 切换 + 攻略渲染，见 z.plan.md 附录 PL002/PL003）。已有素材：`retro/XEEN/`（《魔法门 XEEN》DOS 版，含 CHINFONT 汉化字体与 CMM4.PAT 补丁）、`retro/` 根适配层（game.json v2、xeen-guide.md 攻略、zhuyin-keyboard.md 注音对照、memory_map.json 内存档案、patches/test-hack.zip 测试补丁包）、`.archived/`（mm4/mm5 原版 zip）、`.agents/skills/`（项目自建 skill）、独立模拟器仓 `DosboxCapsule`（`E:\GameMission\DosboxCapsule`，v0.83.0 + 4 代码补丁，维护套件见 `tools/dosbox-fork/`）。遗留与远期项登记 `y.problems.md`。下一步：PL005 会话体验硬化——静默启动 + 帧流 WS 直推（2026-09-09 立项，方案见 z.plan.md 附录 PL005；体验硬化阶梯与回退锚点 V0.1.0.6 见 CapsuleRetro_plan.md §10）；0.1.0 发布打磨顺延其后（编号届时定）。
+**当前状态**：PL001–PL003 主线与 FIX001 审计修复完结（2026-09-05 / 07 / 08），PL004 capsule-pack 打包器 + 打包形态落地完结（2026-09-09，产品三文件闭环达成、dist 可产出，见 z.plan.md 附录 PL004）——`capsule-core`（monitor 观察库 + game.json 解析 + save/patch/paths 生命周期三模块）+ `xmonitor` 诊断 CLI + `launcher`（Tauri 2 + Vue 3；统一窗口形态 + save 闭环 + hack 切换 + 攻略渲染，见 z.plan.md 附录 PL002/PL003）。已有素材：`retro/XEEN/`（《魔法门 XEEN》DOS 版，含 CHINFONT 汉化字体与 CMM4.PAT 补丁）、`retro/` 根适配层（game.json v2、xeen-guide.md 攻略、zhuyin-keyboard.md 注音对照、memory_map.json 内存档案、patches/test-hack.zip 测试补丁包）、`.archived/`（mm4/mm5 原版 zip）、`.agents/skills/`（项目自建 skill）、独立模拟器仓 `DosboxCapsule`（`E:\GameMission\DosboxCapsule`，v0.83.0 + 5 代码补丁，维护套件见 `tools/dosbox-fork/`）。遗留与远期项登记 `y.problems.md`。PL005 会话体验硬化已完结（2026-09-09，帧流 chunked 直推降延迟 + dosbox 静默启动，见 z.plan.md 附录 PL005；体验硬化阶梯与回退锚点 V0.1.0.6 见 CapsuleRetro_plan.md §10）；FIX002 第 2 轮审计修复已完结（2026-09-10，39 条 + 快速重启竞态连带修复，见 z.plan.md 附录 A002）。下一步：0.1.0 发布打磨（UI 去粗粝 / 图标元数据 / 发布工程与杀软对策，立项待启，编号届时定）。
 
 ## 技术栈
 
@@ -143,7 +143,7 @@ y.problems.md    # 问题与远期改进备忘录（只增不删、编号递增�
 - **路径处理**：Rust 强制使用 `std::path::Path` / `PathBuf`，禁止手拼字符串路径；TS 使用 `path.join` / `URL`，禁止字符串拼接路径
 - **临时文件**：所有临时生成的脚本/文件必须写入项目根目录下的 `.temp/` 文件夹（gitignore），禁止散落在源码目录
 - **文件修改必须用 edit 工具**：修改既有文件（.rs/.ts/.vue/.md/.json/.toml）一律用 edit 的精确 oldString/newString 替换，禁止用 python -c 或 PowerShell 脚本做内容替换（易踩引号/缩进坑）；新建 .temp 探针脚本不受限
-- **版本双轨**：机器版本只存根 `Cargo.toml` 的 `[workspace.package] version`（三段式 X.Y.Z，Cargo 强制 semver）；对外正式文本（commit 标题、README 徽章、发布说明）一律写四段式 `VX.Y.Z.R`——前三段与 workspace version 一致，第四段 R 为修订号，只随提交历史记录、不入任何配置文件（递增规则见"Commit 提交规范"）；`tauri.conf.json`、`capsule-pack` 产物、`game.json` 的 version 均从 workspace version 派生或注入，禁止第二处硬编码。**豁免（FIX001.25 定案 2026-09-08）**：`retro/game.json` 的 `version` 语义 = 游戏自身版本（对外展示，非产品版本）；`launcher/package.json` 的 `version` 为 npm 生态必填字段、不参与发布——两者豁免于 workspace 单一来源，不派生不注入
+- **版本双轨**：机器版本只存根 `Cargo.toml` 的 `[workspace.package] version`（三段式 X.Y.Z，Cargo 强制 semver）；对外正式文本（commit 标题、README 徽章、发布说明）一律写四段式 `VX.Y.Z.R`——前三段与 workspace version 一致，第四段 R 为修订号，只随提交历史记录、不入任何配置文件（递增规则见"Commit 提交规范"）；**README 徽章版本随提交同步推进**——每次 git 提交前必须把 `README.md` 顶部 Version 徽章更新为本次的四段式版本号，防止徽章滞后于代码；`tauri.conf.json`、`capsule-pack` 产物、`game.json` 的 version 均从 workspace version 派生或注入，禁止第二处硬编码。**豁免（FIX001.25 定案 2026-09-08）**：`retro/game.json` 的 `version` 语义 = 游戏自身版本（对外展示，非产品版本）；`launcher/package.json` 的 `version` 为 npm 生态必填字段、不参与发布——两者豁免于 workspace 单一来源，不派生不注入
 - **Shell 命令**：执行命令前先检测当前 shell（`echo $SHELL` 或检查系统），本机 Windows 环境；避免使用 Linux-only 或 PowerShell-only 工具，优先跨 shell 兼容命令
 - **PowerShell 中文编码**：bash 工具的 pwsh 会话带 `-NoProfile`，不加载 `$PROFILE`，输出中文前必须先设置编码：`[Console]::OutputEncoding = [System.Text.Encoding]::UTF8;`
 - **Git 操作**：未经用户明确要求，不得擅自执行 `git add`、`git commit` 或任何其他 Git 写操作
@@ -157,7 +157,7 @@ y.problems.md    # 问题与远期改进备忘录（只增不删、编号递增�
 - **禁止项**：内部编号（A0.1/B1.5/FIX1.1 等任务编号）、验证/回归数字（如"全量回归 506 项通过"）、英文混排描述
 - **提交范围**：一个版本的所有连带改动一次提交（源码 + 配置 + 文档同步）
 - **GitHub 身份与远程**：远程 `git@takechance:pyapple12/CapsuleRetro.git`（SSH 别名 `takechance` = pyapple12 账号，密钥 id_b_takechance，经 socks5 127.0.0.1:10808）；仓库级身份 `git config user.name pyapple12` + `user.email takechance_bao@188.com`（覆盖全局 YiYi 身份，与 MrBoard 同款做法）
-- **流程**：每次提交前 AI 必须 `git status` + `git diff`（含 `--stat`）核对改动范围无误，再草拟完整 commit 内容（add 清单 + 标题 + 正文）交用户确认；用户审阅后自行执行 `git add`/`git commit`/`git push`（AI 不执行任何 git 写操作）
+- **流程**：每次提交前 AI 必须 ①`git status` + `git diff`（含 `--stat`）核对改动范围无误；②核对 `README.md` 顶部 Version 徽章是否已推进到本次的四段式版本号（`docs`/`chore` 等不递增 R 的提交也要核对，不一致先改再提交）；③草拟完整 commit 内容（add 清单 + 标题 + 正文）交用户确认；用户审阅后自行执行 `git add`/`git commit`/`git push`（AI 不执行任何 git 写操作，除非用户当轮明确授权）
 
 ## 错误策略
 
@@ -170,10 +170,13 @@ y.problems.md    # 问题与远期改进备忘录（只增不删、编号递增�
 - **REST Registers 缺字段兜 0**（FIX001.17 登记，2026-09-08）：场景——`cpu_state` 解析时 DOSBox 响应可能省略部分寄存器字段（实测无 `es`）；降级行为——`#[serde(default)]` 缺字段置 0，不报错；理由——上游 API 字段可选属事实契约，缺字段非错误状态。
 - **xmonitor 快照存档降级**（FIX001.17 登记，2026-09-08）：场景——`search` 交互拍快照后的本地存档（目录创建失败/目录定位失败退化相对 `.temp`）；降级行为——存档失败仅警告、快照内存数据照常参与差分；理由——存档是离线回放的便利品，不是功能必需，拍取与差分本身不受影响。
 - **窗口离屏托管退化形态**（FIX001.17 登记，2026-09-08；**PL005 退役（2026-09-09）**——fork 改为 SDL 窗口创建即隐藏，原生窗口不再存在，托管链路整体移除）：场景——`embed_offscreen` 轮询重试（500ms×10）仍找不到/改不动 SDL 窗口；降级行为——打日志，游戏保留本机顶层窗口形态继续运行；理由——托管是统一窗口形态的增强层，帧流显示与输入注入均不依赖窗口位置，会话功能完整。
-- **GameCanvas 帧轮询瞬时失败**（FIX001.7/17 登记，2026-09-08）：场景——前端 30fps 消费循环中单次 `get_frame` 失败（会话启动早期 503/瞬时网络抖动）；降级行为——console.warn 计数并跳过本轮，连续 5 次显式置错误态并停循环（`NO_SESSION` 前缀例外：会话已结束属正常终止）；理由——与 watch/HUD 同类的伴生轮询，瞬时抖动不应打崩画面，最终显式暴露。
+- **GameCanvas 帧流瞬时失败**（FIX001.7/17 登记 2026-09-08；**FIX002.5 改写（2026-09-10）**——30fps 轮询已随 PL005 退役，机制改为 chunked 流消费，条目同步现行语义）：场景——前端 chunked 帧流消费循环中单次中断（fetch 失败/流异常关闭/解析失败/缓冲超限）；降级行为——console.warn 计数并按 1 秒退避重连，连续 5 次显式置错误态并停循环；理由——与 watch/HUD 同类的伴生长连接，瞬时抖动不应打崩画面，最终显式暴露。
 - **文件日志写失败静默**（FIX001.17/22 登记，2026-09-08）：场景——`logging.rs` 追加写 launcher.log 失败（磁盘满/句柄失效）；降级行为——静默忽略该行，不影响业务流程；理由——日志组件不得反噬主流程；init 未调用时为空操作同此登记。
 - **save 档案损坏降级**（PL003.5 登记，2026-09-08）：场景——启动解包 `GameName.save` 时检测损坏（非 zip / 缺 meta / meta 非法）；降级行为——损坏档案备份为 `<原名>.save.corrupt`（仅保留最新一份），以全新空 save 继续运行并 ERROR 级落日志；理由——存档损坏若严格报错会让游戏整体不可玩，降级保住"可继续游玩"，损失仅限已损坏数据；其余错误（IO/越界条目）仍严格上抛不走降级。
 - **dosbox.log 轮转失败继续追加**（PL003.14 登记，2026-09-08）：场景——启动时 dosbox.log 超过 5MB 触发轮转但 rename 失败（文件被占用等）；降级行为——ERROR 级落日志，本轮放弃轮转继续追加；理由——轮转只影响日志体积不影响功能，下轮启动自动重试。
+- **save 解包未知前缀条目忽略**（FIX002.3 登记，2026-09-10）：场景——save zip 内出现 `save/` 前缀之外的普通文件条目（资源管理器/7-Zip 重打包的显式目录条目、预留 `config/` 节、macOS `__MACOSX/` 噪声）；降级行为——跳过不落工作副本（显式目录条目同理），不报错；理由——良性结构噪声不应阻断启动，此前按 UnsafeEntry 严格拒绝会让重打包过的 save 永久无法启动；路径穿越形态仍严格拒绝不走本条。
+- **save 解包中断残留清理失败静默**（FIX002.12 登记，2026-09-10）：场景——unpack 中途失败后删除已写入文件时 remove 失败（文件被占）；降级行为——eprintln 警告、不掩盖主错误照常上抛；理由——清理是错误路径上的次要动作，残留由每次启动全量重建自愈。
+- **payload extract_once 标记读取失败重释放**（FIX002.4 登记，2026-09-10）：场景——读取/解析 `resources/payload.json` 标记失败（文件被锁/权限/半写）；降级行为——按"标记无效"清空重释放（自愈，秒级）；理由——重释放幂等且结果正确，优于阻断启动；配合条目落盘抽查（FIX002.9）不放大释放频率。
 
 ## 素材与环境陷阱
 

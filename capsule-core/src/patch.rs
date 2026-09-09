@@ -104,7 +104,7 @@ pub fn apply(patch_zip: &Path, work_dir: &Path) -> Result<usize, PatchError> {
             }
             other => return Err(PatchError::UnknownAction(other.to_string())),
         }
-        let bytes = read_zip_file(&mut archive, &entry.source).ok_or_else(|| {
+        let bytes = read_zip_file(&mut archive, &entry.source)?.ok_or_else(|| {
             PatchError::MissingSource(format!("{}（条目 {}）", entry.source, entry.path))
         })?;
 
@@ -123,12 +123,24 @@ pub fn apply(patch_zip: &Path, work_dir: &Path) -> Result<usize, PatchError> {
     Ok(applied)
 }
 
-/// 读 zip 内指定条目字节；缺失返回 None（由调用方决定错误形态）。
-fn read_zip_file(archive: &mut ZipArchive<std::fs::File>, name: &str) -> Option<Vec<u8>> {
-    let mut entry = archive.by_name(name).ok()?;
+/// 读 zip 内指定条目字节；`Ok(None)` = 条目不存在（调用方报 MissingSource），
+/// 条目存在但读取/解压失败返回 [`PatchError::Corrupted`]——两种失败区分
+/// 报告，避免数据损坏被误判为缺失误导排查（FIX002.14）。by_name 阶段的
+/// 失败视为缺失：ZipArchive::new 已完成中心目录解析，此后按名查不到即
+/// 不存在，读取期错误由 read_to_end 以 Corrupted 呈现。
+fn read_zip_file(
+    archive: &mut ZipArchive<std::fs::File>,
+    name: &str,
+) -> Result<Option<Vec<u8>>, PatchError> {
+    let mut entry = match archive.by_name(name) {
+        Ok(entry) => entry,
+        Err(_) => return Ok(None),
+    };
     let mut bytes = Vec::new();
-    entry.read_to_end(&mut bytes).ok()?;
-    Some(bytes)
+    entry
+        .read_to_end(&mut bytes)
+        .map_err(|e| PatchError::Corrupted(format!("补丁条目读取失败 {name}: {e}")))?;
+    Ok(Some(bytes))
 }
 
 /// 校验 manifest path：非空、不含反斜杠、组件全部为普通名（拒绝 `..` / 根 /

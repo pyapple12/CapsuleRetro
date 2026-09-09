@@ -213,8 +213,11 @@ fn take_snapshot(
         });
     }
     print!("按回车拍快照 {tag}（先在游戏内准备好状态）...");
-    std::io::stdout().flush().ok();
-    std::io::stdin().read_line(&mut String::new()).ok();
+    flush_stdout();
+    if read_interactive_line().is_none() {
+        eprintln!("交互输入不可用，无法在确认时机拍快照，按失败退出（可用 --s1/--s2 离线回放）");
+        return Err(ExitCode::from(1));
+    }
     let snap = client.snapshot_lower_memory().map_err(report)?;
     if let Err(err) = std::fs::create_dir_all(out_dir) {
         eprintln!("警告: 创建 {} 失败，快照不入档: {err}", out_dir.display());
@@ -268,14 +271,40 @@ fn run_search(
 /// 交互询问是否拍第三快照；仅交互模式会走到这里（离线回放不询问）。
 fn prompt_third_snapshot(client: &RestClient, out_dir: &Path) -> Result<Option<Vec<u8>>, ExitCode> {
     print!("是否拍第三快照做二次收敛？(y/N) ");
-    std::io::stdout().flush().ok();
-    let mut line = String::new();
-    std::io::stdin().read_line(&mut line).ok();
-    if line.trim().eq_ignore_ascii_case("y") {
+    flush_stdout();
+    let confirm = match read_interactive_line() {
+        Some(line) => line.trim().eq_ignore_ascii_case("y"),
+        None => false,
+    };
+    if confirm {
         let snap = take_snapshot(client, None, "s3", out_dir)?;
         Ok(Some(snap))
     } else {
         Ok(None)
+    }
+}
+
+/// 刷新标准输出；失败打印警告（提示语可能滞留缓冲，不影响后续流程）。
+fn flush_stdout() {
+    if let Err(err) = std::io::stdout().flush() {
+        eprintln!("警告: 刷新标准输出失败: {err}");
+    }
+}
+
+/// 读一行交互输入；stdin 关闭（EOF）或读取出错时打印提示并返回 None
+/// （FIX002.17：交互确认按拒绝处理，不再静默吞错）。
+fn read_interactive_line() -> Option<String> {
+    let mut line = String::new();
+    match std::io::stdin().read_line(&mut line) {
+        Ok(0) => {
+            eprintln!("提示: 标准输入已关闭（EOF），交互确认按拒绝处理");
+            None
+        }
+        Ok(_) => Some(line),
+        Err(err) => {
+            eprintln!("提示: 读取标准输入失败（{err}），交互确认按拒绝处理");
+            None
+        }
     }
 }
 

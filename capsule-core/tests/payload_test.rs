@@ -130,6 +130,26 @@ fn trailer字段非法报错() {
     }
 }
 
+/// FIX002.8 验证：trailer 畸形值使 offset+len 合法但 +trailer 溢出 →
+/// BadTrailer（release 回绕/debug panic 都不应发生）。
+#[test]
+fn trailer溢出值报badtrailer不panic() {
+    let dir = temp_dir("overflow");
+    let exe = dir.join("fake.exe");
+    let mut trailer = Vec::new();
+    trailer.extend_from_slice(&[0u8; 22]); // 伪 exe 本体
+    trailer.extend_from_slice(&capsule_core::payload::MAGIC);
+    trailer.extend_from_slice(&capsule_core::payload::FORMAT_VERSION.to_le_bytes());
+    trailer.extend_from_slice(&(u64::MAX - 10).to_le_bytes()); // payload_len：与 offset 相加不溢出
+    trailer.extend_from_slice(&5u64.to_le_bytes()); // payload_offset：sum+28 必然溢出
+    std::fs::write(&exe, &trailer).expect("写伪 trailer");
+
+    match PayloadReader::open(&exe) {
+        Err(PayloadError::BadTrailer { .. }) => {}
+        other => panic!("溢出值应报 BadTrailer，实际 {other:?}"),
+    }
+}
+
 #[test]
 fn 重复拼装拒绝() {
     let dir = temp_dir("twice");
@@ -212,4 +232,15 @@ fn extract_once三态与标记损坏重释放() {
     assert!(reader.extract_once(&dest).expect("标记损坏应重释放"));
     assert!(!dest.join("stale.txt").exists(), "残留应随清空移除");
     assert!(dest.join("retro/game.json").is_file(), "资源应恢复");
+
+    // FIX002.9：标记幸存而部分资源被删 → 条目落盘抽查发现缺失 → 重释放
+    std::fs::remove_file(dest.join("retro/game.json")).expect("删资源文件");
+    assert!(
+        reader.extract_once(&dest).expect("条目缺失应重释放"),
+        "部分丢失应触发重释放而非跳过"
+    );
+    assert!(
+        dest.join("retro/game.json").is_file(),
+        "缺失资源应随重释放恢复"
+    );
 }

@@ -99,10 +99,28 @@ pub fn release_work(original_dir: &Path, work_dir: &Path) -> Result<(), Lifecycl
         ));
     }
     if work_dir.exists() {
-        std::fs::remove_dir_all(work_dir)?;
+        remove_dir_all_with_retry(work_dir)?;
     }
     copy_tree(original_dir, work_dir)?;
     Ok(())
+}
+
+/// 清空工作副本，对 `拒绝访问` 做短重试：上一会话刚结束时，杀软对刚写盘
+/// 文件的扫描句柄尚未释放（os error 5，实测"停止后立刻重启"可复现）——
+/// 重试窗口内句柄自然释放即成功，重试耗尽仍失败则严格报错（非容错降级，
+/// 最终失败不吞）。
+fn remove_dir_all_with_retry(work_dir: &Path) -> std::io::Result<()> {
+    let mut attempt = 0;
+    loop {
+        match std::fs::remove_dir_all(work_dir) {
+            Ok(()) => return Ok(()),
+            Err(err) if err.raw_os_error() == Some(5) && attempt < 4 => {
+                attempt += 1;
+                std::thread::sleep(std::time::Duration::from_millis(400));
+            }
+            Err(err) => return Err(err),
+        }
+    }
 }
 
 /// 递归复制目录树（仅普通文件与子目录；符号链接等特殊形态在 DOS 游戏素材

@@ -70,7 +70,7 @@ fn 真实档案文件可加载() {
     let config =
         GameConfig::load(Path::new("../retro/game.json")).expect("真实 game.json 应可加载");
     assert_eq!(config.name, "XEEN");
-    assert_eq!(config.dosbox.cpu_cycles, 5000);
+    assert_eq!(config.dosbox.cpu_cycles, 6500, "PL005 实测定案值");
     assert!(
         config.paths.save_files.iter().any(|p| p == "*.SAV"),
         "真实档案应声明存档清单"
@@ -117,6 +117,44 @@ fn 非法save_files报错() {
     }
 }
 
+/// FIX002.15 验证：game_dir 为空报 InvalidGameDir 专用变体（不再误挂
+/// InvalidPatches，程序化归因正确）。
+#[test]
+fn game_dir为空报专用错误() {
+    use capsule_core::game_config::GameConfigError;
+    let text = 合法样例文本().replace(
+        r#""paths": { "game_dir": "XEEN", "save_files": ["*.SAV", "XEEN.DAT"] }"#,
+        r#""paths": { "game_dir": "", "save_files": ["*.SAV"] }"#,
+    );
+    let err = text.parse::<GameConfig>().expect_err("空 game_dir 应报错");
+    assert!(
+        matches!(err, GameConfigError::InvalidGameDir(_)),
+        "应报 InvalidGameDir，实际: {err:?}"
+    );
+}
+
+/// FIX002.25 验证：guest_exe 缺省回落 name 小写派生（适配层约定），
+/// 显式声明优先（exe 基名 ≠ name 的下一款游戏可配置）。
+#[test]
+fn guest_exe派生与显式覆盖() {
+    let config = 合法样例文本()
+        .parse::<GameConfig>()
+        .expect("合法样例应解析成功");
+    assert_eq!(
+        config.guest_exe_name(),
+        "xeen.exe",
+        "缺省应回落 name 小写派生"
+    );
+
+    let explicit = 合法样例文本()
+        .replace(
+            r#""paths": { "game_dir": "XEEN", "save_files": ["*.SAV", "XEEN.DAT"] }"#,
+            r#""paths": { "game_dir": "XEEN", "guest_exe": "MAGIC4.EXE", "save_files": ["*.SAV"] }"#,
+        )
+        .parse::<GameConfig>()
+        .expect("显式 guest_exe 应解析成功");
+    assert_eq!(explicit.guest_exe_name(), "MAGIC4.EXE", "显式声明优先");
+}
 /// PL003.8 验证：patches id 为空或重复 → 报 InvalidPatches。
 #[test]
 fn 非法patches报错() {

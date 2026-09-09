@@ -47,14 +47,26 @@ fn 启动会话_日志与rest可达_终止() {
 #[ignore = "真实进程测试：闪现 DOSBox 窗口，显式 --ignored 运行"]
 fn 五轮启动停止无残留() {
     for round in 1..=5 {
-        let mut session = start_session(None).expect("第 {round} 轮启动应成功");
+        let mut session =
+            start_session(None).unwrap_or_else(|e| panic!("第 {round} 轮启动应成功: {e:#}"));
         std::thread::sleep(Duration::from_millis(1500));
-        session.stop().expect("第 {round} 轮停止应成功");
+        session
+            .stop()
+            .unwrap_or_else(|e| panic!("第 {round} 轮停止应成功: {e}"));
         assert!(!session.is_alive(), "第 {round} 轮终止后进程不应存活");
-        // 端口已释放：探测应能重新绑定（等价于 tasklist 无残留的强断言）
-        assert!(
-            TcpListener::bind(("127.0.0.1", session.port())).is_ok(),
-            "第 {round} 轮结束后端口未被释放（存在残留）"
-        );
+        // 端口释放断言：进程死后监听端点有内核延迟清理窗口（FIX002 live 实测），
+        // 短重试内应可重绑；重试耗尽仍不可绑才判残留（等价无残留进程强断言）
+        let mut released = false;
+        for _ in 0..10 {
+            match TcpListener::bind(("127.0.0.1", session.port())) {
+                Ok(listener) => {
+                    drop(listener);
+                    released = true;
+                    break;
+                }
+                Err(_) => std::thread::sleep(Duration::from_millis(500)),
+            }
+        }
+        assert!(released, "第 {round} 轮结束后端口未被释放（存在残留）");
     }
 }

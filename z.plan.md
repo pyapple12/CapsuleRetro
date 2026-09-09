@@ -10,10 +10,11 @@
 - **FIX001 第 1 轮全量审计修复**（2026-09-08 收口）→ 附录 A001
 - **PL003 save 生命周期 + 补丁闭环**（2026-09-08 收口）→ 附录 PL003
 - **PL004 capsule-pack + 打包形态落地**（2026-09-09 收口）→ 附录 PL004
+- **PL005 会话体验硬化——静默启动 + 帧流 WS 直推**（2026-09-09 收口）→ 附录 PL005
+- **FIX002 第 2 轮审计修复**（2026-09-10 收口）→ 附录 A002
 
 ## 二、待完成
 
-- **PL005 会话体验硬化——静默启动 + 帧流 WS 直推**（2026-09-09 立项）→ 附录 PL005
 - 0.1.0 发布打磨（UI 去粗粝 / 图标元数据 / 发布工程与杀软对策）——立项待启（编号届时定）
 
 ## 三、主题规划
@@ -24,7 +25,70 @@
 
 > 豁免唯一权威源：已定案项审计时（audit-project）不再重复报告。新定案条目由归档环节（audit-report）经用户确认后追加。分级：①**永久豁免**——不再报告不再讨论；②**条件豁免**——标注触发条件，条件变化时重新评估。
 
-（暂无）
+> 来源：A001 参考级 23 项 + A002 参考级 30 项（另 1 项与 A001 #20 相同已合并），2026-09-09 用户确认、2026-09-10 逐条化定案。行号为定案时点位置，后续代码漂移不影响豁免效力（按主题与语义识别）。原条件项"save 根不可写"与"packer Resources 缺失静默跳过"2 条已转入 FIX002.37/38 修复，不再作为豁免登记；A001/A002 附录内的观察项记录已删除，**本清单为唯一权威源**。
+
+### ① 永久豁免（不再报告不再讨论，逐条）
+
+| #   | 位置                                  | 摘要                                                   | 豁免理由                                     | 来源           |
+| --- | ------------------------------------- | ------------------------------------------------------ | -------------------------------------------- | -------------- |
+| 1   | rest_stub.rs:24-25、61-62             | 测试 stub expect/吞错                                  | 测试代码惯例                                 | A001#23        |
+| 2   | capsule-pack/tests/pack_test.rs       | 测试 setup `let _ = remove_dir_all` 吞错               | 测试代码惯例                                 | A002           |
+| 3   | profile.rs、game_config.rs            | trait impl 缺文档首行                                  | rustdoc 不展示，惯例豁免                     | A001#4         |
+| 4   | rest.rs、save.rs                      | pub 函数语义已内联缺 `# Errors` 小节                   | 无信息损失                                   | A002           |
+| 5   | payload.rs:203-206                    | 三处 expect（`[u8;28]` 定长切片）                      | 类型系统保证不可失败                         | A002           |
+| 6   | commands.rs:457                       | expect("会话槽锁已毒化")                               | 全链路 Result 化无可达 panic 点              | A002           |
+| 7   | rest.rs（现行 :158）                  | with_capacity 理论 4GB                                 | 无可达路径                                   | A001#5         |
+| 8   | winproc.rs:59                         | 含 `..` 非规范路径                                     | 文件层正确解析，纯理论                       | A001#14        |
+| 9   | paths.rs:81-88                        | 无文件名路径 unwrap_or_default 生成怪 `.tmp`           | save 路径恒由校验过的 name 派生，不可达      | A002           |
+| 10  | payload.rs:85-90                      | metadata→append TOCTOU                                 | packer 单用户单次执行，纯理论                | A002           |
+| 11  | GameCanvas.vue                        | offCtx/imageCache null 守卫                            | 纯理论不可达（两轮同条目，合并）             | A001#20 / A002 |
+| 12  | capsule-pack main.rs                  | repo_root 推导空串形态                                 | 文档化用法下无实害                           | A002           |
+| 13  | GameCanvas.vue                        | u64 帧号/时间戳 Number >2^53 失精度                    | 60fps 溢出需 ~48 万年                        | A002           |
+| 14  | jobctl.rs                             | 句柄无 Drop                                            | Job KILL_ON_JOB_CLOSE 兜底，注释明示设计     | A001#12        |
+| 15  | hud.rs:176                            | food//18 定案公式                                      | 有注释依据                                   | A001#11        |
+| 16  | hud.rs vs 测试                        | WATCHED 双处                                           | 双通道对照设计                               | A001#15        |
+| 17  | commands.rs writeback_on_close        | 主线程同步执行                                         | 关窗单次、时长有界、注释明示设计             | A002           |
+| 18  | baseline-capture.sh                   | 字面量路径/端口                                        | 文件头明示设计                               | A001#18        |
+| 19  | rebuild.bat                           | 机器路径/代理                                          | 文件头明示换机改法                           | A001#19        |
+| 20  | save.rs SaveMeta                      | version/settings 只写不读                              | 格式预留字段（设计明示）                     | A002           |
+| 21  | GameCanvas PERF 环形缓冲              | 上报后不清空、15s 窗口重叠                             | 测量口径设计选择，容量有界                   | A002           |
+| 22  | capsule-pack lib.rs                   | "排序保证产物可重现"注释措辞过强                       | 无行为影响（build_id 本就每次不同）          | A002           |
+| 23  | rest.rs                               | "默认 8086" 注释措辞                                   | 纯注释，需验证上游默认值                     | A001#6         |
+| 24  | xmonitor.rs（现行 :140）              | interval 下限 50                                       | 单次使用常量                                 | A001#1         |
+| 25  | commands.rs:158                       | wait_exit(5000)                                        | 单次使用魔数                                 | A001#8         |
+| 26  | GameCanvas.vue                        | 帧流重连退避 1000ms                                    | 单次模块常量                                 | A002           |
+| 27  | baseline-capture.sh                   | 就绪探测 curl 无 --fail                                | 下游快照大小校验兜底                         | A002           |
+| 28  | capsule-pack lib.rs                   | 产物文件名直接取 config.name                           | GameConfig InvalidName 校验闭环              | A002           |
+| 29  | commands.rs PERF 入口                 | kind 字符串未校验直接进日志                            | 仅自家前端经 IPC 可达                        | A002           |
+| 30  | commands.rs start_session             | 最长 ~15s 占用 tokio worker                            | launch 期无并发意义，其余命令仍可调度        | A002           |
+| 31  | capsule-pack lib.rs write_payload_zip | 单文件 ~30MB 整读内存                                  | 单发 CLI、总量有界                           | A002           |
+| 32  | payload.rs entry_names()/格式常量     | 生产代码零调用                                         | 诊断/自文档 API，测试在用                    | A002           |
+| 33  | game_config.rs PatchRef               | name 等展示字段未空校验                                | 纯展示无消费风险                             | A002           |
+| 34  | vite-env.d.ts                         | vue shim 冗余                                          | 惯例，无行为影响                             | A001#22        |
+| 35  | tauri.conf.json CSP                   | 无 object-src/frame-ancestors、style-src unsafe-inline | 收紧属硬化非缺口；CSP 变更须 live 全链路验证 | A002           |
+| 36  | diff.rs                               | 复用 rest 错误枚举（未独立错误类型）                   | 错误类型收敛优先                             | A001#3         |
+
+### ② 条件豁免（触发条件变化时重新评估，逐条）
+
+| #   | 条目                                                       | 位置                | 重新评估触发条件                                          | 来源   |
+| --- | ---------------------------------------------------------- | ------------------- | --------------------------------------------------------- | ------ |
+| 1   | save.rs file_type().unwrap_or(false) 静默跳过存档文件      | save.rs:186         | 0.2.0 三端适配（Unix 目录项竞态需实测）                   | A002   |
+| 2   | work_dir 只读属性文件致 remove_dir_all 失败阻断启动        | paths.rs:101-103    | 接入新游戏素材带只读位时实测                              | A002   |
+| 3   | save/paths rename 前无 fsync（断电窗口元数据先于数据落盘） | save.rs、paths.rs   | 出现断电/强关机致 save 异常的实际用户反馈时评估           | A002   |
+| 4   | baseline-compare 空档案/len:0 条目的塌缩闸边界             | baseline-compare.py | memory_map.json 损坏或 len:0 条目混入时（档案受版本控制） | A002   |
+| 5   | GameCanvas 鼠标 button 3/4（前进/后退）落 left 分支        | GameCanvas.vue      | 五键鼠用户报告前进/后退无效时实测                         | A002   |
+| 6   | logging 多线程 append 无锁、每次开关文件                   | logging.rs          | launcher.log 出现交错/损坏迹象时                          | A002   |
+| 7   | game_config 无 deny_unknown_fields（未知键静默忽略）       | game_config.rs      | 适配下一款游戏（手写 game.json 易错键）时评估开启         | A002   |
+| 8   | diff.rs 等长校验两处重复                                   | diff.rs             | 出现第三处同类重复时提取                                  | A001#2 |
+| 9   | xmonitor poll_once 编排留 bin                              | xmonitor.rs         | 出现第三消费方时下沉 capsule-core                         | A001#7 |
+
+### ③ 失效/闭环条目（非豁免，留档防复报）
+
+- A001#13 dosbox.log 无轮转 → **已闭环**（PL003.14 5MB 轮转落地）
+- A001#16 960×720 非整数拉伸 → **已闭环**（y.problems #9 复核为非缺陷：全幅拉伸对模式 13h 即正确几何）
+- A001#9/#10 winembed（OFFSCREEN_X / embed 2s）→ **随 PL005 退役失效**（winembed 模块删除）
+- A001#17 GameCanvas FRAME_INTERVAL_MS=33 → **随 PL005 退役失效**（轮询机制退役，现行代码无此常量）
+- A001#21 GameCanvas active=false 分支不可达 → **随 PL005 重写消失**（现行 active 看门 watcher 为活代码）
 
 ---
 
@@ -462,33 +526,9 @@ VC0 打样 → 过：C 阶段主攻路线一 / 核心崩：直接主攻路线二
 | 42  | `tauri.conf.json:18`                                      | 7    | 生产 csp null——PL003 攻略渲染前需设最小 CSP                                    | Tauri 后端  |
 | 43  | `game_config.rs:43-44`                                    | 2    | name 承担启动命令来源但无空名/合法字符校验（需验证消费方式）                   | 配置体系    |
 
-### 二、参考级观察项（23 条，2026-09-08 用户确认全部保持参考级）
+### 二、参考级观察项 → 已并入 §四
 
-| #   | 位置                                        | 摘要                    | 回落理由                   |
-| --- | ------------------------------------------- | ----------------------- | -------------------------- |
-| 1   | `xmonitor.rs:93`                            | interval 下限 50        | 单次使用常量               |
-| 2   | `diff.rs:17-23,44-54`                       | 等长校验两处重复        | KISS 自洽，第三处再提取    |
-| 3   | `diff.rs`                                   | 复用 rest 错误枚举      | 错误类型收敛优先           |
-| 4   | `profile.rs:87-103`、`game_config.rs:82-87` | trait impl 缺文档首行   | rustdoc 不展示，惯例豁免   |
-| 5   | `rest.rs:129`                               | with_capacity 理论 4GB  | 无可达路径（需验证）       |
-| 6   | `rest.rs:78`                                | "默认 8086" 注释        | 需验证上游默认值           |
-| 7   | `xmonitor.rs:127-134`                       | poll_once 编排留 bin    | 第三消费方再下沉           |
-| 8   | `commands.rs:54`                            | wait_exit(5000)         | 单次使用魔数               |
-| 9   | `winembed.rs:18`                            | OFFSCREEN_X=-3200       | 有注释几何参数             |
-| 10  | `commands.rs:236`                           | embed 2s 数值           | 有注释（竞态部分已列 #12） |
-| 11  | `hud.rs:176`                                | food/18                 | 定案公式有注释             |
-| 12  | `jobctl.rs:15-18`                           | 句柄无 Drop             | 注释明示设计               |
-| 13  | `commands.rs:174-179`                       | dosbox.log 无轮转       | PL003 一并治理             |
-| 14  | `winproc.rs:59`                             | 含 .. 非规范路径        | 文件层正确解析，纯理论     |
-| 15  | `hud.rs:22-24` vs 测试                      | WATCHED 双处            | 双通道对照设计             |
-| 16  | `GameCanvas.vue:197-198`                    | 960×720 非整数拉伸      | y.problems #9 已挂账       |
-| 17  | `GameCanvas.vue:7`                          | FRAME_INTERVAL_MS=33    | 有注释常量                 |
-| 18  | `baseline-capture.sh`                       | 字面量路径/端口         | 文件头明示设计             |
-| 19  | `rebuild.bat:5,15`                          | 机器路径/代理           | 文件头明示换机改法         |
-| 20  | `GameCanvas.vue:59,69`                      | offCtx null             | 纯理论不可达               |
-| 21  | `GameCanvas.vue:174-181`                    | active=false 分支不可达 | 双保险，无错误行为         |
-| 22  | `vite-env.d.ts`                             | vue shim 冗余           | 惯例无行为影响             |
-| 23  | `rest_stub.rs:24-25,61-62`                  | 测试 stub expect/吞错   | 测试惯例                   |
+23 条参考级观察项（2026-09-08 用户确认保持参考级）已于 2026-09-10 整理定案，并入本文件 §四 审计观察项豁免定案清单（永久豁免 / 条件豁免 / 失效闭环三档逐条登记），本节不再保留副本，§四 为唯一权威源。
 
 ### 三、亮点
 
@@ -694,3 +734,103 @@ VC0 打样 → 过：C 阶段主攻路线一 / 核心崩：直接主攻路线二
 - **质量佐证**：FB1 基线判定 PASS（新 fork vs 官方 v0.83.0，92 条目全静态零偏差——本次补齐了缺失的 conf 刷新，旧 conf 挂载已删目录致 dosbox 秒退误报）。
 - **用户判收**：键盘差距缩小但可感、鼠标跟手与原生有差距但可接受、流畅度提升——**过**。遗留：注入残余延迟 + 鼠标跟手 → 阶梯③（进程内 core）动机登记。
 - **教训**：机制类改动（WS/chunked 选型）立项文档与实现允许偏差，但须在结论中显式报告；CUA 前台焦点会被宿主环境抢占，真实输入采样依赖用户会话埋点自动产出。
+
+---
+
+## 附录 A002：全量代码审计报告（第2轮，2026-09-09）
+
+> 范围：capsule-core + launcher（src-tauri 后端 + src 前端）+ capsule-pack + tools/dosbox-fork 运维脚本 + 根 Cargo.toml + retro/game.json + tauri.conf.json；DosboxCapsule 独立仓在范围外（PATCHES.md + FB1 门槛自行约束）。方式：三路并行子任务全文通读（capsule-core / launcher 后端 / 前端+packer+tools）+ 主会话锚点复核与汇总去重；A001 后新增的 save/patch/paths/payload 与 capsule-pack 均为首轮覆盖。规则版本 CR 2026-09-04。
+> 状态：✅ 已修复（2026-09-10，FIX002 全组 39 条勾结，任务清单见 x.progress.md；参考级观察项记录已并入 §四 豁免定案清单；实测结论见本附录末尾）
+
+### 零、上轮修复复核清单
+
+A001 的 43 项 P 级修复经 PL003/PL004/PL005 三次大改后整体稳固：**41 项在位、零功能性回退、2 项不完整（均非功能面）**。
+
+| 上轮条目                                                                           | 现状                                                                                   | 证据                                                                                  |
+| ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| #1/#9/#37 winproc（引号/ResumeThread/UTF-16）                                      | ✅ 在位                                                                                | winproc.rs:40-52 / 118-124 / 70-78（均带测试）                                        |
+| #2/#3/#4/#22/#23/#39 tools 脚本（errorlevel/rmdir/三闸/slice_at/PID 杀/CONF 检查） | ✅ 在位                                                                                | rebuild.bat:16-18/32；baseline-compare.py:22/48-54/100-106；baseline-capture.sh:17-31 |
+| #5/#11/#26/#31 会话链（exit-watcher/terminate/仓库根锚定/无会话语义）              | ✅ 在位                                                                                | commands.rs:439-475 / 378,387 / 81-96 / 13-14,56-57                                   |
+| #6/#7/#24/#25/#27/#40/#41 前端（帧校验/catch 域/Numpad/缓存/frameFps/ctx/魔法数）  | ✅ 在位                                                                                | GameCanvas.vue:131-137,223 / 11,236-248 / 86-87 / 76-79,141-146 / 166-168             |
+| #8/#10/#13/#14/#16 async、probe 文档、work 校验、日志、gameconf                    | ✅ 在位                                                                                | commands.rs:485-675 / 205-206 / 286 / logging.rs；gameconf.rs name 派生               |
+| #15/#17/#18/#19/#30/#34/#43 capsule-core 观察链                                    | ✅ 除 #30 外在位                                                                       | 见下方 ⚠️ 行                                                                          |
+| #12/#28/#36 winembed 三项                                                          | ⚪ 随 PL005 退役失效（退役干净，仅剩 Cargo.toml feature 死配置 → 新增条目 19）         | 全仓零符号引用                                                                        |
+| #21 版本豁免                                                                       | ✅ 定案维持（game.json / package.json 豁免）                                           | AGENTS.md 版本双轨节                                                                  |
+| **#30 rest.rs pub 字段文档**                                                       | ⚠️ **部分漏改**：Registers 补齐，`CpuState.registers` 至今无 `///`（修复提交当时即漏） | rest.rs:91-92；`git show a9a8455` 确认                                                |
+| **#33 测试 use 位置**                                                              | ⚠️ **漏网**：session_test 已治理，hud_test 同性质两处未覆盖                            | launcher_hud_test.rs:74-75 / 120-121                                                  |
+| #29/#32/#35/#38/#42 serde_json 移除/测试去重/HudBar 守卫/hud sleep/CSP             | ✅ 在位                                                                                | launcher Cargo.toml 零命中；HudBar.vue:17-42；hud.rs:82-92；tauri.conf.json:19        |
+
+### 一、P0-P3 修复清单
+
+无 P0。**P1 两条均为 PL004/PL005 新形态引入、可确定性复现。**
+
+#### P1（高——确定性复现，2 条）
+
+| #   | 位置                                                                | 类别 | 描述                                                                                                                                                                                                                                                                                                                | 建议                                                                                                                | 性质 | 影响面                                      |
+| --- | ------------------------------------------------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------- |
+| 1   | commands.rs:207-218 + GameCanvas.vue:9 + tauri.conf.json:19         | 1/3  | **端口回退与"锁死 18086"契约互相矛盾**：probe_port 冲突时回退 18087–18090，HUD/注入走后端 session.port 正常；但前端帧流硬编码 18086、CSP 仅放行 18086——18086 被占时黑屏（帧流 5 连败），若占用者是另一 CapsuleRetro 实例的 dosbox 则**渲染别个会话画面**且状态栏照常显示已启动。复现：预占 18086 或双开             | 二选一：删除回退（18086 被占 launch 显式报错），或实际端口下发前端 + CSP 放行回退区间（CSP 变更须 live 全链路验证） | 新增 | 跨模块（DOSBox 会话 + Vue 前端 + 配置体系） |
+| 2   | commands.rs:291-320 + paths.rs:102 + payload.rs:328-349 + lib.rs:22 | 8/1  | **多实例零防护，双开互毁**：Tauri 默认多实例、无 single-instance 插件与互斥。同包双开：实例 B 对实例 A 的 dosbox 正挂载为 C: 的工作副本执行 remove_dir_all 并按旧档重建；A 退出回写后 B 再退出，B 基于 A 启动前旧档的回写**覆盖 A 的最终存档**——确定性数据丢失。extract_once 与 .save.tmp rename 同样存在双实例竞速 | tauri-plugin-single-instance 或 work_dir 级锁文件互斥                                                               | 新增 | save 生命周期 + DOSBox 会话（跨模块）       |
+
+#### P2（中，3 条）
+
+| #   | 位置                                                    | 类别 | 描述                                                                                                                                                                                                                                                                                                                                                               | 建议                                                                                    | 性质 | 影响面              |
+| --- | ------------------------------------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- | ---- | ------------------- |
+| 3   | save.rs:136-140                                         | 2/4  | **save 解包把良性非常规条目判 UnsafeEntry 严格拒绝，不触发损坏降级 → 启动永久阻断**：zip 显式目录条目（`save/`，资源管理器/7-Zip 重打包必产生）、预留 `config/` 节、`__MACOSX/` 噪声均命中 `strip_prefix → 空 → UnsafeEntry`；load_or_recover 仅对 Corrupted 降级 → 用户重打包过 save 后每次启动必败无自愈；与 payload.rs extract_all 的 is_dir 跳过同逻辑不同处理 | 目录条目跳过 + 未知前缀"忽略 + WARN 日志"（config/ 预留、macOS 噪声），穿越拒绝维持严格 | 新增 | save 生命周期       |
+| 4   | payload.rs:330-335                                      | 13   | **extract_once 标记读取/解析失败静默走全量重释放，容错未登记**：`if let Ok(...)` 双层吞错（标记被锁/半写均静默降级）——白名单无此条目，违反"新增容错须先登记"                                                                                                                                                                                                       | AGENTS.md 白名单登记（场景/降级/理由三要素）                                            | 新增 | 打包器 / Tauri 后端 |
+| 5   | AGENTS.md 容错白名单（"GameCanvas 帧轮询瞬时失败"条目） | 6/13 | **白名单条目机制描述过时**：仍描述已退役的"30fps 消费循环单次 get_frame 失败"；现行 chunked 流中断 → 1s 退避重连 → 连续 5 次置错停循环的降级语义未更新                                                                                                                                                                                                             | 改写条目为现行机制                                                                      | 新增 | 文档                |
+
+#### P3（低，31 条）
+
+| #   | 位置                                        | 类别  | 描述与建议                                                                                                                                                                                                                                       | 性质 | 影响面                   |
+| --- | ------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---- | ------------------------ |
+| 6   | rest.rs:91-92                               | 6     | A001 #30 漏改：CpuState.registers 缺 `///` 文档。补齐                                                                                                                                                                                            | 遗留 | 文档                     |
+| 7   | launcher_hud_test.rs:74-75、120-121         | 4/6   | A001 #33 漏网：fn 内 use 两处。上移文件头                                                                                                                                                                                                        | 遗留 | 测试                     |
+| 8   | payload.rs:217-225                          | 2     | trailer 畸形值（offset+len 近 u64::MAX）第二段加法溢出：debug panic、release 回绕。并入 checked_add 链报 BadTrailer                                                                                                                              | 新增 | 打包器                   |
+| 9   | payload.rs:328-349 + AGENTS.md 运行时目录节 | 2/6   | 标记相符即跳过、不校验内容完整性：resources 部分文件被删而 payload.json 幸存时永不恢复，与"丢失可自愈重新释放"承诺失实（PL004 shader ABORT 已证资源完整性是硬依赖）。文档收敛限定语或关键条目存在性抽查（需验证触发面）                          | 新增 | 打包器 / 文档            |
+| 10  | payload.rs:291-319                          | 2     | extract_all 丢弃 zip 条目 unix 权限（一律 0644）——0.2.0 三端适配时 dosbox 二进制无执行位必坏。按 unix_mode() 恢复，登记 0.2.0 前置                                                                                                               | 新增 | 跨模块                   |
+| 11  | payload.rs:81-84                            | 9     | append_payload 把 payload zip 整读入内存（现网峰值 ~70MB），与读侧"区间游标"设计不对称。改 io::copy 流式追加                                                                                                                                     | 新增 | 打包器                   |
+| 12  | save.rs:299-325                             | 2     | 截断档降级时前 k 条已写入工作副本不被清理，出现"损坏档部分文件 + 原版文件"混合态（触发窄）。降级分支清空 work 重释放                                                                                                                             | 新增 | save 生命周期            |
+| 13  | save.rs:48-56 + commands.rs:312             | 3     | SaveMeta 格式版本字面量 "1" 由 launcher 裸写、crate 无常量——格式演进必漂移。capsule-core 增 SAVE_META_VERSION 常量并收敛                                                                                                                         | 新增 | save 生命周期 + 配置体系 |
+| 14  | patch.rs:107-132                            | 2/13  | source 条目"不存在"与"解压读取失败"折叠为同一 MissingSource，误导排查。读失败映射 Corrupted                                                                                                                                                      | 新增 | 补丁应用                 |
+| 15  | game_config.rs:159-164                      | 11    | paths.game_dir 为空误用 InvalidPatches 变体报错——程序化归因错位。增 InvalidGameDir 变体                                                                                                                                                          | 新增 | 配置体系                 |
+| 16  | capsule-core/Cargo.toml:14-15               | 5/12  | [dev-dependencies] 逐字重复声明 zip（dependencies 已有）——升级漏改一处即双版本。删除 dev 节                                                                                                                                                      | 新增 | 配置体系                 |
+| 17  | xmonitor.rs:216-217、271、273               | 13    | stdin read_line().ok() / flush().ok() 吞错：stdin 关闭时交互确认被静默跳过。至少提示后按拒绝处理或登记                                                                                                                                           | 新增 | DOSBox 会话（诊断工具）  |
+| 18  | commands.rs:525                             | 13    | launch 竞态败者路径 `let _ = session.stop()` 吞错且未登记白名单。落 logging::error 或登记                                                                                                                                                        | 新增 | DOSBox 会话              |
+| 19  | launcher/src-tauri/Cargo.toml:22            | 5/12  | winembed 退役残留：Win32_UI_WindowsAndMessaging feature 死配置（全 crate 零符号调用）。删除                                                                                                                                                      | 新增 | Tauri 后端               |
+| 20  | commands.rs:532、604                        | 6     | 注释引用已退役机制：inject_input 文档"理由同 get_frame"、PerfStats.kind 注释含已无生产者的 frame_fetch_rtt。随 PL005 回改                                                                                                                        | 新增 | 文档                     |
+| 21  | commands.rs:13-14、56-57、542               | 5/6   | NO_SESSION 前缀死契约：唯一消费者（旧 get_frame 轮询）已退役，前端零消费，模块文档契约失实。删约定或前端恢复程序化识别                                                                                                                           | 新增 | Tauri 后端 + 文档        |
+| 22  | commands.rs:538-597                         | 8     | 会话槽 Mutex 跨长 IO 三处：inject 持锁 HTTP（3s）、stop 持锁跨 wait+回写（5s+）、关窗回调主线程同类——期间 launch/inject/session-ended 全阻塞（有界 ≤8s）。补注释锁边界；可改先 take 再操作                                                       | 新增 | Tauri 后端               |
+| 23  | commands.rs:447-458 + App.vue:36-40         | 8/10  | exit-watcher 的 is_same 检查与 take 之间有锁释放窗口；且 session-ended 无会话标识，前端收到任何同类事件即回待机页——旧会话崩溃回写期间完成新 launch 时，陈旧事件把运行中的新会话 UI 拉回待机。事件载荷带会话标识 + 前端比对；检查与 take 合并持锁 | 新增 | Tauri 后端 + Vue 前端    |
+| 24  | commands.rs:493                             | 11/13 | launch_game 错误链 map_err(\|e\| e.to_string()) 丢底层原因，与 get_guide/get_game_info 的 {e:#} 口径不一。统一 {e:#}                                                                                                                             | 新增 | Tauri 后端               |
+| 25  | commands.rs:340-346 + gameconf.rs:58-59     | 3     | guest 游戏 exe 名 = name 小写派生硬约定，game.json 无字段可配——下一款 exe 基名 ≠ name 的游戏确定性启动失败（"该进配置未进"不豁免）。增 guest_exe 字段或文档定案为硬约束                                                                          | 新增 | 配置体系 + DOSBox 会话   |
+| 26  | logging.rs:3-4、44-46                       | 9/6   | launcher.log 无轮转无上限，模块注释"轮转治理属 PL003 届时一并处理"已失实（PL003 只轮转了 dosbox.log）。复用同款轮转或回改注释如实取舍                                                                                                            | 新增 | Tauri 后端               |
+| 27  | launcher_session_test.rs:50-53              | 6     | expect("第 {round} 轮…") 非 format!，失败诊断永远打印字面花括号。改 unwrap_or_else(\|e\| panic!(…))                                                                                                                                              | 新增 | 测试                     |
+| 28  | GameCanvas.vue:213-230                      | 2     | 流累积缓冲 acc 无上界：帧头 height 损坏为超大值时 acc 随 chunk 无限增长。累积超上限即抛错走失败计数                                                                                                                                              | 新增 | Vue 前端                 |
+| 29  | GameCanvas.vue:268-285                      | 1     | 鼠标合帧残差无 flush：不足 30ms 窗口的 pendingDx/Dy 停手后无限期滞留——最后一段位移丢失，落点差一截。定时器/mouseup/pointerlockchange 兜底 flush                                                                                                  | 新增 | Vue 前端                 |
+| 30  | App.vue:39 + commands.rs:465-474            | 1/13  | **假成功文案**：UI 无条件显示"save 已回写"，但后端回写失败仅落 ERROR 日志、session-ended 事件照发——磁盘满/文件占用时用户被告知存档已安全，实为数据丢失。事件载荷携带回写结果驱动文案，或文案中性化                                               | 新增 | Vue 前端 + Tauri 后端    |
+| 31  | App.vue:6                                   | 5     | onMounted 死导入（loadLobby 在 setup 直接调用）。删除                                                                                                                                                                                            | 新增 | Vue 前端                 |
+| 32  | GameCanvas.vue:100                          | 5     | #24 修复残留：map 内 NumpadEnter 死条目（:87 特判先行永不可达）。删除                                                                                                                                                                            | 新增 | Vue 前端                 |
+| 33  | App.vue:35-40                               | 1/10  | session-ended 处理器不刷新待机页数据（仅 onStop 路径调 loadLobby）——首次会话正常退出后仍显示"尚无存档"。处理器内补刷新（注意回写时序）                                                                                                           | 新增 | Vue 前端                 |
+| 34  | capsule-pack/main.rs:33 + lib.rs:51         | 4/9   | 同一次打包 GameConfig::load 执行两遍（默认 dosbox 目录推导 + build_package 内）——重复 IO 且两次读取间无一致性保证。解析结果传引用复用                                                                                                            | 新增 | 打包器                   |
+| 35  | capsule-pack/readme-template.md:18、40      | 6/12  | readme 与实现失配两处：①引导点击"启动游戏"，实际按钮为"启动 {{GAME_NAME}}"；②运行时目录注入大写、实际派生小写（Windows 无实害，0.2.0 大小写敏感文件系统即错路径）。模板对齐实现                                                                  | 新增 | 文档                     |
+| 36  | capsule-pack/tests/pack_test.rs             | 10    | 覆盖缺口两处：ensure_safe_rel 的 `..`/绝对路径拒绝（zip slip 写侧唯一闸）无用例；dosbox Resources 兄弟目录收集分支无用例——恰是 PL004 live 才揪出的 shader 缺失回归点。补两用例                                                                   | 新增 | 打包器                   |
+
+### 二、参考级观察项 → 已并入 §四
+
+30 条参考级观察项（另 1 项与 A001 #20 重复合并；2026-09-09 用户确认维持参考级）已于 2026-09-10 整理定案，并入本文件 §四 审计观察项豁免定案清单；其中 2 条（save 根不可写 / packer Resources 缺失静默跳过）转入 FIX002.37/38 修复。本节不再保留副本，§四 为唯一权威源。
+
+### 三、亮点
+
+- **补丁纪律零违规**（最高优先级安全项）：三路独立核查全仓无任何 retro/ 写路径——capsule-core 写路径收敛 work_dir/resources/dist，packer 纯只读，测试全写 temp，脚本只写 .temp 与 fork build
+- **FIX001 修复经三次大改后整体稳固**：43 项中 41 项完整在位、零功能性回退，仅 2 处非功能面不完整（1 文档漏改 + 1 测试漏网）
+- **TS↔Rust 跨进程契约零漂移**：PerfStats/GameInfo/SaveMetaView/PatchView/HudSnapshot 及 command 签名逐字段比对一致
+- **新模块质量总体过硬**：GameCanvas 流解析半帧/粘包处理正确、尺寸缓存复用到位；packer zip slip 写侧防护（ensure_safe_rel）在位；攻略渲染 marked + DOMPurify + CSP 三层防护完整
+- **FB1 判定链扎实**：baseline-compare 三闸判定 + slice_at 越界抛错，假 GO 双路径均已封堵
+
+### 实测结论（2026-09-10 收口）
+
+- **验收全过**：单测全绿（capsule-core 24 / launcher lib 10 / capsule-pack 9，workspace 全套通过）；live 探针全过——端口占用显式报错、dist 双开单实例互斥、删 dosbox.exe 后自愈重释放（日志实证）、xmonitor EOF 显式退出、dist 出包 413 条目零告警、串行真实会话冒烟 2/2。反向验收与证据见 `.temp/fix002-verification.md`。
+- **白名单登记 4 条**（AGENTS.md 错误策略节）：save 解包未知前缀忽略（FIX002.3）、解包残留清理失败静默（FIX002.12）、payload extract_once 标记读取失败重释放（FIX002.4）、GameCanvas 帧流瞬时失败条目改写（FIX002.5，替换已退役的轮询条目）。
+- **live 揪出 2 个清单外问题并顺带修复**（同族"快速重启"竞态）：①上一会话刚结束时 `remove_dir_all(work)` 撞杀软扫描句柄报 error 5 → paths.rs 短重试（耗尽仍严格报错）；②监听端点内核延迟清理窗口的瞬时 WSAEADDRINUSE → probe_port 对 10048 短重试（不回退端口，锁死契约不变）。
+- **测试 harness 教训**：两条 `#[ignore]` 真实进程测试首次以 `-- --ignored` 成对激活即暴露并行竞争同一锁死端口的假阳性——单端口测试必须 `--test-threads=1` 串行；五轮测试"端口可重绑"断言同步加了清理窗口重试。另修正一处陈旧断言（game.json cpu_cycles 5000 → 6500，PL005 定案值）。
+- **契约变更同步**：launch_game 返回 `LaunchInfo{port,seq}`、session-ended 载荷 `{pid,seq,saved}`（前端按 seq 过滤陈旧事件、按 saved 区分存档文案）；capsule-pack `PackInputs` 增 `config` 字段、`BuildOutcome` 增 `warnings`（Resources 缺失告警）。

@@ -9,6 +9,7 @@ const FRAME_HEADER_BYTES = 28;
 const FRAME_BASE_URL = "http://127.0.0.1:18086"; // 端口锁死（webserver_port 定案值）
 const MOUSE_BATCH_MS = 30; // 鼠标相对位移合帧间隔（Pointer Lock 事件高频）
 const MAX_STREAM_FAILURES = 5; // 帧流连续失败上限（白名单口径：超限显式置错停循环）
+const MAX_STREAM_BUFFER_BYTES = 8 * 1024 * 1024; // 流累积缓冲上限（帧头损坏防无界增长，FIX002.28）
 const STATS_INTERVAL_MS = 15_000; // 性能采样上报周期
 const SAMPLE_CAPACITY = 256; // 每类采样的环形容量
 
@@ -71,7 +72,7 @@ let latestFrame: ArrayBuffer | null = null;
 // 鼠标相对位移累积（Pointer Lock 事件高频，按 MOUSE_BATCH_MS 合帧发送）
 let pendingDx = 0;
 let pendingDy = 0;
-let lastMouseSent = 0;
+let mouseFlushTimer = 0;
 
 // 离屏画布按帧尺寸惰性重建；ImageData 与显示 ctx 均按尺寸缓存复用
 const offscreen = document.createElement("canvas");
@@ -97,7 +98,6 @@ function toKeyName(code: string): string | null {
     ArrowLeft: "left",
     ArrowRight: "right",
     Enter: "return",
-    NumpadEnter: "return",
     Escape: "escape",
     Space: "space",
     Tab: "tab",
@@ -214,6 +214,11 @@ async function streamLoop(): Promise<void> {
         merged.set(acc);
         merged.set(value, acc.length);
         acc = merged;
+        // 缓冲无界增长防线（FIX002.28）：帧头损坏出超大尺寸时 total 永不满足，
+        // acc 会随 chunk 无限堆积——超上限即抛错走失败计数路径
+        if (acc.length > MAX_STREAM_BUFFER_BYTES) {
+          throw new Error(`流式累积缓冲超限（${acc.length}B，疑似帧头损坏）`);
+        }
         // 切分全部完整帧，仅保留最新一帧供 rAF 绘制（陈旧帧直接丢弃）
         while (acc.length >= FRAME_HEADER_BYTES) {
           const view = new DataView(acc.buffer, acc.byteOffset, acc.byteLength);
@@ -265,22 +270,26 @@ async function forwardKey(event: KeyboardEvent, down: boolean): Promise<void> {
   }
 }
 
+/** 合帧窗口到期兜底发送：停手后的残差位移不再滞留（FIX002.29）。 */
+function flushPendingMouse(): void {
+  mouseFlushTimer = 0;
+  if (pendingDx === 0 && pendingDy === 0) return;
+  const dx = Math.round(pendingDx);
+  const dy = Math.round(pendingDy);
+  pendingDx = 0;
+  pendingDy = 0;
+  void invoke("inject_input", {
+    payload: JSON.stringify({ kind: "mouse", dx, dy }),
+  }).catch((err) => console.warn("鼠标注入失败:", err));
+}
+
 function onMouseMove(event: MouseEvent): void {
   if (document.pointerLockElement !== canvasRef.value) return;
   pendingDx += event.movementX;
   pendingDy += event.movementY;
-  const now = performance.now();
-  if (now - lastMouseSent >= MOUSE_BATCH_MS && (pendingDx !== 0 || pendingDy !== 0)) {
-    lastMouseSent = now;
-    void invoke("inject_input", {
-      payload: JSON.stringify({
-        kind: "mouse",
-        dx: Math.round(pendingDx),
-        dy: Math.round(pendingDy),
-      }),
-    }).catch((err) => console.warn("鼠标注入失败:", err));
-    pendingDx = 0;
-    pendingDy = 0;
+  if (mouseFlushTimer === 0) {
+    // 首个位移启动合帧窗口，窗口内高频事件只累积；到期统一发送
+    mouseFlushTimer = window.setTimeout(flushPendingMouse, MOUSE_BATCH_MS);
   }
 }
 
@@ -334,6 +343,7 @@ onUnmounted(() => {
   running = false;
   streamController?.abort();
   window.clearInterval(statsTimer);
+  window.clearTimeout(mouseFlushTimer);
   cancelAnimationFrame(rafHandle);
   document.removeEventListener("mousemove", onMouseMove);
   document.removeEventListener("pointerlockchange", onPointerLockChange);

@@ -88,6 +88,8 @@ pub struct Registers {
 /// `GET /api/v1/cpu/state` 的响应结构。
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct CpuState {
+    /// CPU 完整寄存器组（上游响应可能省略部分字段，缺省兜 0——容错白名单
+    /// 已登记的既定契约）。
     #[serde(default)]
     pub registers: Registers,
 }

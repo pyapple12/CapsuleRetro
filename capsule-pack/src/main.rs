@@ -47,10 +47,14 @@ fn main() -> Result<()> {
     };
     let outcome = capsule_pack::build_package(&capsule_pack::PackInputs {
         repo_root,
+        config,
         launcher_exe: args.launcher,
         dosbox_dir,
         out_dir: args.out,
     })?;
+    for warning in &outcome.warnings {
+        println!("警告: {warning}");
+    }
     println!("已生成 {}", outcome.exe.display());
     println!("已生成 {}", outcome.readme.display());
     println!(

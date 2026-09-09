@@ -239,6 +239,52 @@
 
 ---
 
+### FIX002: 第2轮审计修复 [audit#A002]（✅ 2026-09-10 收口，39/39；单测 43+9+24 全绿、live 探针全过，证据与连带修复见 `.temp/fix002-verification.md`）
+
+#### P1（确定性复现）
+
+- [x] FIX002.1 [P1] 端口回退与锁死 18086 契约矛盾 —— 做法：删除 `probe_port`（commands.rs:207-218）的 +1 回退——18086 `TcpListener::bind` 失败时直接返回携带原因的错误（"端口 18086 被其他程序占用，请释放后重试"），GameCanvas.vue:9 硬编码与 tauri.conf.json:19 CSP 的 18086 保持不动（锁死契约贯彻）；验证：预占 18086（临时监听脚本）后点启动 → launch 显式报错且消息含占用原因；释放后正常启动 → 帧流/HUD/注入 live 全链路无回归（2026-09-10 已验证：单测端口探测锁死无回退过 + live 占位 18086 报完整占用消息、释放后恢复；连带发现瞬时 WSAEADDRINUSE → probe_port 加短重试，不回退端口）
+- [x] FIX002.2 [P1] 多实例零防护互毁工作副本与存档 —— 做法：launcher 引入 `tauri-plugin-single-instance`（src-tauri/Cargo.toml + lib.rs Builder 初始化，回调聚焦既有窗口），二次启动直接退出、不进 start_session 前置序列（双实例对 work_dir `remove_dir_all` 与 save 回写竞速的根因消除）；验证：打包 exe 双开 → 第二实例立即退出且日志无第二次 `prepare_session`；A 实例存档退出后再退 B → save 内容为 A 的存档（互不覆盖）（2026-09-10 已验证：dist 双开 live——实例2 PID 6732 秒退、实例1 PID 19740 存活）
+- [x] FIX002.3 [P2] save 解包拒绝良性目录/未知前缀条目致启动永久阻断 —— 做法：save.rs unpack 循环（:128-156）加 `entry.is_dir()` 跳过（对齐 payload.rs extract_all 同类循环）；非 `save/` 前缀的非目录条目（config/ 预留节、`__MACOSX/` 噪声）改为忽略 + WARN 日志，`validate_rel` 穿越拒绝维持严格；验证：新增测试——含 meta.json + 目录条目 `save/` + `config/x` + `save/XEEN01.SAV` 的 zip 解包成功且存档落位；`../evil` 条目仍报 UnsafeEntry；手工用 7-Zip 重打包 XEEN.save 后启动正常（2026-09-10 已验证：目录条目与未知前缀良性忽略 + 越界条目仍 UnsafeEntry，7-Zip 手工重打包场景以合成 zip 等价覆盖）
+- [x] FIX002.4 [P2] payload extract_once 静默容错未登记 —— 做法：AGENTS.md 容错白名单新增条目（场景：extract_once 读 payload.json 标记失败（被锁/权限/半写）；降级：清空重释放；理由：重释放幂等、自愈优于阻断），payload.rs:330-335 补注释指向该登记；验证：白名单条目三要素齐备且降级路径与登记描述一致（代码审查）（2026-09-10 已验证：白名单三要素登记 + marker_fresh 注释在位）
+- [x] FIX002.5 [P2] 容错白名单 GameCanvas 条目机制过时 —— 做法：AGENTS.md 白名单"GameCanvas 帧轮询瞬时失败"条目整体改写为现行机制（chunked 流单次中断/解析失败 → 1s 退避重连；连续 5 次 → 显式置错停循环），条目标题同步；验证：条目描述与 GameCanvas.vue streamLoop 实现（MAX_STREAM_FAILURES/退避常量）逐点一致（2026-09-10 已验证：白名单条目改写为 chunked 流现行语义，与 streamLoop 实现一致）
+- [x] FIX002.6 [P3] CpuState.registers 缺文档（A001 #30 漏改）—— 做法：rest.rs:91-92 `pub registers` 补 `///` 中文文档注释；验证：cargo doc --no-deps 无警告 + clippy -D warnings 过
+- [x] FIX002.7 [P3] hud_test fn 内 use（A001 #33 漏网）—— 做法：launcher_hud_test.rs:74-75、120-121 两处 fn 内 use 上移至文件头 use 区；验证：clippy -D warnings 过 + cargo test --workspace 全绿
+- [x] FIX002.8 [P3] trailer 畸形值加法溢出 panic —— 做法：payload.rs:217-225 第二段加法并入 checked_add 链（`checked_add(payload_len).and_then(|sum| sum.checked_add(TRAILER_SIZE))`）报 BadTrailer；验证：新增测试——offset/payload_len 构造 u64::MAX 附近值 → 解析返回 BadTrailer 而非 panic（debug 构建下断言）
+- [x] FIX002.9 [P3] payload 部分丢失不可自愈 + "可自愈"文档失实 —— 做法：extract_once 命中标记后抽查关键条目存在性（dosbox/bin/<exe> 与 retro/game.json），缺失即清空重释放；AGENTS.md 运行时目录条目措辞收敛为与行为一致；验证：live——删 resources/dosbox/bin/dosbox.exe 后启动 → 自动重释放且会话正常；文档措辞与实际行为一致
+- [x] FIX002.10 [P3] extract_all 丢弃 unix 权限（0.2.0 前置）—— 做法：payload.rs extract_all 循环读 `entry.unix_mode()`，非 0 时在 `#[cfg(unix)]` 分支 set_permissions（Windows 侧 cfg 隔离为 no-op）；验证：Windows 侧 clippy/test 过 + y.problems 登记为 0.2.0 三端适配前置项（实机验证随三端）
+- [x] FIX002.11 [P3] append_payload 整读内存 —— 做法：payload.rs:81-84 改 `io::copy(&mut File::open(zip)?, &mut out)` 流式追加，payload_len 取复制字节数；验证：现有 payload 往返/extract 测试全过 + capsule-pack 打包 dist 冒烟（产物可启动）
+- [x] FIX002.12 [P3] 截断档降级残留部分解包内容 —— 做法：save.rs load_or_recover 降级分支在 `.corrupt` 备份后对 work_dir 执行清空再返回全新 meta（对齐 prepare_session 全量重建语义）；验证：新增测试——前半有效后半截断的 zip → 走降级且 work_dir 无前半条目残留
+- [x] FIX002.13 [P3] SaveMeta 版本字面量无单一来源 —— 做法：capsule-core save.rs 增 `pub const SAVE_META_VERSION: &str = "1"`，commands.rs:312 改引用常量；验证：grep 全仓 SaveMeta::new 构造点仅剩常量引用一处 + 测试过
+- [x] FIX002.14 [P3] patch source 读取失败混淆 MissingSource —— 做法：patch.rs read_zip_file 区分：archive.by_name 查无 → None（MissingSource）；条目读取/解压 Err → 映射 PatchError::Corrupted（消息带 source 名）；验证：新增测试——manifest 指向不存在条目 → MissingSource；条目存在但数据损坏 → Corrupted
+- [x] FIX002.15 [P3] game_dir 为空误报 InvalidPatches —— 做法：game_config.rs:159-164 新增 `GameConfigError::InvalidGameDir` 变体（文案"paths.game_dir 为空"）替换现有变体；验证：新增测试——game_dir 空串 → 错误变体为 InvalidGameDir
+- [x] FIX002.16 [P3] capsule-core dev-dependencies zip 重复声明 —— 做法：删除 capsule-core/Cargo.toml:14-15 dev-deps 的 zip（集成测试直接用 [dependencies] 的 zip）；验证：cargo test --workspace 过（集成测试编译链接正常）
+- [x] FIX002.17 [P3] xmonitor stdin/stdout 吞错 —— 做法：xmonitor.rs:216-217、271、273 三处 `.ok()` 改显式处理：读取/刷新失败 eprintln 提示后按"用户拒绝/EOF"处理并走正常退出路径；验证：`xmonitor search < /dev/null`（EOF 管道）→ 输出含 EOF 提示、退出码明确，无静默跳过
+- [x] FIX002.18 [P3] launch 竞态败者 stop() 吞错未登记 —— 做法：commands.rs:525 `let _ = session.stop()` 改 `if let Err(e) = session.stop() { logging::error(...) }`；验证：代码审查确认日志路径在位 + clippy 过（该路径无可达测试）
+- [x] FIX002.19 [P3] WindowsAndMessaging feature 死配置 —— 做法：删除 launcher/src-tauri/Cargo.toml:22 该 feature（winembed 退役残留）；验证：cargo build + clippy -D warnings + cargo test --workspace 全过（无缺符号编译失败）
+- [x] FIX002.20 [P3] 注释引用已退役机制 —— 做法：commands.rs:532 注释改为实际理由（HTTP 注入等待不占主线程）；commands.rs:604 PerfStats.kind 注释删除 frame_fetch_rtt、只列现行三类（inject_rtt/frame_age/parse_draw）；验证：grep 全仓 get_frame/frame_fetch_rtt 零残留（.mimosa 与文档历史记录除外）
+- [x] FIX002.21 [P3] NO_SESSION 死契约 —— 做法：删除 commands.rs:56-57 常量与 :13-14/:542 相关表述，inject_input 无会话错误消息改直白文案（"当前无游戏会话"）；验证：grep NO_SESSION 全仓零命中 + clippy/test 过 + live 无会话时注入返回错误消息正常
+- [x] FIX002.22 [P3] 会话槽锁跨长 IO —— 做法：三处（inject_input :538-544 / stop_game :555-575 / writeback_on_close :584-597）补注释说明锁跨越边界与有界时长（KISS：先注释不改结构；先 take 再操作列为可选优化，如做须 live 回归）；验证：注释在位 + live 停止/关窗/注入三路径行为不变
+- [x] FIX002.23 [P3] exit-watcher 锁窗口 + 陈旧 session-ended 拉回待机 —— 做法：commands.rs:447-458 is_same 检查与 take 合并为一次持锁；SessionState 增会话序号 u64，session-ended 事件载荷改 `{pid, seq}`，App.vue:36-40 比对当前序号一致才回待机；验证：live——A 会话崩溃后立即启动 B，A 的陈旧事件到达时 B 的画面与状态栏不回待机；cargo test 过
+- [x] FIX002.24 [P3] launch 错误链口径不一 —— 做法：commands.rs:493 `map_err(|e| e.to_string())` 改 `format!("{e:#}")` 保留 anyhow 全链；验证：人为制造前置失败（临时改坏 game.json）→ 启动错误消息含底层 IO 原因
+- [x] FIX002.25 [P3] guest 游戏 exe 名无配置字段 —— 做法：game.json paths 增可选 `guest_exe` 字段（GameConfig serde + 缺省回落 name 小写派生的现行为），gameconf.rs:58-59 与 commands.rs:340-346 改读该字段；retro/game.json 不动（XEEN 恰好成立）；验证：新增测试——guest_exe 显式配置时 conf 启动命令与完整性断言用其值；缺省时回落现行派生
+- [x] FIX002.26 [P3] launcher.log 无轮转 + 注释失实 —— 做法：logging.rs:3-4 模块注释回改为如实的"无轮转"取舍声明（KISS：launcher.log 量级低），y.problems 登记远期轮转项；验证：注释与行为一致 + grep 无"届时 PL003"失实表述 + y.problems 新条目在位
+- [x] FIX002.27 [P3] 测试 expect 消息不插值 —— 做法：launcher_session_test.rs:50-53 改 `unwrap_or_else(|e| panic!("第 {round} 轮启动应成功: {e}"))` 形态；验证：cargo test 全绿（消息插值以代码审查断言）
+- [x] FIX002.28 [P3] 流累积缓冲无上界 —— 做法：GameCanvas.vue streamLoop 中 acc.byteLength 超上限常量（如 8MB，单帧合法最大值的数倍）即抛错进入既有失败计数路径；验证：vue-tsc + npm build 过 + 上限常量与判断分支在位（代码审查），live 长会话内存平稳
+- [x] FIX002.29 [P3] 鼠标合帧残差无 flush —— 做法：GameCanvas.vue 合帧逻辑补 `setTimeout(MOUSE_BATCH_MS)` 定时器兜底：到期 flush pending 累积并清零（覆盖"移动后停手"场景）；验证：live——画布内移动鼠标急停 → 游戏内光标停在手指位置（目测）；vue-tsc/build 过
+- [x] FIX002.30 [P3] "save 已回写"假成功文案 —— 做法：session-ended 事件载荷改 `{pid, writeback_ok}`（exit-watcher 回写失败置 false，commands.rs:465-474），App.vue 文案按载荷分支（成功"存档已保存" / 失败"存档回写失败，详见日志"）；验证：live——正常停止显示成功文案；临时锁住 save 文件制造回写失败 → 显示失败文案且 launcher.log 有 ERROR
+- [x] FIX002.31 [P3] onMounted 死导入 —— 做法：App.vue:6 删除未使用导入；验证：vue-tsc --noEmit 过 + grep 零残留
+- [x] FIX002.32 [P3] NumpadEnter map 死条目残留 —— 做法：GameCanvas.vue:100 删除该行（:87 特判先行永不可达）；验证：vue-tsc/build 过 + live 小键盘映射回归（Enter 仍映射 return）
+- [x] FIX002.33 [P3] session-ended 后待机页数据陈旧 —— 做法：App.vue session-ended 处理器回待机后 `void loadLobby()`（事件由 exit-watcher 回写完成后发出，时序安全）；验证：live——首次会话存档退出 → 待机页显示最新 save 状态而非"尚无存档"
+- [x] FIX002.34 [P3] GameConfig 双重加载 —— 做法：capsule-pack main.rs 解析得的 config 经 PackInputs 传引用进 build_package（签名增加量），lib.rs:51 二次 load 删除；验证：cargo test -p capsule-pack 过 + 打包 dist 冒烟成功
+- [x] FIX002.35 [P3] readme 模板与实现失配 —— 做法：readme-template.md:18 按钮指引改"启动 {{GAME_NAME}}"；:40 运行时目录改注入小写值（packer 生成 readme 时对目录语境用 name.to_ascii_lowercase()，如新增 {{GAME_DIR}} 占位符）；验证：打包 dist → readme 文案与实际按钮一致、目录示例为小写 xeen
+- [x] FIX002.36 [P3] pack_test 覆盖缺口（zip slip 写侧 + Resources 分支）—— 做法：补两用例：①game.json 字段含 `../` → build_package 报错（ensure_safe_rel 拒绝路径）；②fixture dosbox 目录加 Resources/ 子目录 → 产物 payload 含 `dosbox/Resources/**` 条目；验证：cargo test -p capsule-pack 两新用例过
+- [x] FIX002.37 [P3] save 根不可写时明确报错（原观察项 C1，部署形态）—— 做法：start_session 前置序列（commands.rs，prepare_session 前）对 save_root 做可写探针（create_dir_all + 临时文件创建后删除），失败时返回明确错误（"游戏目录不可写（如 Program Files），请将 exe 移到普通可写目录"）；readme-template.md 增部署位置指引一段（勿放只读/需管理员目录）；验证：新增测试——探针函数传入"现有文件路径"（充当不可写目录）→ 返回错误；正常目录 → 通过；live 把 dist 拷入受限目录启动 → 报错文案明确
+- [x] FIX002.38 [P3] packer 对 dosbox Resources 缺失静默跳过加 WARN（原观察项 C2）—— 做法：capsule-pack lib.rs 收集分支（Resources 目录 `filter(is_dir)` 处）在目录不存在时输出 WARN（"dosbox Resources 目录缺失，shader 等运行期资源将不随包，请确认构建树完整"），不阻断打包；验证：cargo test -p capsule-pack 新用例——fixture 无 Resources 目录 → 打包成功且告警出现；有 Resources → 无告警
+- [x] FIX002.39 [P3] 验证收尾 —— 做法：全量门禁（cargo fmt --check + clippy -D warnings + cargo test --workspace + npm run build）+ 打包 dist 冒烟（产物启动/存档闭环）+ z.plan 附录 A002 状态改 ✅ + x.progress 本组勾结上移已完成区；验证：门禁全绿 + live 冒烟记录落 .temp（2026-09-10 已验证：fmt/clippy/test/doc + vue-tsc + npm build 全绿；dist 出包 413 条目零告警；live 探针全过——EOF 退出码 1、单实例双开、自愈抽查恢复 dosbox.exe、串行会话冒烟 2/2；连带修复 remove_dir_all 热会话 error 5 与 probe_port 10048 瞬时窗口，详见 .temp/fix002-verification.md）
+
+---
+
 ## 未完成
 
 （暂无——任务完成后整组上移至已完成区）

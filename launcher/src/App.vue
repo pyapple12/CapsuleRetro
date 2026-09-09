@@ -3,7 +3,7 @@ import DOMPurify from "dompurify";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { marked } from "marked";
-import { onMounted, ref } from "vue";
+import { ref } from "vue";
 import GameCanvas from "./components/GameCanvas.vue";
 import HudBar from "./components/HudBar.vue";
 
@@ -20,9 +20,24 @@ interface GameInfo {
   patches: PatchView[];
 }
 
+/** launch 成功信息（后端 LaunchInfo）：seq 用于比对退出事件归属。 */
+interface LaunchInfo {
+  port: number;
+  seq: number;
+}
+
+/** session-ended 事件载荷（后端 SessionEnded）。 */
+interface SessionEndedEvent {
+  pid: number;
+  seq: number;
+  saved: boolean;
+}
+
 const status = ref("待机");
 const busy = ref(false);
 const running = ref(false);
+// 当前会话序号：session-ended 事件据此比对归属（FIX002.23）
+let currentSeq = 0;
 // 待机页数据：游戏名 / 补丁列表 / 当前选择 / save 状态
 const gameName = ref("");
 const patches = ref<PatchView[]>([]);
@@ -33,10 +48,15 @@ const showGuide = ref(false);
 const guideHtml = ref("");
 
 // 后端退出监听线程在 DOSBox 自退/崩溃时广播此事件：UI 回待机态，不停留在假会话
-void listen<number>("session-ended", (event) => {
-  if (!running.value) return;
+void listen<SessionEndedEvent>("session-ended", (event) => {
+  // 陈旧事件（旧会话的退出广播晚于新会话启动到达）忽略，防误回待机（FIX002.23）
+  if (!running.value || event.payload.seq !== currentSeq) return;
   running.value = false;
-  status.value = `游戏进程已退出（pid ${event.payload}），save 已回写`;
+  // 回写结果如实呈现，不再无条件宣称"save 已回写"（FIX002.30）
+  status.value = event.payload.saved
+    ? `游戏进程已退出（pid ${event.payload.pid}），存档已保存`
+    : `游戏进程已退出（pid ${event.payload.pid}），存档回写失败，详见日志`;
+  void loadLobby(); // 退出后刷新待机页 save 状态（FIX002.33）
 });
 
 /** 加载待机页数据（游戏信息 + 攻略 Markdown），失败显式呈现不静默。 */
@@ -65,7 +85,12 @@ void loadLobby();
 async function onLaunch(): Promise<void> {
   busy.value = true;
   try {
-    status.value = await invoke<string>("launch_game", { hack: selectedHack.value });
+    status.value = await invoke<LaunchInfo>("launch_game", { hack: selectedHack.value }).then(
+      (info) => {
+        currentSeq = info.seq;
+        return `游戏已启动（webserver 端口 ${info.port}）`;
+      },
+    );
     running.value = true;
   } catch (err) {
     status.value = `失败: ${String(err)}`;

@@ -78,10 +78,6 @@ pub fn append_payload(exe_path: &Path, payload_zip: &Path) -> Result<(), Payload
     if PayloadReader::open(exe_path)?.is_some() {
         return Err(PayloadError::AlreadyPacked(exe_path.to_path_buf()));
     }
-    let payload = std::fs::read(payload_zip).map_err(|source| PayloadError::Io {
-        path: payload_zip.to_path_buf(),
-        source,
-    })?;
     let offset = std::fs::metadata(exe_path)
         .map_err(|source| PayloadError::Io {
             path: exe_path.to_path_buf(),
@@ -95,15 +91,20 @@ pub fn append_payload(exe_path: &Path, payload_zip: &Path) -> Result<(), Payload
             path: exe_path.to_path_buf(),
             source,
         })?;
-    file.write_all(&payload)
-        .map_err(|source| PayloadError::Io {
-            path: exe_path.to_path_buf(),
-            source,
-        })?;
+    // 流式追加（FIX002.11）：payload 可达数十 MB，整段读入内存与读侧
+    // "区间游标不整段载内存"的设计不对称；len 取实际复制字节数
+    let mut payload = std::fs::File::open(payload_zip).map_err(|source| PayloadError::Io {
+        path: payload_zip.to_path_buf(),
+        source,
+    })?;
+    let copied = std::io::copy(&mut payload, &mut file).map_err(|source| PayloadError::Io {
+        path: payload_zip.to_path_buf(),
+        source,
+    })?;
     let mut trailer = Vec::with_capacity(TRAILER_SIZE as usize);
     trailer.extend_from_slice(&MAGIC);
     trailer.extend_from_slice(&FORMAT_VERSION.to_le_bytes());
-    trailer.extend_from_slice(&(payload.len() as u64).to_le_bytes());
+    trailer.extend_from_slice(&copied.to_le_bytes());
     trailer.extend_from_slice(&offset.to_le_bytes());
     file.write_all(&trailer)
         .map_err(|source| PayloadError::Io {
@@ -216,7 +217,7 @@ impl PayloadReader {
         }
         let tail = payload_offset
             .checked_add(payload_len)
-            .map(|sum| sum + TRAILER_SIZE);
+            .and_then(|sum| sum.checked_add(TRAILER_SIZE));
         if tail != Some(size) {
             return Err(PayloadError::BadTrailer {
                 path: exe_path.to_path_buf(),
@@ -298,6 +299,7 @@ impl PayloadReader {
                 continue;
             }
             let name = entry.name().to_string();
+            let unix_mode = entry.unix_mode();
             let rel = validate_entry(&name)?;
             let target = dest.join(rel);
             if let Some(parent) = target.parent() {
@@ -311,28 +313,25 @@ impl PayloadReader {
                 .read_to_end(&mut bytes)
                 .map_err(|e| PayloadError::Zip(format!("条目 {name} 读取失败: {e}")))?;
             std::fs::write(&target, bytes).map_err(|source| PayloadError::Io {
-                path: target,
+                path: target.clone(),
                 source,
             })?;
+            restore_unix_mode(unix_mode, &target);
         }
         Ok(())
     }
 
-    /// extract-once：`dest/payload.json` 标记与本次构建标识相符则跳过
-    /// （返回 `false`）；标记缺失 / 损坏 / 不符则清空 `dest` 全量重释放
-    /// （返回 `true`）。
+    /// extract-once：`dest/payload.json` 标记与本次构建标识相符**且全部条目
+    /// 在盘**则跳过（返回 `false`）；标记缺失 / 损坏 / 不符，或条目缺失
+    /// （部分丢失自愈，FIX002.9）则清空 `dest` 全量重释放（返回 `true`）。
     ///
     /// # Errors
     /// 释放过程错误同 [`Self::extract_all`]；旧目录删除失败返回
     /// [`PayloadError::Io`]。
     pub fn extract_once(&mut self, dest: &Path) -> Result<bool, PayloadError> {
         let marker = dest.join(BUILD_ID_ENTRY);
-        if let Ok(text) = std::fs::read_to_string(&marker) {
-            if let Ok(meta) = serde_json::from_str::<BuildMeta>(&text) {
-                if meta.build == self.build_id {
-                    return Ok(false);
-                }
-            }
+        if self.marker_fresh(&marker) && self.all_entries_present(dest) {
+            return Ok(false);
         }
         if dest.exists() {
             std::fs::remove_dir_all(dest).map_err(|source| PayloadError::Io {
@@ -347,7 +346,45 @@ impl PayloadReader {
         self.extract_all(dest)?;
         Ok(true)
     }
+
+    /// 标记新鲜：payload.json 可读、可解析且构建标识相符。读取/解析失败
+    /// 按"标记无效"处理走全量重释放（容错已登记 AGENTS.md 白名单，FIX002.4）。
+    fn marker_fresh(&self, marker: &Path) -> bool {
+        let Ok(text) = std::fs::read_to_string(marker) else {
+            return false;
+        };
+        match serde_json::from_str::<BuildMeta>(&text) {
+            Ok(meta) => meta.build == self.build_id,
+            Err(_) => false,
+        }
+    }
+
+    /// 条目落盘抽查（FIX002.9）：逐条目核对释放产物存在。标记文件幸存而
+    /// 部分资源被清理工具/用户删除时，仅凭标记会永久跳过导致资源缺失
+    /// （运行期完整性是硬依赖，PL004 shader ABORT 实证），全部命中才跳过。
+    fn all_entries_present(&self, dest: &Path) -> bool {
+        self.archive
+            .file_names()
+            .all(|name| dest.join(name).exists())
+    }
 }
+
+/// 恢复条目 unix 权限位（FIX002.10）：payload 携带的 unix_mode 原样落地，
+/// 0.2.0 三端适配时 dosbox 二进制的执行位依赖此处（Windows 无权限位语义，
+/// cfg 隔离为 no-op；实机验证挂 y.problems #19）。
+#[cfg(unix)]
+fn restore_unix_mode(mode: Option<u32>, target: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    if let Some(mode) = mode {
+        if let Err(err) = std::fs::set_permissions(target, std::fs::Permissions::from_mode(mode)) {
+            eprintln!("警告: 恢复条目权限失败 {}: {err}", target.display());
+        }
+    }
+}
+
+/// Windows 平台无 unix 权限语义，no-op。
+#[cfg(not(unix))]
+fn restore_unix_mode(_mode: Option<u32>, _target: &Path) {}
 
 /// 校验条目相对路径：非空、不含反斜杠、组件全部为普通名（拒绝 `..` / 根 /
 /// 盘符等穿越形态）。与 save.rs 的 save 条目校验同语义（两种格式各自收口）。

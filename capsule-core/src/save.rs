@@ -18,6 +18,9 @@ use zip::{ZipArchive, ZipWriter};
 const META_ENTRY: &str = "meta.json";
 /// save zip 内存档文件的前缀目录。
 const SAVE_PREFIX: &str = "save/";
+/// save 格式版本单一来源（结构变更时递增；写侧恒用当前版本，调用方不再
+/// 各自硬编码字面量——FIX002.13）。
+pub const SAVE_META_VERSION: &str = "1";
 
 /// save 档案读写错误。
 #[derive(Debug, Error)]
@@ -125,35 +128,57 @@ pub fn unpack(archive_path: &Path, work_dir: &Path) -> Result<SaveMeta, SaveErro
             .map_err(|e| SaveError::Corrupted(format!("meta 解析失败: {e}")))?
     };
 
-    for index in 0..archive.len() {
-        let mut entry = archive
-            .by_index(index)
-            .map_err(|e| SaveError::Corrupted(format!("条目 {index} 读取失败: {e}")))?;
-        let name = entry.name().to_string();
-        if name == META_ENTRY {
-            continue;
-        }
-        let rel = name
-            .strip_prefix(SAVE_PREFIX)
-            .filter(|r| !r.is_empty())
-            .ok_or_else(|| SaveError::UnsafeEntry(name.clone()))?;
-        let target_rel = validate_rel(rel).map_err(|_| SaveError::UnsafeEntry(name.clone()))?;
-        let target = work_dir.join(target_rel);
-        if let Some(parent) = target.parent() {
-            std::fs::create_dir_all(parent).map_err(|source| SaveError::Io {
-                path: parent.to_path_buf(),
+    let mut written: Vec<PathBuf> = Vec::new();
+    let result = (|| {
+        for index in 0..archive.len() {
+            let mut entry = archive
+                .by_index(index)
+                .map_err(|e| SaveError::Corrupted(format!("条目 {index} 读取失败: {e}")))?;
+            // 显式目录条目仅承载结构（资源管理器/7-Zip 重打包必产生），文件
+            // 写入时 create_dir_all 已按需建目录——跳过而非报错（FIX002.3）
+            if entry.is_dir() {
+                continue;
+            }
+            let name = entry.name().to_string();
+            if name == META_ENTRY {
+                continue;
+            }
+            // save/ 前缀之外的普通文件按良性噪声忽略（预留 config/ 节、
+            // __MACOSX 噪声；AGENTS.md 容错白名单登记）——穿越形态仍由
+            // validate_rel 严格拒绝
+            let Some(rel) = name.strip_prefix(SAVE_PREFIX).filter(|r| !r.is_empty()) else {
+                continue;
+            };
+            let target_rel = validate_rel(rel).map_err(|_| SaveError::UnsafeEntry(name.clone()))?;
+            let target = work_dir.join(target_rel);
+            if let Some(parent) = target.parent() {
+                std::fs::create_dir_all(parent).map_err(|source| SaveError::Io {
+                    path: parent.to_path_buf(),
+                    source,
+                })?;
+            }
+            let mut bytes = Vec::new();
+            entry
+                .read_to_end(&mut bytes)
+                .map_err(|e| SaveError::Corrupted(format!("条目 {name} 读取失败: {e}")))?;
+            std::fs::write(&target, bytes).map_err(|source| SaveError::Io {
+                path: target.clone(),
                 source,
             })?;
+            written.push(target);
         }
-        let mut bytes = Vec::new();
-        entry
-            .read_to_end(&mut bytes)
-            .map_err(|e| SaveError::Corrupted(format!("条目 {name} 读取失败: {e}")))?;
-        std::fs::write(&target, bytes).map_err(|source| SaveError::Io {
-            path: target.clone(),
-            source,
-        })?;
+        Ok(())
+    })();
+    if result.is_err() {
+        // 中途失败清理已写入文件（FIX002.12）：不留下"部分解包 + 原版释放"
+        // 的混合态；删除失败不掩盖主错误，残留由下次启动全量重建自愈
+        for path in &written {
+            if let Err(err) = std::fs::remove_file(path) {
+                eprintln!("警告: 解包残留清理失败 {}: {err}", path.display());
+            }
+        }
     }
+    result?;
     Ok(meta)
 }
 

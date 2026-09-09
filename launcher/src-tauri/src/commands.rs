@@ -10,8 +10,8 @@
 //! 双形态资源解析（PL004）：读自身 exe 尾部 trailer 识别 dev / 打包形态
 //! （`resolve_resource_ctx`），打包形态把 payload 释放到运行时 resources/
 //! 目录作为资源根，两形态下游逻辑完全共用。
-//! "无会话"约定：inject_input 返回 `Err(NO_SESSION: ...)`（前端
-//! 据前缀识别并停轮询）；stop_game 对无会话是幂等成功（Ok）。
+//! "无会话"语义：inject_input 返回错误消息"当前无游戏会话"；stop_game
+//! 对无会话是幂等成功（Ok）。
 //! 安全边界：spawn 参数全部来自仓库内 `retro/game.json` 与 u16 端口探测值，
 //! 无任何外部用户输入参与；进程创建经 `winproc` 的 CreateProcessW 参数列表完成。
 
@@ -52,9 +52,6 @@ struct SessionLifecycle {
     /// 本次会话的元数据（hack 状态随回写持久化）
     meta: capsule_core::save::SaveMeta,
 }
-
-/// "无会话"错误前缀：前端据此程序化识别并停帧轮询（见模块文档约定）。
-const NO_SESSION: &str = "NO_SESSION";
 
 /// 双形态资源上下文（PL004）：资源解析的锚点集合。
 ///
@@ -130,6 +127,10 @@ pub struct SessionState {
     inner: Arc<Mutex<Option<Session>>>,
 }
 
+/// 会话序号发生器（FIX002.23）：launch 次序单调递增，退出事件携带序号供
+/// 前端与陈旧事件比对，防止旧会话的事件把新会话 UI 拉回待机。
+static SESSION_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 /// 一次游戏会话的全部资源。
 pub struct Session {
     process: WinProcess,
@@ -139,6 +140,8 @@ pub struct Session {
     hud: Option<HudPoller>,
     agent: ureq::Agent,
     pid: u32,
+    /// 会话序号（launch 单调递增，退出事件比对依据）
+    seq: u64,
     /// save 生命周期上下文（回写后被 take 走，保证幂等）
     lifecycle: Option<SessionLifecycle>,
 }
@@ -198,23 +201,37 @@ impl Session {
     }
 }
 
-/// 端口探测：从 `start` 起 5 个端口内找第一个可绑定的；绑定测试后立即释放。
+/// 端口锁死校验（PL005 定案"端口锁死 18086"，FIX002.1 落实）：仅测试
+/// `port` 本身可绑定，冲突时显式报错——不做回退。理由：前端帧流地址与
+/// CSP 均只放行该端口，回退会让画面链路静默失联，甚至在端口被另一个
+/// CapsuleRetro 实例占用时串显别个会话的画面。
 ///
 /// # 已知竞态（TOCTOU）
 /// 本函数释放端口到 DOSBox 实际 bind 之间存在被其他进程抢占的窗口；被抢时
-/// webserver 起不来，由 [`start_session`]. 的就绪探测以超时报错兜底呈现，
+/// webserver 起不来，由 [`start_session`] 的就绪探测以超时报错兜底呈现，
 /// 不做更复杂的预占持有（持有再转交需要 fd 传递，复杂度不值）。
-pub fn probe_port(start: u16) -> Result<u16> {
-    let mut port = start;
-    for _ in 0..5 {
-        if TcpListener::bind(("127.0.0.1", port)).is_ok() {
-            return Ok(port);
+pub fn probe_port(port: u16) -> Result<u16> {
+    // 对 WSAEADDRINUSE(10048) 短重试：上一会话刚终止时监听端点有内核延迟
+    // 清理窗口，立刻重启会瞬时占用报错（与 release_work 的 error 5 同族）；
+    // 重试耗尽仍占用则显式报错——不回退端口，锁死契约不变
+    let mut attempt = 0;
+    loop {
+        match TcpListener::bind(("127.0.0.1", port)) {
+            Ok(listener) => {
+                drop(listener);
+                return Ok(port);
+            }
+            Err(err) if err.raw_os_error() == Some(10048) && attempt < 4 => {
+                attempt += 1;
+                std::thread::sleep(Duration::from_millis(400));
+            }
+            Err(err) => {
+                return Err(anyhow!(
+                    "端口 {port} 被其他程序占用（可能是另一个 dosbox/会话）——帧流与注入通道锁死该端口，请释放后重试: {err}"
+                ))
+            }
         }
-        port = port
-            .checked_add(1)
-            .ok_or_else(|| anyhow!("端口探测到达 65535 上限"))?;
     }
-    Err(anyhow!("端口 {start} 起连续 5 个全被占用"))
 }
 
 /// 构造 DOSBox 命令行参数列表（值来源：webserver 开关为常量、端口为 u16 探测值、
@@ -282,6 +299,35 @@ fn resolve_patch_zip(
     Ok(Some(resource_root.join("retro").join(&patch.patch)))
 }
 
+/// save 根可写探针（FIX002.37）：create_dir_all + 临时探针文件写入后删除。
+/// exe 被放进只读目录（如 Program Files）时回写会恒败，启动期显式报错
+/// 优于结束期静默丢档。
+///
+/// # Errors
+/// 目录不可创建或探针文件不可写时返回带部署指引的错误。
+fn ensure_save_root_writable(save_root: &Path) -> Result<()> {
+    std::fs::create_dir_all(save_root).with_context(|| {
+        format!(
+            "save 目录不可创建（位置是否只读或受限？请将 exe 放在普通可写目录）: {}",
+            save_root.display()
+        )
+    })?;
+    let probe = save_root.join(".capsuleretro-probe.tmp");
+    std::fs::write(&probe, b"probe").with_context(|| {
+        format!(
+            "save 目录不可写（exe 是否放在只读/需管理员权限目录，如 Program Files？请移到普通可写目录）: {}",
+            save_root.display()
+        )
+    })?;
+    if let Err(err) = std::fs::remove_file(&probe) {
+        logging::error(&format!(
+            "save 可写探针文件清理失败 {}: {err}",
+            probe.display()
+        ));
+    }
+    Ok(())
+}
+
 /// 启动游戏会话：加载 game.json → 生命周期前置序列（释放工作副本 → 补丁 →
 /// 解包 save）→ 校验工作副本 → 探测端口 → 生成 conf → 挂起创建 DOSBox →
 /// 挂 Job → 恢复执行 → 等 webserver 就绪。
@@ -308,8 +354,10 @@ pub fn start_session(hack: Option<String>) -> Result<Session> {
     let work_dir = runtime.join("work");
     let original_dir = ctx.root.join("retro").join(&config.paths.game_dir);
     let save_path = gameconf::save_path(&ctx.save_root, &config.name);
+    ensure_save_root_writable(&ctx.save_root)?;
     let patch_zip = resolve_patch_zip(&ctx.root, &config, hack.as_deref())?;
-    let default_meta = capsule_core::save::SaveMeta::new("1", hack.clone());
+    let default_meta =
+        capsule_core::save::SaveMeta::new(capsule_core::save::SAVE_META_VERSION, hack.clone());
     let (mut meta, recovered) = capsule_core::paths::prepare_session(
         &original_dir,
         &work_dir,
@@ -336,8 +384,9 @@ pub fn start_session(hack: Option<String>) -> Result<Session> {
         None => logging::info("原版形态启动（无补丁）"),
     }
 
-    // 完整性断言：释放内容必须含游戏可执行文件（game.json 配错在此显式暴露）
-    let guest_exe = format!("{}.exe", config.name.to_ascii_lowercase());
+    // 完整性断言：释放内容必须含游戏可执行文件（game.json 配错在此显式
+    // 暴露；exe 基名 ≠ name 的游戏由 paths.guest_exe 显式声明，FIX002.25）
+    let guest_exe = config.guest_exe_name();
     if !work_dir.join(&guest_exe).is_file() {
         return Err(anyhow!(
             "释放后的工作副本缺少游戏可执行文件: {}（检查 game.json paths.game_dir）",
@@ -396,8 +445,10 @@ pub fn start_session(hack: Option<String>) -> Result<Session> {
     let agent = ureq::AgentBuilder::new()
         .timeout(Duration::from_secs(3))
         .build();
+    let seq = SESSION_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
     Ok(Session {
         pid: process.pid(),
+        seq,
         process,
         job,
         port,
@@ -433,45 +484,76 @@ fn writeback_save(session: &mut Session) -> Result<()> {
     Ok(())
 }
 
-/// 进程退出监听线程：等句柄触发（进程死）→ 若槽内仍是本会话则清槽、停
-/// HUD、回写 save、广播 `session-ended`。持有的是 DuplicateHandle 出的独立
-/// 句柄副本，与 Session 的句柄生命周期解耦。
+/// session-ended 事件载荷：会话标识（pid + seq）与回写结果。前端据 seq
+/// 比对事件是否属于当前会话（陈旧事件忽略，FIX002.23），据 saved 区分
+/// "存档已保存 / 回写失败"文案（FIX002.30）。
+#[derive(Clone, serde::Serialize)]
+pub struct SessionEnded {
+    /// 退出的 DOSBox 进程 pid
+    pub pid: u32,
+    /// 会话序号（launch 单调递增）
+    pub seq: u64,
+    /// save 回写是否成功
+    pub saved: bool,
+}
+
+/// 进程退出监听线程：等句柄触发（进程死）→ 若槽内仍是本会话（pid + seq
+/// 双比对，FIX002.23）则取走会话——检查与清槽合并为一次持锁、回写与广播
+/// 不持锁（不阻塞 launch 首查 / 注入），停 HUD、回写 save、广播
+/// `session-ended`。持有的是 DuplicateHandle 出的独立句柄副本，与 Session
+/// 的句柄生命周期解耦。
 fn spawn_exit_watcher(
     app: tauri::AppHandle,
     sessions: Arc<Mutex<Option<Session>>>,
     watch: SendHandle,
     pid: u32,
+    seq: u64,
 ) {
     std::thread::spawn(move || {
         winproc::wait_forever_and_close(watch);
-        let is_same = {
-            let slot = match sessions.lock() {
+        // 检查与清槽一次持锁：消除"检查时是本会话、取走时已被换新"的释放窗口
+        let ended = {
+            let mut slot = match sessions.lock() {
                 Ok(slot) => slot,
                 Err(_) => return,
             };
-            slot.as_ref().map(|s| s.pid == pid).unwrap_or(false)
+            let is_same = slot.as_ref().is_some_and(|s| s.pid == pid && s.seq == seq);
+            if is_same {
+                slot.take()
+            } else {
+                None
+            }
         };
-        if !is_same {
+        let Some(mut session) = ended else {
             return; // 已被 stop_game 正常收尾或已是新会话，不越权处理
+        };
+        if let Some(poller) = session.hud.take() {
+            poller.stop();
         }
-        let mut slot = sessions.lock().expect("会话槽锁已毒化");
-        if let Some(mut session) = slot.take() {
-            if let Some(poller) = session.hud.take() {
-                poller.stop();
-            }
-            // 进程已死，Job 终止仅为兜底收尾；失败不影响事件广播
-            let _ = session.job.kill();
-            // 崩溃/自退路径同样回写（被杀时游戏已写盘的存档不丢）
-            if let Err(err) = writeback_save(&mut session) {
+        // 进程已死，Job 终止仅为兜底收尾；失败不影响事件广播
+        let _ = session.job.kill();
+        // 崩溃/自退路径同样回写（被杀时游戏已写盘的存档不丢）
+        let saved = match writeback_save(&mut session) {
+            Ok(()) => true,
+            Err(err) => {
                 logging::error(&format!("会话退出回写失败: {err:#}"));
+                false
             }
-        }
-        drop(slot);
+        };
         logging::info(&format!("游戏进程退出（pid {pid}），会话槽已清"));
-        if let Err(err) = app.emit("session-ended", pid) {
+        if let Err(err) = app.emit("session-ended", SessionEnded { pid, seq, saved }) {
             logging::error(&format!("session-ended 事件发送失败: {err}"));
         }
     });
+}
+
+/// launch 成功信息（FIX002.30/FIX002.23：seq 供前端比对 session-ended 事件）。
+#[derive(serde::Serialize)]
+pub struct LaunchInfo {
+    /// webserver 端口（锁死 18086，展示用）
+    pub port: u16,
+    /// 会话序号：session-ended 事件据此比对是否当前会话
+    pub seq: u64,
 }
 
 /// 启动游戏（UI 命令）。
@@ -486,12 +568,13 @@ pub async fn launch_game(
     app: tauri::AppHandle,
     state: tauri::State<'_, SessionState>,
     hack: Option<String>,
-) -> Result<String, String> {
+) -> Result<LaunchInfo, String> {
     if state.inner.lock().map_err(|e| e.to_string())?.is_some() {
         return Err("已有游戏会话在运行".into());
     }
-    let mut session = start_session(hack).map_err(|e| e.to_string())?;
+    let mut session = start_session(hack).map_err(|e| format!("{e:#}"))?;
     let port = session.port();
+    let seq = session.seq;
     let emitter = app.clone();
     session.start_hud(Box::new(move |event| match event {
         HudPollEvent::Snapshot(snapshot) => {
@@ -516,30 +599,35 @@ pub async fn launch_game(
         Arc::clone(&state.inner),
         SendHandle(watch_handle),
         session.pid,
+        seq,
     );
 
     let mut slot = state.inner.lock().map_err(|e| e.to_string())?;
     if slot.is_some() {
         // 竞态兜底：等待期间另一路已入槽，退掉本路刚构造的会话
         drop(slot);
-        let _ = session.stop();
+        if let Err(err) = session.stop() {
+            logging::error(&format!("竞态败者会话停止失败（Job 兜底杀树）: {err:#}"));
+        }
         return Err("已有游戏会话在运行".into());
     }
     *slot = Some(session);
-    Ok(format!("游戏已启动（webserver 端口 {port}）"))
+    Ok(LaunchInfo { port, seq })
 }
 
-/// 注入输入事件（UI 命令，body 为注入端点的 JSON 字符串透传）。async 化理由同 get_frame。
+/// 注入输入事件（UI 命令，body 为注入端点的 JSON 字符串透传）。async 化：
+/// 注入 HTTP 等待（超时 3s）在异步运行时线程执行，不占主线程。
 #[tauri::command]
 pub async fn inject_input(
     state: tauri::State<'_, SessionState>,
     payload: String,
 ) -> Result<String, String> {
     let body = {
+        // 锁边界注记（FIX002.22）：持锁跨越注入 HTTP 请求（超时 3s），期间
+        // launch 首查 / exit-watcher 清槽被阻塞；注入高频且必须绑定会话
+        // 生命周期，保持现状
         let slot = state.inner.lock().map_err(|e| e.to_string())?;
-        let session = slot
-            .as_ref()
-            .ok_or_else(|| format!("{NO_SESSION}: 没有运行中的游戏会话"))?;
+        let session = slot.as_ref().ok_or_else(|| "当前无游戏会话".to_string())?;
         session.inject_input(&payload)?
     };
     Ok(body)
@@ -553,6 +641,8 @@ pub async fn stop_game(
     state: tauri::State<'_, SessionState>,
 ) -> Result<String, String> {
     let mut slot = state.inner.lock().map_err(|e| e.to_string())?;
+    // 锁边界注记（FIX002.22）：持锁跨越 wait_exit（≤5s）+ zip 回写——期间
+    // launch 首查 / 注入被阻塞；停止是终态操作且要求独占会话，有界可接受
     match slot.as_mut() {
         Some(session) => {
             session.stop().map_err(|e| e.to_string())?;
@@ -577,6 +667,8 @@ pub async fn stop_game(
 /// 窗口关闭兜底回写（PL004.10）：主窗口被直接关闭时，会话仍在运行则先停
 /// 会话再回写 save（与 stop_game / exit-watcher 同一幂等 `writeback_save`），
 /// 随后放行关闭；被杀 / 崩溃路径仍由 exit-watcher + Job Object 现状兜底。
+/// 锁边界注记（FIX002.22）：运行于主线程窗口事件回调，持锁跨越停止（≤5s）
+/// 与回写——关窗是一次性终态操作，可接受。
 ///
 /// # Errors
 /// 会话停止或回写失败时返回错误（调用方落日志；关闭流程继续放行，旧 save
@@ -601,7 +693,7 @@ pub fn writeback_on_close(state: &SessionState) -> Result<()> {
 /// launcher.log 的 PERF 行——基线与改后对比共用同一通道。
 #[derive(serde::Deserialize)]
 pub struct PerfStats {
-    /// 采样类别（inject_rtt / frame_fetch_rtt / frame_age / parse_draw）
+    /// 采样类别（inject_rtt / frame_age / parse_draw）
     pub kind: String,
     /// 样本数
     pub count: u32,
@@ -716,13 +808,41 @@ fn get_game_info_impl() -> Result<GameInfo> {
 mod tests {
     use super::*;
 
-    /// PL002.11 验证：探测跳过被占端口。
+    /// FIX002.1 验证：端口锁死无回退——被占端口显式报错（含占用提示），
+    /// 空闲端口原样返回。
     #[test]
-    fn 端口探测跳过被占端口() {
+    fn 端口探测锁死无回退() {
         let listener = TcpListener::bind("127.0.0.1:0").expect("绑定临时端口");
         let busy = listener.local_addr().unwrap().port();
-        let picked = probe_port(busy).expect("应跳过被占端口找到可用端口");
-        assert_ne!(picked, busy);
+        let err = probe_port(busy).expect_err("被占端口应报错");
+        assert!(err.to_string().contains("被其他程序占用"), "实际: {err}");
+
+        let listener2 = TcpListener::bind("127.0.0.1:0").expect("再绑临时端口");
+        let free = listener2.local_addr().unwrap().port();
+        drop(listener2);
+        let picked = probe_port(free).expect("空闲端口应可用");
+        assert_eq!(picked, free, "锁死契约应原样返回请求端口");
+    }
+
+    /// FIX002.37 验证：save 根可写探针——文件路径冒充目录 → 明确报错；
+    /// 正常目录 → 通过且探针文件被清理。
+    #[test]
+    fn save根可写探针() {
+        let dir = std::env::temp_dir().join(format!("cr-probe-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("建临时目录");
+        ensure_save_root_writable(&dir).expect("正常目录应通过");
+        assert!(
+            !dir.join(".capsuleretro-probe.tmp").exists(),
+            "探针文件应随探测删除"
+        );
+
+        let file_as_dir = dir.join("not-a-dir");
+        std::fs::write(&file_as_dir, b"x").expect("写占位文件");
+        let err = ensure_save_root_writable(&file_as_dir).expect_err("文件路径应报错");
+        assert!(
+            err.to_string().contains("save 目录"),
+            "错误应带 save 目录指引，实际: {err}"
+        );
     }
 
     /// 参数列表构造：端口值正确进参数、顺序固定。

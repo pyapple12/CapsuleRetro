@@ -44,6 +44,9 @@ pub enum GameConfigError {
     /// save_files 清单含空白条目或路径分隔符（存档收集只认工作副本顶层文件名）。
     #[error("非法 save_files 清单: {0}")]
     InvalidSaveFiles(String),
+    /// paths.game_dir 为空（原版释放源缺失配置，FIX002.15 专用变体）。
+    #[error("paths.game_dir 为空（game.json: {0}）")]
+    InvalidGameDir(String),
     /// patches 定义非法（id 为空、重复或 patch 路径为空）。
     #[error("非法 patches 定义: {0}")]
     InvalidPatches(String),
@@ -91,6 +94,9 @@ pub struct AssetsSection {
 pub struct PathsSection {
     /// 原版游戏目录（相对 game.json 所在目录，如 "XEEN" → retro/XEEN/，只读释放源）
     pub game_dir: PathBuf,
+    /// guest 游戏可执行文件名（可选；缺省回落 name 小写派生——exe 基名与
+    /// name 不一致的游戏显式声明，FIX002.25）
+    pub guest_exe: Option<String>,
     /// 存档文件清单（工作副本顶层文件名通配符，仅支持 `*`；save 回写收集依据）
     pub save_files: Vec<String>,
 }
@@ -157,10 +163,7 @@ impl GameConfig {
             });
         }
         if self.paths.game_dir.as_os_str().is_empty() {
-            return Err(GameConfigError::InvalidPatches(format!(
-                "paths.game_dir 为空（game.json: {}）",
-                self.name
-            )));
+            return Err(GameConfigError::InvalidGameDir(self.name.clone()));
         }
         if let Some(bad) = self
             .paths
@@ -189,5 +192,15 @@ impl GameConfig {
             ids.push(&patch.id);
         }
         Ok(())
+    }
+
+    /// guest 游戏可执行文件名：显式 `paths.guest_exe` 优先，缺省回落 name
+    /// 小写派生（适配层约定 exe 基名 = name 小写，如 XEEN → xeen.exe；
+    /// 消费方：launcher 完整性断言与 gameconf 启动命令）。
+    pub fn guest_exe_name(&self) -> String {
+        self.paths
+            .guest_exe
+            .clone()
+            .unwrap_or_else(|| format!("{}.exe", self.name.to_ascii_lowercase()))
     }
 }

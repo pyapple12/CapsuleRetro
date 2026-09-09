@@ -20,6 +20,16 @@ pub fn run() {
         Err(err) => eprintln!("日志目录定位失败，文件日志停用: {err}"),
     }
     let app = tauri::Builder::default()
+        // 单实例互斥（FIX002.2，须最先注册）：二次启动在插件层退出并聚焦既有
+        // 窗口——双实例会互毁工作副本（remove_dir_all 对方正挂载的 C:）并相互
+        // 覆盖存档（A002 P1 根因消除）
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                if let Err(err) = window.set_focus() {
+                    logging::error(&format!("聚焦既有实例窗口失败: {err}"));
+                }
+            }
+        }))
         .manage(commands::SessionState::default())
         .on_window_event(|window, event| {
             // PL004.10：主窗口被直接关闭时兜底回写 save（会话存活则停会话 +

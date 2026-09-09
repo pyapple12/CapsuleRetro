@@ -55,8 +55,9 @@ pub fn resolve_repo_root(start: &Path) -> Result<PathBuf> {
 pub fn generate_conf(config: &GameConfig, work_dir: &Path) -> String {
     // 统一正斜杠：与已验证可用的 mount 写法一致，避免 conf 内反斜杠歧义
     let work_dir = work_dir.to_string_lossy().replace('\\', "/");
-    // 适配层约定：game.json 的 name 即 C: 盘内启动命令的小写来源（XEEN → xeen）
-    let guest = config.name.to_ascii_lowercase();
+    // guest 游戏可执行文件名：paths.guest_exe 显式声明优先，缺省回落 name
+    // 小写派生（适配层约定 exe 基名 = name 小写，FIX002.25）
+    let guest = config.guest_exe_name();
     format!(
         "# DosboxCapsule launcher 生成（来源 retro/game.json，勿手改）\n\
          [sdl]\n\
@@ -133,7 +134,8 @@ mod tests {
             "core = auto",
             "[autoexec]",
             "c:",
-            "xeen",
+            // FIX002.25：guest 行显式 exe 名（缺省回落 name 小写 + .exe，DOS 等价解析）
+            "xeen.exe",
             "exit",
         ];
         for key in expected_keys {

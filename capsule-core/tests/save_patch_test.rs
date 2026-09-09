@@ -88,7 +88,7 @@ fn snapshot(dir: &Path) -> Vec<(String, Vec<u8>)> {
 
 fn meta(hack: Option<&str>) -> SaveMeta {
     SaveMeta {
-        version: "1".to_string(),
+        version: save::SAVE_META_VERSION.to_string(),
         hack: hack.map(str::to_string),
         settings: serde_json::json!({}),
     }
@@ -152,10 +152,13 @@ fn 缺meta的save报损坏错误() {
     );
 }
 
-/// PL003.4 验证：save 外的条目或越界路径报 UnsafeEntry（严格报错不降级）。
+/// FIX002.3 验证：save 外普通文件条目（良性未知前缀）忽略不阻断，路径穿越
+/// 形态仍严格拒绝（UnsafeEntry 不降级）。
 #[test]
 fn 越界条目报路径非法() {
+    // save 外普通文件：按良性噪声忽略（资源管理器重打包的伴生条目）
     let dir = temp_dir("unsafe");
+    let work = temp_dir("unsafe-work");
     make_zip(
         &dir.join("s.save"),
         &[
@@ -163,12 +166,11 @@ fn 越界条目报路径非法() {
             ("evil.txt", b"x"),
         ],
     );
-    let err = save::unpack(&dir.join("s.save"), &temp_dir("unsafe-work")).unwrap_err();
-    assert!(
-        matches!(err, save::SaveError::UnsafeEntry(_)),
-        "实际: {err:?}"
-    );
+    let got = save::unpack(&dir.join("s.save"), &work).expect("未知前缀文件应被忽略");
+    assert_eq!(got, meta(None));
+    assert!(dir_files(&work).is_empty(), "save 外条目不应落工作副本");
 
+    // 穿越形态：仍严格拒绝
     make_zip(
         &dir.join("s2.save"),
         &[
@@ -180,6 +182,65 @@ fn 越界条目报路径非法() {
     assert!(
         matches!(err, save::SaveError::UnsafeEntry(_)),
         "实际: {err:?}"
+    );
+}
+
+/// FIX002.3 验证：资源管理器/7-Zip 重打包 save 必然产生的显式目录条目
+/// （`save/`）与预留 `config/` 节不再误判 UnsafeEntry——解包成功、存档落位。
+#[test]
+fn 目录条目与未知前缀良性忽略() {
+    let dir = temp_dir("bendir");
+    let work = temp_dir("bendir-work");
+    let file = std::fs::File::create(dir.join("s.save")).expect("创建 zip");
+    let mut zw = ZipWriter::new(file);
+    zw.add_directory("save/", SimpleFileOptions::default())
+        .expect("写目录条目");
+    zw.start_file("meta.json".to_string(), SimpleFileOptions::default())
+        .expect("start_file");
+    zw.write_all(br#"{"version":"1","hack":null,"settings":{}}"#)
+        .expect("写 meta");
+    zw.start_file("save/XEEN01.SAV".to_string(), SimpleFileOptions::default())
+        .expect("start_file");
+    zw.write_all(b"slot").expect("写存档");
+    zw.start_file("config/audio.cfg".to_string(), SimpleFileOptions::default())
+        .expect("start_file");
+    zw.write_all(b"midi=1").expect("写预留节");
+    zw.finish().expect("finish zip");
+
+    let got = save::unpack(&dir.join("s.save"), &work).expect("目录/未知前缀条目应被忽略");
+    assert_eq!(got, meta(None));
+    assert_eq!(
+        dir_files(&work),
+        vec!["XEEN01.SAV"],
+        "仅 save/ 条目落工作副本，config/ 预留节忽略"
+    );
+    assert_eq!(read(&work, "XEEN01.SAV"), b"slot");
+}
+
+/// FIX002.12 验证：解包中途失败（前半已写入）不留残留——已写文件被清理，
+/// 主错误照常上抛（以 Io 冲突模拟"后半失败"，与截断档同机制同清理路径）。
+#[test]
+fn 解包中断不留部分残留() {
+    let dir = temp_dir("partial");
+    let work = temp_dir("partial-work");
+    make_zip(
+        &dir.join("s.save"),
+        &[
+            ("meta.json", br#"{"version":"1","hack":null,"settings":{}}"#),
+            ("save/A.SAV", b"first"),
+            ("save/B.SAV", b"second"),
+        ],
+    );
+    // 让第二个条目写入失败：B.SAV 位置预置同名目录，fs::write 必败
+    std::fs::create_dir_all(work.join("B.SAV")).expect("预置冲突目录");
+    let err = save::unpack(&dir.join("s.save"), &work).unwrap_err();
+    assert!(
+        !matches!(err, save::SaveError::UnsafeEntry(_)),
+        "失败形态应为写入冲突而非路径非法: {err:?}"
+    );
+    assert!(
+        !work.join("A.SAV").exists(),
+        "中途失败应清理已写入的残留文件"
     );
 }
 
@@ -386,6 +447,45 @@ fn 未知action与缺source报错() {
     assert!(
         matches!(err, patch::PatchError::MissingSource(_)),
         "实际: {err:?}"
+    );
+}
+
+/// FIX002.14 验证：source 条目存在但数据损坏 → Corrupted（不再与缺失混淆
+/// 报 MissingSource 误导排查）。
+#[test]
+fn source损坏报corrupted与缺失区分() {
+    let work = temp_dir("patch-csrc");
+    let zip_dir = temp_dir("patch-csrc-zip");
+    let p = zip_dir.join("p.zip");
+    make_zip(
+        &p,
+        &[
+            (
+                "manifest.json",
+                br#"[{"action":"add","path":"X","source":"files/M"}]"#,
+            ),
+            ("files/M", b"payload-bytes-0123456789"),
+        ],
+    );
+    // 定位 files/M 条目数据区起点，翻转首字节制造解压/CRC 失败
+    let data_start = {
+        let f = std::fs::File::open(&p).expect("开 zip");
+        let mut z = zip::ZipArchive::new(f).expect("archive");
+        let start = z
+            .by_name("files/M")
+            .expect("条目")
+            .data_start()
+            .expect("数据区起点");
+        start
+    };
+    let mut raw = std::fs::read(&p).expect("读 zip 字节");
+    raw[data_start as usize] ^= 0xFF;
+    std::fs::write(&p, raw).expect("写回损坏 zip");
+
+    let err = patch::apply(&p, &work).unwrap_err();
+    assert!(
+        matches!(err, patch::PatchError::Corrupted(_)),
+        "数据损坏应报 Corrupted，实际: {err:?}"
     );
 }
 
