@@ -66,6 +66,9 @@ launcher/src-tauri/gen/
 .zcode/
 !.zcode/config.json
 
+## CC 素材工坊（提取产物，可由 xeen-extractor + 转换脚本再生，不入库）
+.xeen-extract/
+
 ## 归档素材（本地留存，不入库）
 .archived/
 
