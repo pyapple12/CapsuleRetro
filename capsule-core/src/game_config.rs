@@ -91,6 +91,9 @@ pub struct AssetsSection {
     pub cover: Option<PathBuf>,
     /// 16:9 主视觉路径（可选；缺省不入包——PL006.2，供后续 theme 使用）
     pub hero: Option<PathBuf>,
+    /// 队伍头像 PNG 目录（可选；PL009.2——目录内 charNN.png 按面容文件号编号，
+    /// HUD 头像取图源；缺省不入包，HUD 回落槽位号占位）
+    pub faces_dir: Option<PathBuf>,
 }
 
 /// 运行路径节。

@@ -124,7 +124,7 @@
 - [x] FIX001.17 [P1] 容错白名单登记制缺口（A001#20）—— AGENTS.md 白名单补四条登记（rest serde(default) 置 0 / xmonitor 快照存档降级 / embed 失败退化 / LOCALAPPDATA 兜底——末者建议改严格抛错）；验证：文档三要素核对 + cargo test
 - [x] FIX001.18 [P1] capture 脚本全机杀 dosbox（A001#22）—— baseline-capture.sh:28,37 改按记录 PID 杀（PowerShell Stop-Process -Id），//IM 兜底删除或加警告；验证：并发第二个 dosbox 跑采集断言其存活
 - [x] FIX001.19 [P1] rebuild.bat rmdir 失败静默（A001#23）—— :16 rmdir 后 `if exist ...build exit /b 1`；验证：占用 build 目录跑脚本断言非 0
-- [x] FIX001.20 [P1] NumpadEnter 死条目与大小写（A001#24）—— GameCanvas.vue:32 Enter 特判提前于 Numpad 前缀分支；Numpad 分支统一小写；与 fork `/api/v2/input/event` 键名表核对 numpad* 契约；验证：vue-tsc + 注入小键盘回车人工验证
+- [x] FIX001.20 [P1] NumpadEnter 死条目与大小写（A001#24）—— GameCanvas.vue:32 Enter 特判提前于 Numpad 前缀分支；Numpad 分支统一小写；与 fork `/api/v2/input/event` 键名表核对 numpad\* 契约；验证：vue-tsc + 注入小键盘回车人工验证
 - [x] FIX001.21 [P1] 仓库根解析依赖 cwd（A001#26）—— gameconf.rs resolve_repo_root 失败改显式报错并报告探测起点；exe 路径锚定留 Phase 3/4 打包形态一并处理；验证：cargo test + 非仓库根目录启动行为核对
 - [x] FIX001.22 [P2] release 无日志通道（A001#14）—— 引入文件日志（自写 append 落 runtime_dir 或 log+fern）替换关键 eprintln!；验证：release 构建跑一轮查日志文件落盘
 - [x] FIX001.23 [P2] 端口双处事实源（A001#15）—— xmonitor 增加 `--game-json` 从 GameConfig 派生端口或 help 注明与 game.json 同步关系；验证：cargo test + 帮助文本核对
@@ -167,7 +167,7 @@
 - [x] PL003.6 src/patch.rs 补丁应用 —— manifest 解析校验 + apply（replace=覆盖/add=新增到工作副本）；path 越界（zip slip/绝对路径/`..`）严格报错；验证：单测——合法应用/未知 action/越界 path FAIL→PASS（2026-09-08 已验证：7 种越界形态全拒；replace 目标缺失/add 目标已存在/source 缺失/未知 action 各自独立错误；校验顺序 action→目标→source 防错误语义混淆）
 - [x] PL003.7 src/paths.rs 释放自愈与生命周期编排 —— release（原版 → 工作副本释放）；编排纯函数 prepare_session（释放 → 补丁 → 解包）与 writeback（收集 → 打包 → 替换）；验证：单测断言对 retro/ 零写入（2026-09-08 已验证：自愈策略定案为"每次启动全量重建工作副本"（残留天然自愈、hack 切换零污染，37MB 本地盘亚秒级），比计划原文的"首启释放+缺失重建"更强；`释放重建清除残留`/`启动前置序列全链路且原版零写入` PASS）
 - [x] PL003.8 启动前置接线 —— launch_game 前置序列接入（释放 → 按 hack 补丁 → 解包 save），退役 `.temp/xeen-work` 依赖；验证：cargo test（2026-09-08 已验证：game.json v2 落盘（game_dir + save_files + patches）；**work_dir 字段退役而非改名**——释放目标由 runtime_dir 派生（runtime/work），避免死配置；hack id 不在 patches 中严格报错；冷启动 live 并入 VA1）
-- [x] PL003.9 退出回写接线 —— exit-watcher 线程与 stop_game 双挂点走同一 writeback_save()（幂等：按 save_files 收集 → 打包 → 原子替换仓库根 XEEN.save）；.gitignore 登记 *.save；关键节点落 launcher.log；验证：live VA1——游戏内存档 → 退出 → zip 内含存档文件 → 重进读档继续（2026-09-08 已验证：VA1 全过——用户存档后停止显示"save 已回写"，zip 内 6 文件，重启读档一致）
+- [x] PL003.9 退出回写接线 —— exit-watcher 线程与 stop_game 双挂点走同一 writeback_save()（幂等：按 save_files 收集 → 打包 → 原子替换仓库根 XEEN.save）；.gitignore 登记 \*.save；关键节点落 launcher.log；验证：live VA1——游戏内存档 → 退出 → zip 内含存档文件 → 重进读档继续（2026-09-08 已验证：VA1 全过——用户存档后停止显示"save 已回写"，zip 内 6 文件，重启读档一致）
 - [x] PL003.10 补丁纪律 live 验收（VA2）—— hack 版与原版各启动一轮交叉；验证：retro/ 哈希断言零改动、hack/原版互不污染（工作副本内容随切换重建）（2026-09-08 已验证：hack 轮 work 出现 PATCHED.TXT + PLAY.BAT 改写 + meta.hack=test-hack 持久化；原版轮 PATCHED.TXT 随重建清除 + meta 归 null；retro/ 21 文件 MD5 三比对照全等）
 - [x] PL003.11 防损坏 live 验收（VA3）—— 手工破坏 XEEN.save 启动；验证：启动按白名单降级不炸（回写中断场景由原子替换单测覆盖：`原子替换覆盖旧档`）（2026-09-08 已验证：垃圾字节写 save → ERROR 日志 + .corrupt 备份 + 游戏正常启动 + 停止生成全新档；真实存档测试后已恢复）
 - [x] PL003.12 待机页 hack 切换与 save 状态 —— App.vue 待机态：hack/原版切换（写 meta.hack，启动前生效）+ save 状态显示（"N 个数据文件"计数）；验证：vue-tsc + live 切换后启动会话实际按所选形态释放（2026-09-08 已验证：切换测试补丁启动 → work 实际打上补丁；save 状态行随回写刷新为"补丁 test-hack"/"原版"）
@@ -340,7 +340,7 @@
 
 #### 阶段 C：素材库
 
-- [x] PL008.5 图形资源转 PNG —— 做法：先解调色板资源（*.PAL 类），再按 ScummVM xeen 引擎源码的格式参考把可看大类转 PNG 进 `.xeen-extract/png/`（按类别做，不追求全部资源）；验证：转出的 PNG 与 ScummVM 实跑画面素材肉眼一致（✅ 2026-09-12：实况修正——ScummVM 无 xeen 引擎，格式参考改为 OpenXeen WOXSpriteFile/WOXPallet/MaMRawImage；1059 张转换 9 张特殊变体失败；目检 CHAR01/CHAR05 头像与 THRONE1 320×200 场景完整清晰；跨扩展同名覆盖缺陷修复后 1059/1059 落盘）
+- [x] PL008.5 图形资源转 PNG —— 做法：先解调色板资源（\*.PAL 类），再按 ScummVM xeen 引擎源码的格式参考把可看大类转 PNG 进 `.xeen-extract/png/`（按类别做，不追求全部资源）；验证：转出的 PNG 与 ScummVM 实跑画面素材肉眼一致（✅ 2026-09-12：实况修正——ScummVM 无 xeen 引擎，格式参考改为 OpenXeen WOXSpriteFile/WOXPallet/MaMRawImage；1059 张转换 9 张特殊变体失败；目检 CHAR01/CHAR05 头像与 THRONE1 320×200 场景完整清晰；跨扩展同名覆盖缺陷修复后 1059/1059 落盘）
 - [x] PL008.6 素材墙 + 肉眼基准落位 —— 做法：browse.html（资源清单 + PNG 缩略图，可翻库）；下载 ScummVM 便携版落位 `.xeen-extract/tools/scummvm/` 并实跑游戏目录；验证：ScummVM 能读同一套 CC 文件进游戏（肉眼基准成立）（✅ 2026-09-12：实况修正——肉眼基准改用 DosboxCapsule 实跑截图（本仓模拟器即最强事实），OpenXeen 源码克隆于 .temp 作格式参考；browse.html 1059 卡片生成）
 - [x] PL008.7 头像资源圈定 —— 做法：借 ScummVM 源码资源名在清单中定位 portrait/face 相关资源，产出清单（资源名/尺寸/张数）落 `.xeen-extract/`；验证：清单内资源转 PNG 后与游戏内建队头像选择界面比对吻合（✅ 2026-09-12：portraits-manifest.csv 落盘——161 个 .FAC 全部转出（CHAR01–25 × 两世界建队头像集 48 张 + NPC 头像），即 PL009 输入）（✅ 2026-09-12 用户多模态复核：两世界 CHAR 集 4 张字节差异目视相同，已收敛为单套 24 张 `char01–24.fac.png` 入 `retro/artwork/faces/`）
 
@@ -348,14 +348,22 @@
 
 - [x] PL008.8 验收收尾 —— 做法：提取结果与实跑画面交叉对照一致（VA1）；三容器全量落库 + 素材墙可翻 + 用户判收"参考素材库"价值（VA2）；工具单测 + 门禁全绿 + 头像资源清单产出（VA3）；AGENTS 目录规划登记 `.xeen-extract/`；z.plan 实测结论回写 + 本组勾结上移；验证：VA1–VA3 全过 + 用户判收（✅ 2026-09-12：VA1 对照游戏实画成立；VA3 门禁全绿（fmt/clippy/doc/19 套件/npm）；VA2 素材墙就绪待用户翻库判收）
 
+### PL009: 角色头像上屏 [plan#PL009]（✅ 2026-09-12 收口，3/3；face 机制破解 + live 三重验证 + 用户判收"是一致的"，勘探全记录转正 `retro/face-map.md`）
+
+#### 阶段 A：face 机制勘探（实况修正：双存档差分 → 交互式快照差分）
+
+- [x] PL009.1 face index 勘探 —— 做法：~~双存档差分法~~（2026-09-12 实况修正：改**交互式快照差分**——用户配合换像/换人/换队五轮快照 S0–S5，live 定位面容数组 `0x5A7C:0x0002–0x0007`（u8×6，按队伍槽位存**名册槽位**），机制 = **面容文件号 = 名册槽位 + 1**（第 N 槽用 CHAR(N+1).FAC，与 ScummVM Roster `char{idx+1}.fac` 一致）；连带破解资源哈希（rot7 累加、对无扩展名 stem 计算，24 对全吻合）与 DARK01.SAV 名册布局（记录区起 0xE01、步长 354、名字在记录头）；登记 face1~~face6（u8）+ occ1~~occ6（占用信号 = 名字首字节，空槽为零）进 memory_map；验证：五快照 + live REST + 12 角色三重验证无一例外（✅ 2026-09-12：face1–6/occ1–6 已入 memory_map；勘探全记录转正 `retro/face-map.md`；旧"+0xA9 = face"假说证伪——那是预建角色模板号，自建角色恒 0）
+
+#### 阶段 B：头像随包与 HUD 渲染（实况修正：血条 → HP 数字着色）
+
+- [x] PL009.2 头像随包与 HUD 渲染 —— 做法：24 张头像 PNG 入 `retro/artwork/faces/` + game.json assets 增 `faces_dir` + gameconf `AssetsSection.faces_dir`（Option<PathBuf>）+ packer 目录收集；hud.rs WATCHED 扩至 21 条目，HudSnapshot 增 `face`/`occupied`；commands 增 `get_faces`（charNN.png → id + data_url，一次性取图）；HudBar 文字格升级"头像缩略 + HP 着色数字"——~~血条~~（2026-09-12 用户定案修正：HP 数字按 **≥60% 绿 / 20–60% 黄 / <20% 红 / 负值蓝** 着色，分母用**会话滚动基线**（按头像 id 绑定、换人重置； getMaxHP 公式复刻因无显示值可对照验证，登记为后续增强））；空槽位（解雇/换人瞬间）灰色占位不抓头像；验证：TDD faces_dir 可选解析 + 目录随包收集 2 用例红→绿，fmt/clippy/vue-tsc/npm build 全绿（✅ 2026-09-12：全过）
+
+#### 阶段 C：验收
+
+- [x] PL009.3 验收 —— 做法：HUD 头像与游戏内角色实际肖像一致（换角色/换存档自动跟随）；live 会话目测判收；验证：重启会话后 HUD 六头像与游戏队伍面板逐位一致，2 号位带伤显黄、满员显绿，用户判收"是一致的"（✅ 2026-09-12）
+
+> **✅ 全组完成（2026-09-12）**：3/3 勾结。全量门禁绿（fmt/clippy -D warnings/test --workspace 16 套件全过/prettier/vue-tsc/npm build）；face 机制 = 名册槽位+1（五快照 + live REST + 12 角色三重验证）；live 用户判收"是一致的"。勘探全记录转正 `retro/face-map.md`；HP 着色基线为会话滚动最大值（getMaxHP 公式复刻列后续增强，另 fac 资源哈希破解已写入档案）。
+
 ## 未完成
 
-### PL009: 角色头像上屏 [plan#PL009]（📋 立项挂起——等用户发话再推进，样式随 UI 定案走）
-
-- [ ] PL009.1 face index 勘探 —— 做法：双存档差分法（同角色不同头像两档各拍快照，xmonitor 扫角色块缩到目标字节），登记 `face1`~`face6`（u8）进 memory_map
-- [ ] PL009.2 头像随包与 HUD 渲染 —— 做法：PL008 圈定的头像资源转 PNG 走资产链路随包，HUD 按索引取图，文字格升级"头像 + 血条"
-- [ ] PL009.3 验收 —— 做法：HUD 头像与游戏内角色实际肖像一致（换角色/换存档自动跟随）；live 会话目测判收
-
-- [ ] PL009.1 face index 勘探 —— 做法：双存档差分法（同角色不同头像两档各拍快照，xmonitor 扫角色块缩到目标字节），登记 `face1`~`face6`（u8）进 memory_map
-- [ ] PL009.2 头像随包与 HUD 渲染 —— 做法：PL008 圈定的头像资源转 PNG 走资产链路随包，HUD 按索引取图，文字格升级"头像 + 血条"
-- [ ] PL009.3 验收 —— 做法：HUD 头像与游戏内角色实际肖像一致（换角色/换存档自动跟随）；live 会话目测判收
+- （当前无挂起任务——UI 持续迭代期；新任务立项后在此挂条）

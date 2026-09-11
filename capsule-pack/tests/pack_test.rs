@@ -259,6 +259,46 @@ fn 封面主视觉随包与缺失告警() {
     assert!(err.to_string().contains("仓库相对路径"), "{err:#}");
 }
 
+/// PL009.2 验证：faces_dir 头像目录随包——目录内 charNN.png 全量收集为
+/// payload 条目（HUD 面容取图源）；缺省不入包不告警（HUD 回落槽位号占位）。
+#[test]
+fn faces_dir头像目录随包() {
+    // 缺省：打包成功且无 faces 条目
+    let root = fixture_repo("no-faces");
+    let outcome = capsule_pack::build_package(&inputs(&root)).expect("无 faces_dir 应打包成功");
+    let names = PayloadReader::open(&outcome.exe)
+        .expect("解析")
+        .expect("产物应识别为打包形态")
+        .entry_names();
+    assert!(
+        !names.iter().any(|n| n.contains("artwork/faces")),
+        "缺省不应有头像条目: {names:?}"
+    );
+
+    // 配置且文件在位：目录内 PNG 全量收集
+    let with_text = GAME_JSON.replace(
+        r#""guide": "retro/test-guide.md" }"#,
+        r#""guide": "retro/test-guide.md", "faces_dir": "retro/artwork/faces" }"#,
+    );
+    write(&root.join("retro/game.json"), with_text.as_bytes());
+    write(&root.join("retro/artwork/faces/char01.png"), b"FACE01");
+    write(&root.join("retro/artwork/faces/char02.png"), b"FACE02");
+    let mut with_inputs = inputs(&root);
+    with_inputs.config = with_text.parse().expect("含 faces_dir 的配置应可解析");
+    with_inputs.out_dir = root.join("out-faces");
+    let outcome2 = capsule_pack::build_package(&with_inputs).expect("打包应成功");
+    let names2 = PayloadReader::open(&outcome2.exe)
+        .expect("解析")
+        .expect("产物应识别为打包形态")
+        .entry_names();
+    for expect in [
+        "retro/artwork/faces/char01.png",
+        "retro/artwork/faces/char02.png",
+    ] {
+        assert!(names2.contains(&expect.to_string()), "缺头像条目 {expect}");
+    }
+}
+
 /// FIX002.36 / FIX002.38 验证：dosbox 兄弟 Resources 目录收集为
 /// `dosbox/Resources/**` 条目（PL004 shader 教训的回归点）；缺失时打包
 /// 成功但产出告警。

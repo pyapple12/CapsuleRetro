@@ -645,6 +645,90 @@
       "offset": "0x0008",
       "len": 2,
       "value_type": "u16le"
+    },
+    {
+      "name": "face1",
+      "segment": "0x5A7C",
+      "offset": "0x0002",
+      "len": 1,
+      "value_type": "u8"
+    },
+    {
+      "name": "face2",
+      "segment": "0x5A7C",
+      "offset": "0x0003",
+      "len": 1,
+      "value_type": "u8"
+    },
+    {
+      "name": "face3",
+      "segment": "0x5A7C",
+      "offset": "0x0004",
+      "len": 1,
+      "value_type": "u8"
+    },
+    {
+      "name": "face4",
+      "segment": "0x5A7C",
+      "offset": "0x0005",
+      "len": 1,
+      "value_type": "u8"
+    },
+    {
+      "name": "face5",
+      "segment": "0x5A7C",
+      "offset": "0x0006",
+      "len": 1,
+      "value_type": "u8"
+    },
+    {
+      "name": "face6",
+      "segment": "0x5A7C",
+      "offset": "0x0007",
+      "len": 1,
+      "value_type": "u8"
+    },
+    {
+      "name": "occ1",
+      "segment": "0x56E5",
+      "offset": "0x0000",
+      "len": 1,
+      "value_type": "u8"
+    },
+    {
+      "name": "occ2",
+      "segment": "0x56FB",
+      "offset": "0x0004",
+      "len": 1,
+      "value_type": "u8"
+    },
+    {
+      "name": "occ3",
+      "segment": "0x5711",
+      "offset": "0x0006",
+      "len": 1,
+      "value_type": "u8"
+    },
+    {
+      "name": "occ4",
+      "segment": "0x5727",
+      "offset": "0x0008",
+      "len": 1,
+      "value_type": "u8"
+    },
+    {
+      "name": "occ5",
+      "segment": "0x573D",
+      "offset": "0x000A",
+      "len": 1,
+      "value_type": "u8"
+    },
+    {
+      "name": "occ6",
+      "segment": "0x5753",
+      "offset": "0x000C",
+      "len": 1,
+      "value_type": "u8"
     }
   ]
 }

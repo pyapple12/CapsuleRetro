@@ -19,8 +19,9 @@ use capsule_core::monitor::rest::{MonitorError, RestClient};
 const MAX_CONSECUTIVE_FAILURES: u32 = 5;
 
 /// HUD 关注的档案条目名。
-const WATCHED: [&str; 9] = [
-    "hp1", "hp2", "hp3", "hp4", "hp5", "hp6", "gold", "gems", "food",
+const WATCHED: [&str; 21] = [
+    "hp1", "hp2", "hp3", "hp4", "hp5", "hp6", "occ1", "occ2", "occ3", "occ4", "occ5", "occ6",
+    "face1", "face2", "face3", "face4", "face5", "face6", "gold", "gems", "food",
 ];
 
 /// 一帧 HUD 快照。
@@ -28,6 +29,10 @@ const WATCHED: [&str; 9] = [
 pub struct HudSnapshot {
     /// 全队 HP（hp1–hp6，i16 有符号）
     pub hp: [i64; 6],
+    /// 槽位占用（occ1–occ6：名字首字节非 0 = 有角色；解雇/空槽为 0——PL009.2）
+    pub occupied: [bool; 6],
+    /// 全队面容（face1–face6，u8 名册槽位；面容文件号 = 值 + 1——PL009.2）
+    pub face: [u8; 6],
     /// 随身金币
     pub gold: i64,
     /// 随身宝石
@@ -111,7 +116,7 @@ fn poll_loop(
             return;
         }
     };
-    // 只保留关注条目：9 个条目 / 500ms，避免 92 条目全量轮询的开销
+    // 只保留关注条目：21 个条目 / 500ms，避免 104 条目全量轮询的开销
     let entries: Vec<&Entry> = map
         .entries
         .iter()
@@ -162,6 +167,8 @@ fn interruptible_sleep(duration: Duration, stop: &AtomicBool) {
 /// 单轮轮询：读关注条目并解码为快照。
 fn poll_once(client: &RestClient, entries: &[&Entry]) -> Result<HudSnapshot, MonitorError> {
     let mut hp = [0i64; 6];
+    let mut occupied = [false; 6];
+    let mut face = [0u8; 6];
     let mut gold = 0i64;
     let mut gems = 0i64;
     let mut food = 0i64;
@@ -180,12 +187,28 @@ fn poll_once(client: &RestClient, entries: &[&Entry]) -> Result<HudSnapshot, Mon
                     if (1..=6).contains(&index) {
                         hp[index - 1] = value;
                     }
+                } else if let Some(index) = name
+                    .strip_prefix("occ")
+                    .and_then(|n| n.parse::<usize>().ok())
+                {
+                    if (1..=6).contains(&index) {
+                        occupied[index - 1] = value != 0;
+                    }
+                } else if let Some(index) = name
+                    .strip_prefix("face")
+                    .and_then(|n| n.parse::<usize>().ok())
+                {
+                    if (1..=6).contains(&index) {
+                        face[index - 1] = u8::try_from(value).unwrap_or(0);
+                    }
                 }
             }
         }
     }
     Ok(HudSnapshot {
         hp,
+        occupied,
+        face,
         gold,
         gems,
         food,

@@ -827,6 +827,64 @@ pub struct CheatAdjusted {
     pub value: i64,
 }
 
+/// 队伍头像图（PL009.2）：id = 面容文件号（1 起，HUD face 值 + 1）。
+#[derive(serde::Serialize)]
+pub struct FaceImage {
+    /// 面容文件号（名册槽位 + 1）
+    pub id: u8,
+    /// PNG data URL（内联下发，复用 CSP 已放行的 img-src data:）
+    pub data_url: String,
+}
+
+/// 读取队伍头像资产（faces_dir 内 charNN.png，一次性取图）。
+///
+/// # Errors
+/// game.json 缺失/非法、faces_dir 已配置但目录缺失或文件名不合
+/// charNN.png 规范时返回错误消息；faces_dir 缺省返回空表（HUD 回落占位）。
+#[tauri::command]
+pub async fn get_faces() -> Result<Vec<FaceImage>, String> {
+    get_faces_impl().map_err(|e| format!("{e:#}"))
+}
+
+/// get_faces 的同步实现：枚举 faces_dir 并按文件号排序编码。
+fn get_faces_impl() -> Result<Vec<FaceImage>> {
+    let ctx = resolve_resource_ctx()?;
+    let config = capsule_core::game_config::GameConfig::load(&ctx.root.join("retro/game.json"))
+        .context("加载 retro/game.json 失败")?;
+    let Some(faces_dir) = &config.assets.faces_dir else {
+        return Ok(Vec::new());
+    };
+    let dir = ctx.root.join(faces_dir);
+    let mut entries: Vec<_> = std::fs::read_dir(&dir)
+        .with_context(|| format!("读取头像目录失败: {}", dir.display()))?
+        .collect::<Result<Vec<_>, _>>()
+        .with_context(|| format!("遍历头像目录失败: {}", dir.display()))?;
+    entries.sort_by_key(|e| e.file_name());
+    let mut faces = Vec::new();
+    for entry in entries {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let Some(id) = face_id_from_name(&name) else {
+            anyhow::bail!("头像目录存在不合规范的文件: {}", name);
+        };
+        let bytes = std::fs::read(entry.path())
+            .with_context(|| format!("读取头像失败: {}", entry.path().display()))?;
+        faces.push(FaceImage {
+            id,
+            data_url: cover_data_url(&bytes, &entry.path())?,
+        });
+    }
+    Ok(faces)
+}
+
+/// 从 `charNN.png` 文件名解析面容文件号（NN 为两位数字）。
+fn face_id_from_name(name: &str) -> Option<u8> {
+    let stem = name.strip_prefix("char")?.strip_suffix(".png")?;
+    if stem.len() != 2 || !stem.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    stem.parse().ok()
+}
+
 /// 会话内数值修改（金手指）：按 memory_map 档案条目读-改-写，白名单由
 /// capsule-core monitor 把关。async 化：两次 HTTP（读+写，各 5s 超时）在
 /// 异步运行时线程执行，不占主线程。

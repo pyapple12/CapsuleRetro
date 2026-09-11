@@ -47,6 +47,7 @@ pub fn run() {
             commands::stop_game,
             commands::get_game_info,
             commands::get_guide,
+            commands::get_faces,
             commands::inject_input,
             commands::cheat_adjust,
             commands::log_perf_stats

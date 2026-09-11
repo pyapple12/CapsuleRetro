@@ -150,6 +150,14 @@ pub fn build_package(inputs: &PackInputs) -> Result<BuildOutcome> {
         require_file(&path, "主视觉（assets.hero）")?;
         entries.push((slash(hero), path));
     }
+    // 队伍头像目录（PL009.2）：可选资产——目录内 charNN.png 全量随包，
+    // HUD 按面容文件号取图；目录缺失不阻断（HUD 回落槽位号占位）
+    if let Some(faces_dir) = &config.assets.faces_dir {
+        ensure_safe_rel(faces_dir, "头像目录（assets.faces_dir）")?;
+        let path = inputs.repo_root.join(faces_dir);
+        require_dir(&path, "头像目录（assets.faces_dir）")?;
+        collect_dir(&path, &slash(faces_dir), &[], &mut entries)?;
+    }
     entries.sort_by(|a, b| a.0.cmp(&b.0));
 
     // 产物：payload zip → 复制 launcher → 拼装 → readme 注入

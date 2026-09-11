@@ -175,3 +175,25 @@ fn 非法patches报错() {
         .expect_err("重复 id 应报错");
     assert!(err.to_string().contains("重复"), "实际错误: {err}");
 }
+
+/// PL009.2 验证：faces_dir 可选——缺省 None（HUD 回落槽位号占位），
+/// 配置后解析为目录路径（打包收集与 HUD 取图源依据）。
+#[test]
+fn faces_dir可选解析() {
+    let config = 合法样例文本()
+        .parse::<GameConfig>()
+        .expect("合法样例应解析成功");
+    assert_eq!(config.assets.faces_dir, None, "缺省应为 None");
+
+    let explicit = 合法样例文本()
+        .replace(
+            r#""guide": "retro/xeen-guide.md" }"#,
+            r#""guide": "retro/xeen-guide.md", "faces_dir": "retro/artwork/faces" }"#,
+        )
+        .parse::<GameConfig>()
+        .expect("含 faces_dir 应解析成功");
+    assert_eq!(
+        explicit.assets.faces_dir.as_deref(),
+        Some(Path::new("retro/artwork/faces"))
+    );
+}
