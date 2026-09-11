@@ -150,7 +150,7 @@ config/          # 用户对 dosbox.conf 的覆盖片段
 
 ## 7. 实现路径
 
-> **排期原则（2026-09-07 用户决策）：Windows 优先**——Phase 0–4 全部以 Windows 为唯一目标平台交付，功能全量完成后再进入 Phase 5 做 macOS/Linux 适配；三平台产品的最终目标不变。跨平台问题在主线期间只登记 y.problems.md，不阻塞开发。
+> **排期原则（2026-09-07 用户决策）：Windows 优先**——Phase 0–5 全部以 Windows 为唯一目标平台交付，功能全量完成后再进入 Phase 6 做 macOS/Linux 适配；三平台产品的最终目标不变。跨平台问题在主线期间只登记 y.problems.md，不阻塞开发。
 
 ### Phase 0 — POC 技术验证（约 1.5 周）✅ 完成（2026-09-08 收口）
 
@@ -158,7 +158,7 @@ config/          # 用户对 dosbox.conf 的覆盖片段
 - [x] DOSBox Staging sidecar 集成：进程启动、界面隐藏、独立 conf ——已完成（PL002 阶段 B + 后期主线；"界面隐藏"以 Windows 离屏托管实现）
 - [x] **4:3 填充验证**：Windows SetParent 嵌入 + macOS 覆盖层窗口，两者至少其一跑通 ——已完成（方案变更：SetParent 判死，由 fork 帧流 + 画布整数缩放达成，见下方实况备注）
 - [x] save zip 打包/解包/原子替换（随 PL003 落地）——已完成（capsule-core save/patch/paths 三模块 + 15 集成测试）
-- [x] 验收：Windows 上跑通一个示例游戏，全屏填充图正确显示，存档能回写 save 文件（原 macOS 验收移 Phase 5）——已完成（PL003 VA1 live：存档 → 停止回写 → 读档续玩；画面由帧流画布承担）
+- [x] 验收：Windows 上跑通一个示例游戏，全屏填充图正确显示，存档能回写 save 文件（原 macOS 验收移 Phase 6）——已完成（PL003 VA1 live：存档 → 停止回写 → 读档续玩；画面由帧流画布承担）
 
 > 实况备注（2026-09-07）：前三项已由 PL002 完成（界面隐藏 = DosboxCapsule 离屏托管；**4:3 填充方案变更**——SetParent 判死（VC0），改由 fork 帧流 + launcher 画布整数缩放达成，跨平台缺口仅剩 macOS/Linux 窗口隐藏，见 y.problems #10）；save 闭环未做，随 PL003 落地。
 > 实况收口（2026-09-08）：save 闭环已随 PL003 落地（打包/解包/原子替换 + 损坏降级 + 补丁纪律代码化），live 验收全过（z.plan 附录 PL003 实测结论）。
@@ -181,19 +181,26 @@ config/          # 用户对 dosbox.conf 的覆盖片段
 ### Phase 3 — 打包器 CLI（约 2 周，Windows 产物）✅ 完成（2026-09-09，PL004）
 
 - [x] game.json 校验与解析 ——已完成（capsule-core game_config.rs：v2 结构 game_dir/save_files/patches + 校验）
-- [x] `capsule-pack`：Windows 单 exe 产物生成（macOS .app / Linux AppImage 移 Phase 5）——已完成（exe 尾部追加 zip payload + trailer；dist/XEEN.exe 37.6MB / 413 条目）
+- [x] `capsule-pack`：Windows 单 exe 产物生成（macOS .app / Linux AppImage 移 Phase 6）——已完成（exe 尾部追加 zip payload + trailer；dist/XEEN.exe 37.6MB / 413 条目）
 - [x] 资源内嵌 + 首次运行释放（含进度提示）——已完成（payload extract-once 释放 runtime/resources，版本标记自愈；进度提示不必要——实测秒级）
 - [x] 游戏文件压缩存储 ——已完成（payload zip deflate）
 - [x] 验收：用一款真实 DOS 游戏跑通 Windows 打包 → 运行全流程 ——已完成（VA1 干净环境用户 live 通过）
 
-### Phase 4 — Windows 打磨与发布（约 1.5 周）→ 拆分立项：UI 第一遍打磨 = PL006（进行中，黑金典藏版定案）；发布工程与杀软对策待 UI 打磨完毕后另行立项
+### Phase 4 — Windows UI 打磨（连续小热更迭代）→ 第一遍 = PL006（✅ 完结判收 2026-09-10）
+
+- [x] UI 第一遍打磨：待机页 / 会话态 / 攻略面板按黑金典藏版稿移植 + 封面资产链（cover/hero 随包与回落）+ 图标与产品名 ——已完成（PL006，2026-09-10 用户目测判收；原 Phase 4「UI 打磨」项即此）
+- [ ] UI 持续迭代：连续小热更（2026-09-10 用户定调——第一遍仅是起点，最终形态待用户深入考虑后定案；迭代清单随定案逐条开小任务组，不做动效为既定纪律）
+- [ ] 验收：UI 最终形态用户判收（与定案稿并排对照目测）——随迭代热更推进，定案时收口
+
+### Phase 5 — Windows 发布工程与杀软对策（约 0.5 周，UI 定案后另行立项）
 
 - [ ] Windows 杀软误报实测与对策（签名或降级方案）——0.1.0 倾向 zip 分发 + readme SmartScreen 指引，代码签名后续评估
-- [ ] GitHub Actions Windows 构建与产物分发流水线
-- [ ] UI 打磨（封面、填充图效果、攻略排版）——不做动效（2026-09-09 定案）；填充图效果随方案变更由统一窗口画布承接
-- [ ] 验收：Windows 产物可从零运行，新机器首次启动无人工干预
+- [ ] GitHub Actions Windows 构建与产物分发流水线（前置：DosboxCapsule 仓发首个 Release 提供带补丁 dosbox 构建产物）
+- [ ] 验收：Windows 产物可从零运行，新机器首次启动无人工干预（tag 触发流水线产物实机验证）
 
-### Phase 5 — macOS / Linux 适配与发布（约 1.5 周，排期最后）→ 0.2.0（登记不动，见 §9 版本路线）
+> 拆分说明（2026-09-10 用户定案）：原 Phase 4「打磨与发布」拆为 Phase 4（UI 打磨）与 Phase 5（发布）两个独立 Phase——UI 走连续小热更、定案前不启动发布；原 Phase 5（macOS/Linux）顺延为 Phase 6。
+
+### Phase 6 — macOS / Linux 适配与发布（约 1.5 周，排期最后）→ 0.2.0（登记不动，见 §9 版本路线）
 
 - [ ] 窗口隐藏等价手段：macOS NSWindow / Linux 窗管方案验证（y.problems #10）
 - [ ] `capsule-pack`：macOS .app / Linux AppImage 产物生成
@@ -213,28 +220,30 @@ config/          # 用户对 dosbox.conf 的覆盖片段
 | 首次运行释放缓存耗时                  | 低   | 释放时显示进度；增量释放（版本号比对）                       |
 | 帧流转录延迟 / 输入延迟 不达预期      | 中   | 体验硬化阶梯（§10）：WS 直推 → 进程内 core → 真窗口嵌入      |
 
-> 实况备注（2026-09-07）：第 1 行风险已随 §4.3 方案变更转移——统一窗口形态下 Windows 无窗口嵌入需求，macOS/Linux 剩"窗口隐藏"缺口（y.problems #10）；该缺口已随排期调整（Windows 优先）移至 Phase 5 处理。
+> 实况备注（2026-09-07）：第 1 行风险已随 §4.3 方案变更转移——统一窗口形态下 Windows 无窗口嵌入需求，macOS/Linux 剩"窗口隐藏"缺口（y.problems #10）；该缺口已随排期调整（Windows 优先）移至 Phase 6 处理。
 
 ## 9. 时间预估
 
-**全职投入：约 10 周**（2026-09-07 排期调整：Phase 0–4 Windows 全量优先约 9 周 + Phase 5 macOS/Linux 适配约 1.5 周）
+**全职投入：约 10 周**（2026-09-07 排期调整：Phase 0–5 Windows 全量优先约 9 周 + Phase 6 macOS/Linux 适配约 1.5 周；2026-09-10 Phase 4 拆分——UI 打磨转连续热更弹性计入，发布独立为 Phase 5）
 
-| Phase   | 内容             | 时间   |
-| ------- | ---------------- | ------ |
-| Phase 0 | POC 技术验证     | 1.5 周 |
-| Phase 1 | 启动器核心       | 2.5 周 |
-| Phase 2 | 补丁与 save 闭环 | 1.5 周 |
-| Phase 3 | 打包器 CLI       | 2 周   |
-| Phase 4 | 打磨与发布       | 2 周   |
+| Phase   | 内容                     | 时间             |
+| ------- | ------------------------ | ---------------- |
+| Phase 0 | POC 技术验证             | 1.5 周           |
+| Phase 1 | 启动器核心               | 2.5 周           |
+| Phase 2 | 补丁与 save 闭环         | 1.5 周           |
+| Phase 3 | 打包器 CLI               | 2 周             |
+| Phase 4 | UI 打磨（连续热更）      | 弹性（首遍已完） |
+| Phase 5 | 发布工程与杀软           | 0.5 周           |
+| Phase 6 | macOS / Linux 适配与发布 | 1.5 周           |
 
 **兼职投入：约 3-4 个月**（按每天 2-3 小时估算）
 
-关键里程碑：Phase 0 结束 = 技术可行性确认（最大风险已排除）；Phase 2 结束 = 产品闭环可用；Phase 4 结束 = 可发布。
+关键里程碑：Phase 0 结束 = 技术可行性确认（最大风险已排除）；Phase 2 结束 = 产品闭环可用；Phase 5 结束 = Windows 可发布；Phase 6 结束 = 三平台可发布。
 
 版本路线（2026-09-09 用户定案）：
 
-- **0.1.0 = Windows 可玩可发布**：对应 Phase 0–4（PL004 打包器落地 + 体验硬化（PL005）与发布打磨收口，打 V0.1.0.R）
-- **0.2.0 = 三端适配（登记不动）**：macOS / Linux，对应 Phase 5；0.1.x 稳定后再细化立项（最大风险项：Linux Wayland 输入注入）
+- **0.1.0 = Windows 可玩可发布**：对应 Phase 0–5（打包器落地 + 体验硬化（PL005）+ UI 打磨连续热更定案（Phase 4）+ 发布工程与杀软收口（Phase 5），打 V0.1.0.R）
+- **0.2.0 = 三端适配（登记不动）**：macOS / Linux，对应 Phase 6；0.1.x 稳定后再细化立项（最大风险项：Linux Wayland 输入注入）
 
 ## 10. 体验硬化阶梯（2026-09-09 定案）
 

@@ -845,6 +845,7 @@ A001 的 43 项 P 级修复经 PL003/PL004/PL005 三次大改后整体稳固：*
 > 关键洞察：视觉方向已完成实稿定案（assets/design/ 五版稿库入库，v3 为定案），UI 施工从"设计什么"退化为"照稿移植"；封面/主视觉真图就位（retro/artwork/），剩余是资产管线（字段位 + 压缩 + 随包）。
 > 目标：待机页 / 会话顶栏与画布 / 攻略面板 / HudBar 按 v3 稿完成第一遍落地；exe 具备图标与产品名；封面资产随包可显示、无图可回落。
 > 状态：✅ 完结（2026-09-10，9/9；VA1 用户目测判收通过；证据 `.temp/pl006-verification.md`）
+> 后续定调（2026-09-10 用户）：本附录仅覆盖**第一遍**打磨——UI 将以连续小热更新方式持续迭代，最终形态待用户深入考虑后另行定案；发布工程与杀软对策在 UI 定案前不立项。
 
 ### 方向定案（2026-09-10，用户拍板）
 
@@ -889,3 +890,55 @@ A001 的 43 项 P 级修复经 PL003/PL004/PL005 三次大改后整体稳固：*
 ### 拆分 todo
 
 见 x.progress.md「PL006」任务组。
+
+---
+
+## 附录 PL007：会话内数值修改器——金手指第一歩（2026-09-11 立项）
+
+> 背景：内存观察链（monitor REST + memory_map 档案 + HUD 轮询）为只读闭环，无任何写内存通道；用户定案引入首个"点击按钮改数值"功能——会话中「+10000 金币」「+10000 宝石」两枚按钮，作为修改器能力的第一歩。gold/gems 地址与类型已在档案登记（gold = 0x5AA3:0x000E u32le，gems = 0x5AA4:0x0002 u32le），"写哪里"无需新勘探。
+> 关键洞察：fork webserver 已有三次加端点先例（帧流 / 输入注入 / chunked 直推），输入注入即 POST——写端点是同一模式的第四次复用；HUD 500ms 轮询读的就是同一地址，写入后数值自动跳动，天然验收器。
+> 目标：会话中点按钮即时加值；写入走「fork 写端点 → monitor 白名单 → launcher 命令」三件套，任意地址写被白名单挡死，纪律不失控。
+> 状态：✅ 完结（2026-09-11，4/4；live 双按钮闭环全过；证据 `.temp/pl007-verification.md`）
+> 实况修正（2026-09-11）：立项时假设上游 webserver 只读、需 fork 新增写端点——核对源码后证实 vanilla v0.83.0 已内置 `PUT /api/v1/memory/{segment}/{offset}`（If-Match 乐观并发 / 越界 400），**fork 补丁取消**，DosboxCapsule 仓零改动，实现面收敛为本仓 monitor 白名单 + launcher 命令与按钮。
+
+### 方向定案
+
+1. **白名单纪律（本功能的核心约束）**：monitor 层只放行完整落在 memory_map.json 登记条目区间内的写入，其余一律 `WriteDenied` 拒绝；fork 端点保持通用薄层（仅长度/地址合法性校验），纪律收敛在 capsule-core 一处。
+2. **读-改-写封装**：按档案条目 GET 当前值 → 类型感知饱和加法（u32le 封顶 u32::MAX、i16le 封顶 i16::MAX/MIN，防回绕）→ POST 写回；三步在 launcher 后端完成，前端只发意图。
+3. **按钮属会话态**：dosbox 不在时无可写内存，按钮只出现在会话顶栏 HUD 右侧（v3 色板 ghost 小按钮）；待机页不放。
+4. **UI 期纪律**：本功能只加控件不碰布局定案——UI 最终形态仍待用户深入考虑后定案；发布工程照旧在 UI 定案前不立项。
+
+### 实现措施（按层拆解）
+
+#### A. 上游写端点验证（fork 零改动——2026-09-11 实况修正）
+
+- ~~webserver 新增写端点~~ **实况**：立项后核对 fork 源码发现 vanilla v0.83.0 webserver 已内置完整写端点 `PUT /api/v1/memory/{segment}/{offset}`（`WriteMemoryCommand::Put`，body 支持 `application/octet-stream` 原始字节或 JSON+base64；`If-Match` 头乐观并发——不匹配返回 412 附当前值；越界/非法输入 400）——**fork 补丁取消**，无 DosboxCapsule 改动与重建
+- 以 live 探针验证端点语义：合法地址写 → GET 读回一致；If-Match 不匹配 → 412；越界 → 400
+
+#### B. capsule-core monitor（写 API + 白名单）
+
+- `rest.rs` 增 `write_memory(addr, bytes)`（POST，`MonitorError` 增写失败变体）；档案条目区间白名单校验（写入 [offset, offset+len) 须完整落在某登记条目内）
+- monitor 增 `adjust_field(name, delta)`：按条目名取地址与类型 → GET 当前值 → 饱和加法 → 白名单校验 → 写回，返回新值
+- TDD（纯逻辑单测，无需 dosbox 在场）：白名单拒绝（未登记/跨界地址 → WriteDenied）、饱和封顶（u32::MAX 附近 +10000 不回绕）、条目边界命中判定
+
+#### C. launcher + 前端
+
+- `commands.rs` 增 `cheat_adjust(field, delta)` 命令：无会话显式报错（沿用"当前无游戏会话"语义）、field 经 monitor 白名单把关、返回新值字符串
+- `App.vue` 会话顶栏 HUD 右侧加「+10000 金币」「+10000 宝石」两枚 ghost 按钮（v3 色板），点击 invoke 后经状态行反馈新值；HUD 轮询数值变化即旁证
+- CSP 零改动：写入经 launcher 后端转发，前端不直连 dosbox
+
+### 验收标准
+
+1. **VA1 live 闭环**：拉起会话 → 点「+10000 金币」→ HUD 金币半秒内 +10000；宝石同；停止回写 save → 读档确认改动持久化
+2. **VA2 白名单与饱和**：未登记地址写入被 WriteDenied（单测）；饱和封顶不回绕（单测）
+3. **VA3 既有链路无回归**：dosbox 静默启动 / 帧流 / 输入注入 live 探针三件套照跑全过（fork 零改动，写端点为上游既有能力，启用不触碰渲染/注入路径）
+4. **收尾**：全量门禁（fmt/clippy/test/doc + vue-tsc/npm build）绿 + z.plan 实测结论回写 + x.progress 勾结
+
+### 实测结论（2026-09-11 收口回写）
+
+1. **VA1 live 闭环**：会话态点「金币 +10000」→ 状态行 "gold 已修改，现值 15620" 且 HUD 金币即时跟显 15620；「宝石 +10000」→ "gems 已修改，现值 10010"、HUD 宝石 10010（原值 10，算术精确）。写入链路 = 前端 invoke → launcher 命令（锁内取端口、锁外 HTTP）→ monitor 白名单闸 → 上游 PUT。
+2. **VA2 白名单与饱和**：3 单测（样例 = 真实 92 条 memory_map.json）红→绿全过——白名单只放行完整落在登记条目区间内的写入（右界越出/同段空档/异段套偏移全拒，len=0 拒）；编码前按类型饱和封顶（u32::MAX 附近 +10000 不回绕）；未知条目名触网前拒绝。`write_memory` 强制携带 map 参数，任意地址写在库层结构性挡死。
+3. **VA3 既有链路无回归**：fork 零改动；ignored live 探针三件套（hud 双通道 11.46s、五轮启动停止无残留、启动会话日志与 REST 可达）全过；门禁 fmt --check / clippy -D warnings / cargo doc / cargo test --workspace（18 套件）/ vue-tsc + npm build 全绿。
+4. **口径说明**：金手指改的是运行内存，进入 save 档案需游戏自身在游戏内存档（XEEN 菜单存档）——自动化验证止步于"内存写入成立 + save 回写机制成立"两环节各自实证，复合持久化属游戏自身行为，玩家存档后自然生效。If-Match 乐观并发（上游 412 机制）暂未启用：并发丢失更新对金手指语义无害，留作后续打磨项。附带观察：标题演示模式下游戏自身会改写金币值，写读竞窗客观存在。
+
+### 拆分 todo

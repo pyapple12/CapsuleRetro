@@ -92,6 +92,39 @@ impl ValueType {
         };
         Ok(value)
     }
+    /// 把目标数值按类型饱和封顶到合法区间（写内存前的加法回绕防护）。
+    ///
+    /// # 参数
+    /// - `value`：加法后的目标值（i64 承载）
+    ///
+    /// # 返回
+    /// 封顶后的值：无符号类型区间 [0, 类型最大值]；I16LE 双向封顶。
+    pub fn clamp_value(self, value: i64) -> i64 {
+        match self {
+            ValueType::U8 => value.clamp(0, i64::from(u8::MAX)),
+            ValueType::U16LE => value.clamp(0, i64::from(u16::MAX)),
+            ValueType::U32LE => value.clamp(0, i64::from(u32::MAX)),
+            ValueType::I16LE => value.clamp(i64::from(i16::MIN), i64::from(i16::MAX)),
+        }
+    }
+
+    /// 把数值封顶并编码为该类型宽度的内存字节（小端）。
+    ///
+    /// # 参数
+    /// - `value`：目标数值（内部先经 [`Self::clamp_value`] 封顶，之后按
+    ///   类型宽度截取不会丢位）
+    ///
+    /// # 返回
+    /// 类型宽度的 LE 字节序列。
+    pub fn encode(self, value: i64) -> Vec<u8> {
+        let value = self.clamp_value(value);
+        match self {
+            ValueType::U8 => vec![value as u8],
+            ValueType::U16LE => (value as u16).to_le_bytes().to_vec(),
+            ValueType::U32LE => (value as u32).to_le_bytes().to_vec(),
+            ValueType::I16LE => (value as i16).to_le_bytes().to_vec(),
+        }
+    }
 }
 
 impl<'de> Deserialize<'de> for ValueType {
@@ -201,4 +234,24 @@ pub struct Entry {
     pub len: u8,
     /// 数值类型与解码方式。
     pub value_type: ValueType,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// PL007.2 验证：编码前按类型饱和封顶——u32 封顶不回绕、i16 双向
+    /// 封顶；普通值按小端编码。
+    #[test]
+    fn 编码前按类型饱和封顶() {
+        assert_eq!(
+            ValueType::U32LE.encode(i64::from(u32::MAX) + 10_000),
+            [0xFF, 0xFF, 0xFF, 0xFF]
+        );
+        assert_eq!(ValueType::U32LE.encode(50_000), [0x50, 0xC3, 0x00, 0x00]);
+        assert_eq!(ValueType::U16LE.encode(50_000), [0x50, 0xC3]);
+        assert_eq!(ValueType::I16LE.encode(40_000), [0xFF, 0x7F]);
+        assert_eq!(ValueType::I16LE.encode(-40_000), [0x00, 0x80]);
+        assert_eq!(ValueType::U8.encode(300), [0xFF]);
+    }
 }

@@ -818,6 +818,55 @@ fn get_game_info_impl() -> Result<GameInfo> {
     })
 }
 
+/// 会话内数值修改结果（金手指反馈）。
+#[derive(serde::Serialize)]
+pub struct CheatAdjusted {
+    /// 修改的档案条目名（如 "gold"）。
+    pub field: String,
+    /// 饱和封顶后的新值。
+    pub value: i64,
+}
+
+/// 会话内数值修改（金手指）：按 memory_map 档案条目读-改-写，白名单由
+/// capsule-core monitor 把关。async 化：两次 HTTP（读+写，各 5s 超时）在
+/// 异步运行时线程执行，不占主线程。
+///
+/// # Errors
+/// 无会话 / 档案缺失 / 未知条目 / 白名单拒绝 / 传输失败时返回错误消息。
+#[tauri::command]
+pub async fn cheat_adjust(
+    state: tauri::State<'_, SessionState>,
+    field: String,
+    delta: i64,
+) -> Result<CheatAdjusted, String> {
+    let port = {
+        let slot = state.inner.lock().map_err(|e| e.to_string())?;
+        let session = slot.as_ref().ok_or_else(|| "当前无游戏会话".to_string())?;
+        session.port()
+    };
+    // 锁外执行 HTTP——与注入不同：修改非高频、无需绑定会话生命周期；
+    // 会话中途退出表现为传输失败，无一致性风险
+    cheat_adjust_impl(port, &field, delta).map_err(|e| format!("{e:#}"))
+}
+
+/// cheat_adjust 的同步实现（便于错误上下文组织）。
+fn cheat_adjust_impl(port: u16, field: &str, delta: i64) -> Result<CheatAdjusted> {
+    let ctx = resolve_resource_ctx()?;
+    let config = capsule_core::game_config::GameConfig::load(&ctx.root.join("retro/game.json"))
+        .context("加载 retro/game.json 失败")?;
+    let map_path = ctx.root.join(&config.assets.memory_map);
+    let map = capsule_core::monitor::profile::MemoryMap::load(&map_path)
+        .with_context(|| format!("加载内存档案失败: {}", map_path.display()))?;
+    let client = capsule_core::monitor::rest::RestClient::new(port);
+    let value = client
+        .adjust_field(&map, field, delta)
+        .with_context(|| format!("修改 {field} 失败"))?;
+    Ok(CheatAdjusted {
+        field: field.to_string(),
+        value,
+    })
+}
+
 /// 封面字节转 data URL（按扩展名定 MIME；未知扩展名严格报错不猜类型）。
 ///
 /// # Errors

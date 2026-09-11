@@ -48,6 +48,7 @@ pub fn run() {
             commands::get_game_info,
             commands::get_guide,
             commands::inject_input,
+            commands::cheat_adjust,
             commands::log_perf_stats
         ]);
     if let Err(err) = app.run(tauri::generate_context!()) {

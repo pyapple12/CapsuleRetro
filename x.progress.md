@@ -308,6 +308,24 @@
 
 - [x] PL006.9 验收收尾 —— 做法：launcher 待机页/会话顶栏/攻略面板与 assets/design/v3 稿并排对照目测判收（VA1）；无 cover 回落占位与有 cover 显示双向验证（VA2）；图标/任务栏名/窗口标题正确（VA3）；全量门禁（fmt/clippy/test/doc + vue-tsc/npm build）绿；z.plan 实测结论回写 + 本组勾结上移；验证：VA1–VA3 全过 + 门禁绿（✅ 2026-09-10：VA1/VA2/VA3 全过 + dist 端到端首启（payload 含封面、释放目录两图在位）；门禁全绿——单测 59 + live 探针 3 串行全过；VA1 用户目测判收通过（2026-09-10））
 
+### PL007: 会话内数值修改器——金手指第一歩 [plan#PL007]（✅ 2026-09-11 收口，4/4；live 双按钮闭环 + 反向验证全过，证据见 `.temp/pl007-verification.md`）
+
+#### 阶段 A：上游写端点验证（fork 零改动）
+
+- [x] PL007.1 上游写端点 live 探针 —— 做法：~~fork 新增写补丁~~（2026-09-11 实况修正：vanilla v0.83.0 webserver 已内置 `PUT /api/v1/memory/{segment}/{offset}`——octet-stream 原始字节 / JSON+base64 双形态、If-Match 乐观并发 412、越界 400，fork 补丁取消）；live 会话起后 curl 探针：合法地址写 → GET 读回一致、If-Match 不匹配 → 412、越界地址 → 400；验证：三探针全过（ DosboxCapsule 仓零改动）（✅ 2026-09-11：写读回一致（50c30000 @ 0x5AA3E）/ 412 附当前值 / 现读现写命中 200 / 越界 400 带明确错误；HUD 实证金币 50000）
+
+#### 阶段 B：monitor 写 API + 白名单
+
+- [x] PL007.2 monitor write_memory + adjust_field + 白名单 —— 做法：rest.rs 增 `write_memory(addr, bytes)`（POST，MonitorError 增写失败变体）；memory_map 条目区间白名单（写入区间须完整落某登记条目内，否则 `WriteDenied`）；`adjust_field(name, delta)` = GET → 类型感知饱和加法（u32le/i16le 封顶）→ 校验 → 写回；验证：单测先行红→绿——白名单拒绝（未登记/跨界地址）、u32 饱和封顶不回绕、条目边界命中判定（纯逻辑，无需 dosbox）（✅ 2026-09-11：3 单测红→绿全过（样例 = 真实 92 条档案）；write_memory 带 map 参数做白名单闸，裸 PUT 收敛为私有传输）
+
+#### 阶段 C：launcher 与按钮
+
+- [x] PL007.3 cheat_adjust 命令与会话态加值按钮 —— 做法：commands.rs 增 `cheat_adjust(field, delta)`（无会话显式报错、返回新值）；App.vue 会话顶栏 HUD 右侧加「+10000 金币」「+10000 宝石」ghost 按钮（v3 色板），点击后状态行反馈新值；CSP 零改动（写入经后端转发）；验证：cargo test + vue-tsc/npm build 过（✅ 2026-09-11：锁内取 port 锁外 HTTP；注册进 invoke_handler；构建全绿）
+
+#### 阶段 D：验收收尾
+
+- [x] PL007.4 验收收尾 —— 做法：live 会话点按钮 → HUD 半秒内跳值（金币/宝石双向）→ 停止回写 save → 读档确认持久化（VA1）；白名单拒绝与饱和封顶单测全过（VA2）；静默启动/帧流/输入注入 live 探针三件套无回归（VA3）；全量门禁（fmt/clippy/test/doc + vue-tsc/npm build）绿；z.plan 实测结论回写 + 本组勾结上移；验证：VA1–VA3 全过 + 门禁绿（✅ 2026-09-11：VA1 双向过——gold 5620+10000=15620、gems 10+10000=10010，后端返回值与 HUD 一致；持久化复合环节（游戏自身存档）不在控制面，见实测结论口径说明；VA2 单测过；VA3 三件套全过；门禁全绿）
+
 ## 未完成
 
 （暂无——任务完成后整组上移至已完成区）

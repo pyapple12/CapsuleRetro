@@ -131,6 +131,19 @@ async function onStop(): Promise<void> {
     busy.value = false;
   }
 }
+
+/** 会话内数值修改（金手指）：写成功后经状态行反馈新值，HUD 轮询自动跟显。 */
+async function onCheat(field: string, delta: number): Promise<void> {
+  try {
+    const res = await invoke<{ field: string; value: number }>("cheat_adjust", {
+      field,
+      delta,
+    });
+    status.value = `${res.field} 已修改，现值 ${res.value}`;
+  } catch (err) {
+    status.value = `失败: ${String(err)}`;
+  }
+}
 </script>
 
 <template>
@@ -140,6 +153,12 @@ async function onStop(): Promise<void> {
         <span class="brand2">CAPSULERETRO</span>
         <HudBar />
         <span class="spacer"></span>
+        <button class="btn ghost small" :disabled="busy" @click="onCheat('gold', 10000)">
+          金币 +10000
+        </button>
+        <button class="btn ghost small" :disabled="busy" @click="onCheat('gems', 10000)">
+          宝石 +10000
+        </button>
         <button class="btn ghost small" :disabled="busy" @click="onStop">停止游戏</button>
       </div>
       <GameCanvas :active="running" />
