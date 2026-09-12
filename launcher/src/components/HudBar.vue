@@ -10,6 +10,8 @@ interface HudSnapshot {
   occupied: boolean[];
   /** 各队员名册槽位（面容文件号 = 值 + 1——PL009.2） */
   face: number[];
+  /** 各队员姓名原始字节（Big5，含控制码与 NUL 填充——PL009.2） */
+  name: number[][];
   gold: number;
   gems: number;
   food: number;
@@ -91,10 +93,38 @@ onUnmounted(() => {
   for (const unlisten of unlisteners) unlisten();
 });
 
-/** 槽位对应头像 data URL（面容文件号 = 名册槽位 + 1；空槽返回 undefined）。 */
+/** 槽位对应头像 data URL（面容文件号 = 名册槽位 + 1；空槽或图缺失返回 undefined）。 */
 function faceSrc(index: number): string | undefined {
   if (!occupied.value[index]) return undefined;
   return faces.value[faceIds.value[index] + 1];
+}
+
+/**
+ * 三元联动判断（PL009.2 热更定案）：头像识别成功 = 槽位占用且面容图在册。
+ * 头像 / HP / 姓名三处的显示与"—"占位统一由它驱动，识别不到则三者一起画"—"。
+ */
+function identified(index: number): boolean {
+  return occupied.value[index] && faceSrc(index) != null;
+}
+
+/** Big5 解码器（WebView2 原生支持；不支持的环境姓名回落空串）。 */
+let big5: TextDecoder | null = null;
+try {
+  big5 = new TextDecoder("big5");
+} catch {
+  big5 = null;
+}
+
+/** 解码姓名原始字节：剥 `%E` 控制码头部、去 NUL 填充、Big5 转文本（仅在 identified 时被模板调用）。 */
+function nameOf(index: number): string {
+  if (!snapshot.value) return "";
+  let bytes = snapshot.value.name[index] ?? [];
+  if (bytes.length >= 2 && bytes[0] === 0x25 && bytes[1] === 0x45) bytes = bytes.slice(2);
+  const end = bytes.indexOf(0);
+  if (end !== -1) bytes = bytes.slice(0, end);
+  if (!bytes.length) return "";
+  const text = (big5 ?? new TextDecoder("utf-8")).decode(Uint8Array.from(bytes)).trim();
+  return text;
 }
 
 /**
@@ -118,20 +148,23 @@ function hpColor(hp: number, base: number): string {
         v-for="(hp, index) in snapshot.hp"
         :key="index"
         class="cell member"
-        :class="{ 'slot-empty': !occupied[index] }"
+        :class="{ 'slot-empty': !identified(index) }"
       >
-        <img
-          v-if="occupied[index] && faceSrc(index)"
-          :src="faceSrc(index)"
-          alt=""
-          class="face"
-          draggable="false"
-        />
-        <span v-else class="face face-fallback">—</span>
-        <b v-if="occupied[index]" class="hp" :style="{ color: hpColor(hp, baseline[index]) }">{{
-          hp
-        }}</b>
-        <b v-else class="hp hp-empty">—</b>
+        <span class="top">
+          <img
+            v-if="identified(index)"
+            :src="faceSrc(index)"
+            alt=""
+            class="face"
+            draggable="false"
+          />
+          <span v-else class="face face-fallback">—</span>
+          <b v-if="identified(index)" class="hp" :style="{ color: hpColor(hp, baseline[index]) }">{{
+            hp
+          }}</b>
+          <b v-else class="hp hp-empty">—</b>
+        </span>
+        <span class="name">{{ identified(index) ? nameOf(index) : "—" }}</span>
       </span>
       <span class="cell"
         >金币 <b>{{ snapshot.gold }}</b></span
@@ -170,8 +203,24 @@ function hpColor(hp: number, base: number): string {
 }
 .member {
   display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.top {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+.name {
+  max-width: 72px;
+  min-height: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  line-height: 12px;
+  color: var(--text-dim, #8f897a);
 }
 .slot-empty {
   opacity: 0.35;

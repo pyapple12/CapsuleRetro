@@ -24,6 +24,20 @@ const WATCHED: [&str; 21] = [
     "face1", "face2", "face3", "face4", "face5", "face6", "gold", "gems", "food",
 ];
 
+/// 队伍姓名块（seg, off）：与 occ 同址起读，长度 [`NAME_LEN`]；内容为 Big5
+/// 原始字节（头部可能带 `%E` 控制码，由前端解码时剥离——PL009.2）。
+const NAME_BLOCKS: [(u16, u32); 6] = [
+    (0x56E5, 0x0000),
+    (0x56FB, 0x0004),
+    (0x5711, 0x0006),
+    (0x5727, 0x0008),
+    (0x573D, 0x000A),
+    (0x5753, 0x000C),
+];
+
+/// 姓名块读取长度（名字字段 16 字节，含 NUL 填充）。
+const NAME_LEN: u32 = 16;
+
 /// 一帧 HUD 快照。
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct HudSnapshot {
@@ -41,6 +55,8 @@ pub struct HudSnapshot {
     pub food: i64,
     /// 食物可维持天数（food / 18 取整，定案派生公式）
     pub food_days: i64,
+    /// 全队姓名（Big5 原始字节，含 `%E` 控制码头与 NUL 填充，前端解码——PL009.2）
+    pub name: [[u8; 16]; 6],
 }
 
 /// HUD 轮询事件。
@@ -209,9 +225,21 @@ fn poll_once(client: &RestClient, entries: &[&Entry]) -> Result<HudSnapshot, Mon
         hp,
         occupied,
         face,
+        name: read_names(client)?,
         gold,
         gems,
         food,
         food_days: food / 18,
     })
+}
+
+/// 读取全队姓名块（Big5 原始字节，交由前端解码）。
+fn read_names(client: &RestClient) -> Result<[[u8; 16]; 6], MonitorError> {
+    let mut name = [[0u8; 16]; 6];
+    for (k, (seg, off)) in NAME_BLOCKS.iter().enumerate() {
+        let bytes = client.memory(Some(*seg), *off, NAME_LEN)?;
+        let n = bytes.len().min(NAME_LEN as usize);
+        name[k][..n].copy_from_slice(&bytes[..n]);
+    }
+    Ok(name)
 }
