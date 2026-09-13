@@ -16,6 +16,17 @@ interface HudSnapshot {
   gems: number;
   food: number;
   food_days: number;
+  /** 队伍朝向（0–3，方位映射由前端完成——PL011） */
+  direction: number;
+  /** 所在格 X/Y（0–15，数据坐标） */
+  pos_x: number;
+  pos_y: number;
+  /** 所在地图编号 */
+  map_id: number;
+  /** 所在地图名（后端查内嵌区域名表；无名图为 null） */
+  map_name: string | null;
+  /** 所在地图是否户外（表未收录为 null） */
+  map_outdoors: boolean | null;
 }
 
 /** 头像资产条目（与后端 FaceImage 对应）。 */
@@ -139,6 +150,21 @@ function hpColor(hp: number, base: number): string {
   if (ratio >= 0.2) return "var(--hp-warn, #e5c07b)";
   return "var(--hp-danger, #ff7b72)";
 }
+
+/** 朝向字节 → 方位名（0=北顺时针；方位语义经 live 判收确认——PL011.6）。 */
+const DIRECTIONS = ["北", "东", "南", "西"] as const;
+
+/** 所在地图显示文本：名字优先，无名图回落"地图 N"。 */
+function mapLabel(): string {
+  if (!snapshot.value) return "";
+  return snapshot.value.map_name ?? `地图 ${snapshot.value.map_id}`;
+}
+
+/** 户外/户内标志文本（表未收录时省略）。 */
+function outdoorLabel(): string {
+  const out = snapshot.value?.map_outdoors;
+  return out == null ? "" : out ? "户外" : "户内";
+}
 </script>
 
 <template>
@@ -175,6 +201,11 @@ function hpColor(hp: number, base: number): string {
       <span class="cell"
         >食物 <b>{{ snapshot.food }}</b
         >（{{ snapshot.food_days }} 天）</span
+      >
+      <span class="cell loc"
+        >{{ mapLabel() }} <b>{{ outdoorLabel() }}</b
+        >（{{ snapshot.map_id }} 号）<b>{{ snapshot.pos_x }},{{ snapshot.pos_y }}</b>
+        <b>{{ DIRECTIONS[snapshot.direction] ?? "—" }}</b></span
       >
     </template>
     <span v-else class="cell muted">HUD 等待游戏会话…</span>

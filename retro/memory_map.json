@@ -1,734 +1,769 @@
 {
-  "game": "xeen",
-  "poll_interval_ms": 500,
-  "entries": [
-    {
-      "name": "hp1",
-      "segment": "0x56FA",
-      "offset": "0x0008",
-      "len": 2,
-      "value_type": "i16le"
-    },
-    {
-      "name": "mp1",
-      "segment": "0x56FA",
-      "offset": "0x000A",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "exp1",
-      "segment": "0x56FA",
-      "offset": "0x000E",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "hp2",
-      "segment": "0x5710",
-      "offset": "0x000A",
-      "len": 2,
-      "value_type": "i16le"
-    },
-    {
-      "name": "mp2",
-      "segment": "0x5710",
-      "offset": "0x000C",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "exp2",
-      "segment": "0x5710",
-      "offset": "0x0010",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "hp3",
-      "segment": "0x5726",
-      "offset": "0x000C",
-      "len": 2,
-      "value_type": "i16le"
-    },
-    {
-      "name": "mp3",
-      "segment": "0x5726",
-      "offset": "0x000E",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "exp3",
-      "segment": "0x5726",
-      "offset": "0x0012",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "hp4",
-      "segment": "0x573C",
-      "offset": "0x000E",
-      "len": 2,
-      "value_type": "i16le"
-    },
-    {
-      "name": "mp4",
-      "segment": "0x573D",
-      "offset": "0x0000",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "exp4",
-      "segment": "0x573D",
-      "offset": "0x0004",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "hp5",
-      "segment": "0x5753",
-      "offset": "0x0000",
-      "len": 2,
-      "value_type": "i16le"
-    },
-    {
-      "name": "mp5",
-      "segment": "0x5753",
-      "offset": "0x0002",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "exp5",
-      "segment": "0x5753",
-      "offset": "0x0006",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "hp6",
-      "segment": "0x5769",
-      "offset": "0x0002",
-      "len": 2,
-      "value_type": "i16le"
-    },
-    {
-      "name": "mp6",
-      "segment": "0x5769",
-      "offset": "0x0004",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "exp6",
-      "segment": "0x5769",
-      "offset": "0x0008",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "gold",
-      "segment": "0x5AA3",
-      "offset": "0x000E",
-      "len": 4,
-      "value_type": "u32le"
-    },
-    {
-      "name": "gems",
-      "segment": "0x5AA4",
-      "offset": "0x0002",
-      "len": 4,
-      "value_type": "u32le"
-    },
-    {
-      "name": "bank_gold",
-      "segment": "0x5AA4",
-      "offset": "0x0006",
-      "len": 4,
-      "value_type": "u32le"
-    },
-    {
-      "name": "bank_gems",
-      "segment": "0x5AA4",
-      "offset": "0x000A",
-      "len": 4,
-      "value_type": "u32le"
-    },
-    {
-      "name": "might1",
-      "segment": "0x56E6",
-      "offset": "0x0006",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "intellect1",
-      "segment": "0x56E6",
-      "offset": "0x0008",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "personality1",
-      "segment": "0x56E6",
-      "offset": "0x000A",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "endurance1",
-      "segment": "0x56E6",
-      "offset": "0x000C",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "speed1",
-      "segment": "0x56E6",
-      "offset": "0x000E",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "accuracy1",
-      "segment": "0x56E7",
-      "offset": "0x0000",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "luck1",
-      "segment": "0x56E7",
-      "offset": "0x0002",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "might2",
-      "segment": "0x56FC",
-      "offset": "0x0008",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "intellect2",
-      "segment": "0x56FC",
-      "offset": "0x000A",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "personality2",
-      "segment": "0x56FC",
-      "offset": "0x000C",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "endurance2",
-      "segment": "0x56FC",
-      "offset": "0x000E",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "speed2",
-      "segment": "0x56FD",
-      "offset": "0x0000",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "accuracy2",
-      "segment": "0x56FD",
-      "offset": "0x0002",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "luck2",
-      "segment": "0x56FD",
-      "offset": "0x0004",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "might3",
-      "segment": "0x5712",
-      "offset": "0x000A",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "intellect3",
-      "segment": "0x5712",
-      "offset": "0x000C",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "personality3",
-      "segment": "0x5712",
-      "offset": "0x000E",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "endurance3",
-      "segment": "0x5713",
-      "offset": "0x0000",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "speed3",
-      "segment": "0x5713",
-      "offset": "0x0002",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "accuracy3",
-      "segment": "0x5713",
-      "offset": "0x0004",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "luck3",
-      "segment": "0x5713",
-      "offset": "0x0006",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "might4",
-      "segment": "0x5728",
-      "offset": "0x000C",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "intellect4",
-      "segment": "0x5728",
-      "offset": "0x000E",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "personality4",
-      "segment": "0x5729",
-      "offset": "0x0000",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "endurance4",
-      "segment": "0x5729",
-      "offset": "0x0002",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "speed4",
-      "segment": "0x5729",
-      "offset": "0x0004",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "accuracy4",
-      "segment": "0x5729",
-      "offset": "0x0006",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "luck4",
-      "segment": "0x5729",
-      "offset": "0x0008",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "might5",
-      "segment": "0x573E",
-      "offset": "0x000E",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "intellect5",
-      "segment": "0x573F",
-      "offset": "0x0000",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "personality5",
-      "segment": "0x573F",
-      "offset": "0x0002",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "endurance5",
-      "segment": "0x573F",
-      "offset": "0x0004",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "speed5",
-      "segment": "0x573F",
-      "offset": "0x0006",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "accuracy5",
-      "segment": "0x573F",
-      "offset": "0x0008",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "luck5",
-      "segment": "0x573F",
-      "offset": "0x000A",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "might6",
-      "segment": "0x5755",
-      "offset": "0x0000",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "intellect6",
-      "segment": "0x5755",
-      "offset": "0x0002",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "personality6",
-      "segment": "0x5755",
-      "offset": "0x0004",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "endurance6",
-      "segment": "0x5755",
-      "offset": "0x0006",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "speed6",
-      "segment": "0x5755",
-      "offset": "0x0008",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "accuracy6",
-      "segment": "0x5755",
-      "offset": "0x000A",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "luck6",
-      "segment": "0x5755",
-      "offset": "0x000C",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "weak1",
-      "segment": "0x56F9",
-      "offset": "0x0007",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "weak2",
-      "segment": "0x570F",
-      "offset": "0x0009",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "weak3",
-      "segment": "0x5725",
-      "offset": "0x000B",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "weak4",
-      "segment": "0x573B",
-      "offset": "0x000D",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "weak5",
-      "segment": "0x5751",
-      "offset": "0x000F",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "weak6",
-      "segment": "0x5768",
-      "offset": "0x0001",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "unc1",
-      "segment": "0x56FA",
-      "offset": "0x0001",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "unc2",
-      "segment": "0x5710",
-      "offset": "0x0003",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "unc3",
-      "segment": "0x5726",
-      "offset": "0x0005",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "unc4",
-      "segment": "0x573C",
-      "offset": "0x0007",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "unc5",
-      "segment": "0x5752",
-      "offset": "0x0009",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "unc6",
-      "segment": "0x5768",
-      "offset": "0x000B",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "death1",
-      "segment": "0x56FA",
-      "offset": "0x0002",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "death2",
-      "segment": "0x5710",
-      "offset": "0x0004",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "death3",
-      "segment": "0x5726",
-      "offset": "0x0006",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "death4",
-      "segment": "0x573C",
-      "offset": "0x0008",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "death5",
-      "segment": "0x5752",
-      "offset": "0x000A",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "death6",
-      "segment": "0x5768",
-      "offset": "0x000C",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "food",
-      "segment": "0x5AA2",
-      "offset": "0x000A",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "blessflag",
-      "segment": "0x5A7D",
-      "offset": "0x0005",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "blessamt1",
-      "segment": "0x5A7D",
-      "offset": "0x0007",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "blessamt2",
-      "segment": "0x5A7D",
-      "offset": "0x0008",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "blessamt3",
-      "segment": "0x5A7D",
-      "offset": "0x0009",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "blessamt4",
-      "segment": "0x5A7D",
-      "offset": "0x000A",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "steps",
-      "segment": "0x5AA2",
-      "offset": "0x0002",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "day",
-      "segment": "0x5AA2",
-      "offset": "0x0004",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "year",
-      "segment": "0x5AA2",
-      "offset": "0x0006",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "time",
-      "segment": "0x5AA2",
-      "offset": "0x0008",
-      "len": 2,
-      "value_type": "u16le"
-    },
-    {
-      "name": "face1",
-      "segment": "0x5A7C",
-      "offset": "0x0002",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "face2",
-      "segment": "0x5A7C",
-      "offset": "0x0003",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "face3",
-      "segment": "0x5A7C",
-      "offset": "0x0004",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "face4",
-      "segment": "0x5A7C",
-      "offset": "0x0005",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "face5",
-      "segment": "0x5A7C",
-      "offset": "0x0006",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "face6",
-      "segment": "0x5A7C",
-      "offset": "0x0007",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "occ1",
-      "segment": "0x56E5",
-      "offset": "0x0000",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "occ2",
-      "segment": "0x56FB",
-      "offset": "0x0004",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "occ3",
-      "segment": "0x5711",
-      "offset": "0x0006",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "occ4",
-      "segment": "0x5727",
-      "offset": "0x0008",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "occ5",
-      "segment": "0x573D",
-      "offset": "0x000A",
-      "len": 1,
-      "value_type": "u8"
-    },
-    {
-      "name": "occ6",
-      "segment": "0x5753",
-      "offset": "0x000C",
-      "len": 1,
-      "value_type": "u8"
-    }
-  ]
+ "game": "xeen",
+ "poll_interval_ms": 500,
+ "entries": [
+  {
+   "name": "hp1",
+   "segment": "0x56FA",
+   "offset": "0x0008",
+   "len": 2,
+   "value_type": "i16le"
+  },
+  {
+   "name": "mp1",
+   "segment": "0x56FA",
+   "offset": "0x000A",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "exp1",
+   "segment": "0x56FA",
+   "offset": "0x000E",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "hp2",
+   "segment": "0x5710",
+   "offset": "0x000A",
+   "len": 2,
+   "value_type": "i16le"
+  },
+  {
+   "name": "mp2",
+   "segment": "0x5710",
+   "offset": "0x000C",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "exp2",
+   "segment": "0x5710",
+   "offset": "0x0010",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "hp3",
+   "segment": "0x5726",
+   "offset": "0x000C",
+   "len": 2,
+   "value_type": "i16le"
+  },
+  {
+   "name": "mp3",
+   "segment": "0x5726",
+   "offset": "0x000E",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "exp3",
+   "segment": "0x5726",
+   "offset": "0x0012",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "hp4",
+   "segment": "0x573C",
+   "offset": "0x000E",
+   "len": 2,
+   "value_type": "i16le"
+  },
+  {
+   "name": "mp4",
+   "segment": "0x573D",
+   "offset": "0x0000",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "exp4",
+   "segment": "0x573D",
+   "offset": "0x0004",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "hp5",
+   "segment": "0x5753",
+   "offset": "0x0000",
+   "len": 2,
+   "value_type": "i16le"
+  },
+  {
+   "name": "mp5",
+   "segment": "0x5753",
+   "offset": "0x0002",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "exp5",
+   "segment": "0x5753",
+   "offset": "0x0006",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "hp6",
+   "segment": "0x5769",
+   "offset": "0x0002",
+   "len": 2,
+   "value_type": "i16le"
+  },
+  {
+   "name": "mp6",
+   "segment": "0x5769",
+   "offset": "0x0004",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "exp6",
+   "segment": "0x5769",
+   "offset": "0x0008",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "gold",
+   "segment": "0x5AA3",
+   "offset": "0x000E",
+   "len": 4,
+   "value_type": "u32le"
+  },
+  {
+   "name": "gems",
+   "segment": "0x5AA4",
+   "offset": "0x0002",
+   "len": 4,
+   "value_type": "u32le"
+  },
+  {
+   "name": "bank_gold",
+   "segment": "0x5AA4",
+   "offset": "0x0006",
+   "len": 4,
+   "value_type": "u32le"
+  },
+  {
+   "name": "bank_gems",
+   "segment": "0x5AA4",
+   "offset": "0x000A",
+   "len": 4,
+   "value_type": "u32le"
+  },
+  {
+   "name": "might1",
+   "segment": "0x56E6",
+   "offset": "0x0006",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "intellect1",
+   "segment": "0x56E6",
+   "offset": "0x0008",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "personality1",
+   "segment": "0x56E6",
+   "offset": "0x000A",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "endurance1",
+   "segment": "0x56E6",
+   "offset": "0x000C",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "speed1",
+   "segment": "0x56E6",
+   "offset": "0x000E",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "accuracy1",
+   "segment": "0x56E7",
+   "offset": "0x0000",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "luck1",
+   "segment": "0x56E7",
+   "offset": "0x0002",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "might2",
+   "segment": "0x56FC",
+   "offset": "0x0008",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "intellect2",
+   "segment": "0x56FC",
+   "offset": "0x000A",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "personality2",
+   "segment": "0x56FC",
+   "offset": "0x000C",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "endurance2",
+   "segment": "0x56FC",
+   "offset": "0x000E",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "speed2",
+   "segment": "0x56FD",
+   "offset": "0x0000",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "accuracy2",
+   "segment": "0x56FD",
+   "offset": "0x0002",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "luck2",
+   "segment": "0x56FD",
+   "offset": "0x0004",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "might3",
+   "segment": "0x5712",
+   "offset": "0x000A",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "intellect3",
+   "segment": "0x5712",
+   "offset": "0x000C",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "personality3",
+   "segment": "0x5712",
+   "offset": "0x000E",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "endurance3",
+   "segment": "0x5713",
+   "offset": "0x0000",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "speed3",
+   "segment": "0x5713",
+   "offset": "0x0002",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "accuracy3",
+   "segment": "0x5713",
+   "offset": "0x0004",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "luck3",
+   "segment": "0x5713",
+   "offset": "0x0006",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "might4",
+   "segment": "0x5728",
+   "offset": "0x000C",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "intellect4",
+   "segment": "0x5728",
+   "offset": "0x000E",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "personality4",
+   "segment": "0x5729",
+   "offset": "0x0000",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "endurance4",
+   "segment": "0x5729",
+   "offset": "0x0002",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "speed4",
+   "segment": "0x5729",
+   "offset": "0x0004",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "accuracy4",
+   "segment": "0x5729",
+   "offset": "0x0006",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "luck4",
+   "segment": "0x5729",
+   "offset": "0x0008",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "might5",
+   "segment": "0x573E",
+   "offset": "0x000E",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "intellect5",
+   "segment": "0x573F",
+   "offset": "0x0000",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "personality5",
+   "segment": "0x573F",
+   "offset": "0x0002",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "endurance5",
+   "segment": "0x573F",
+   "offset": "0x0004",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "speed5",
+   "segment": "0x573F",
+   "offset": "0x0006",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "accuracy5",
+   "segment": "0x573F",
+   "offset": "0x0008",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "luck5",
+   "segment": "0x573F",
+   "offset": "0x000A",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "might6",
+   "segment": "0x5755",
+   "offset": "0x0000",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "intellect6",
+   "segment": "0x5755",
+   "offset": "0x0002",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "personality6",
+   "segment": "0x5755",
+   "offset": "0x0004",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "endurance6",
+   "segment": "0x5755",
+   "offset": "0x0006",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "speed6",
+   "segment": "0x5755",
+   "offset": "0x0008",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "accuracy6",
+   "segment": "0x5755",
+   "offset": "0x000A",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "luck6",
+   "segment": "0x5755",
+   "offset": "0x000C",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "weak1",
+   "segment": "0x56F9",
+   "offset": "0x0007",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "weak2",
+   "segment": "0x570F",
+   "offset": "0x0009",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "weak3",
+   "segment": "0x5725",
+   "offset": "0x000B",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "weak4",
+   "segment": "0x573B",
+   "offset": "0x000D",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "weak5",
+   "segment": "0x5751",
+   "offset": "0x000F",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "weak6",
+   "segment": "0x5768",
+   "offset": "0x0001",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "unc1",
+   "segment": "0x56FA",
+   "offset": "0x0001",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "unc2",
+   "segment": "0x5710",
+   "offset": "0x0003",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "unc3",
+   "segment": "0x5726",
+   "offset": "0x0005",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "unc4",
+   "segment": "0x573C",
+   "offset": "0x0007",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "unc5",
+   "segment": "0x5752",
+   "offset": "0x0009",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "unc6",
+   "segment": "0x5768",
+   "offset": "0x000B",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "death1",
+   "segment": "0x56FA",
+   "offset": "0x0002",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "death2",
+   "segment": "0x5710",
+   "offset": "0x0004",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "death3",
+   "segment": "0x5726",
+   "offset": "0x0006",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "death4",
+   "segment": "0x573C",
+   "offset": "0x0008",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "death5",
+   "segment": "0x5752",
+   "offset": "0x000A",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "death6",
+   "segment": "0x5768",
+   "offset": "0x000C",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "food",
+   "segment": "0x5AA2",
+   "offset": "0x000A",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "blessflag",
+   "segment": "0x5A7D",
+   "offset": "0x0005",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "blessamt1",
+   "segment": "0x5A7D",
+   "offset": "0x0007",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "blessamt2",
+   "segment": "0x5A7D",
+   "offset": "0x0008",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "blessamt3",
+   "segment": "0x5A7D",
+   "offset": "0x0009",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "blessamt4",
+   "segment": "0x5A7D",
+   "offset": "0x000A",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "steps",
+   "segment": "0x5AA2",
+   "offset": "0x0002",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "day",
+   "segment": "0x5AA2",
+   "offset": "0x0004",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "year",
+   "segment": "0x5AA2",
+   "offset": "0x0006",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "time",
+   "segment": "0x5AA2",
+   "offset": "0x0008",
+   "len": 2,
+   "value_type": "u16le"
+  },
+  {
+   "name": "face1",
+   "segment": "0x5A7C",
+   "offset": "0x0002",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "face2",
+   "segment": "0x5A7C",
+   "offset": "0x0003",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "face3",
+   "segment": "0x5A7C",
+   "offset": "0x0004",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "face4",
+   "segment": "0x5A7C",
+   "offset": "0x0005",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "face5",
+   "segment": "0x5A7C",
+   "offset": "0x0006",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "face6",
+   "segment": "0x5A7C",
+   "offset": "0x0007",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "occ1",
+   "segment": "0x56E5",
+   "offset": "0x0000",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "occ2",
+   "segment": "0x56FB",
+   "offset": "0x0004",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "occ3",
+   "segment": "0x5711",
+   "offset": "0x0006",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "occ4",
+   "segment": "0x5727",
+   "offset": "0x0008",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "occ5",
+   "segment": "0x573D",
+   "offset": "0x000A",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "occ6",
+   "segment": "0x5753",
+   "offset": "0x000C",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "dir",
+   "segment": "0x5A7C",
+   "offset": "0x000A",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "pos_x",
+   "segment": "0x5A7C",
+   "offset": "0x000B",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "pos_y",
+   "segment": "0x5A7C",
+   "offset": "0x000C",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "map_id",
+   "segment": "0x5A7C",
+   "offset": "0x000D",
+   "len": 1,
+   "value_type": "u8"
+  },
+  {
+   "name": "side",
+   "segment": "0x5A7C",
+   "offset": "0x000E",
+   "len": 1,
+   "value_type": "u8"
+  }
+ ]
 }

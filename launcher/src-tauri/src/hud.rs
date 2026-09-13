@@ -19,9 +19,10 @@ use capsule_core::monitor::rest::{MonitorError, RestClient};
 const MAX_CONSECUTIVE_FAILURES: u32 = 5;
 
 /// HUD 关注的档案条目名。
-const WATCHED: [&str; 21] = [
+const WATCHED: [&str; 26] = [
     "hp1", "hp2", "hp3", "hp4", "hp5", "hp6", "occ1", "occ2", "occ3", "occ4", "occ5", "occ6",
-    "face1", "face2", "face3", "face4", "face5", "face6", "gold", "gems", "food",
+    "face1", "face2", "face3", "face4", "face5", "face6", "gold", "gems", "food", "dir", "pos_x",
+    "pos_y", "map_id", "side",
 ];
 
 /// 队伍姓名块（seg, off）：与 occ 同址起读，长度 [`NAME_LEN`]；内容为 Big5
@@ -57,13 +58,27 @@ pub struct HudSnapshot {
     pub food_days: i64,
     /// 全队姓名（Big5 原始字节，含 `%E` 控制码头与 NUL 填充，前端解码——PL009.2）
     pub name: [[u8; 16]; 6],
+    /// 队伍朝向（0–3；方位语义经用户 live 判收确认——PL011）
+    pub direction: i64,
+    /// 队伍所在格 X（迷宫图 0–15；城镇连续空间可超 16，引擎真值原样显示——PL011）
+    pub pos_x: i64,
+    /// 队伍所在格 Y（同上——PL011）
+    pub pos_y: i64,
+    /// 所在地图编号（CUR 容器主图号；城镇连续空间保持进城锚点号——PL011）
+    pub map_id: i64,
+    /// 当前侧标志（0x5A7CE；1=云端星云面 / 0=暗面，经用户 live 判收确认——PL011）
+    pub side: i64,
+    /// 所在地图名（区域名表查得；无名图/侧未知为 None）
+    pub map_name: Option<String>,
+    /// 所在地图是否户外（区域名表查得；表未收录为 None）
+    pub map_outdoors: Option<bool>,
 }
 
 /// HUD 轮询事件。
 #[derive(Debug, Clone)]
 pub enum HudPollEvent {
-    /// 正常快照。
-    Snapshot(HudSnapshot),
+    /// 正常快照（Box 化：快照体积大，避免与 Stalled 变体尺寸差过大）。
+    Snapshot(Box<HudSnapshot>),
     /// 连续失败达到上限，轮询已停止。
     Stalled(String),
 }
@@ -147,7 +162,7 @@ fn poll_loop(
         match poll_once(&client, &entries) {
             Ok(snapshot) => {
                 failures = 0;
-                on_event(HudPollEvent::Snapshot(snapshot));
+                on_event(HudPollEvent::Snapshot(Box::new(snapshot)));
             }
             Err(err) => {
                 failures += 1;
@@ -188,6 +203,11 @@ fn poll_once(client: &RestClient, entries: &[&Entry]) -> Result<HudSnapshot, Mon
     let mut gold = 0i64;
     let mut gems = 0i64;
     let mut food = 0i64;
+    let mut direction = 0i64;
+    let mut pos_x = 0i64;
+    let mut pos_y = 0i64;
+    let mut map_id = 0i64;
+    let mut side = 0i64;
     for entry in entries {
         let bytes = client.memory(Some(entry.segment), entry.offset, u32::from(entry.len))?;
         let value = entry.value_type.decode(&bytes)?;
@@ -195,6 +215,11 @@ fn poll_once(client: &RestClient, entries: &[&Entry]) -> Result<HudSnapshot, Mon
             "gold" => gold = value,
             "gems" => gems = value,
             "food" => food = value,
+            "dir" => direction = value,
+            "pos_x" => pos_x = value,
+            "pos_y" => pos_y = value,
+            "map_id" => map_id = value,
+            "side" => side = value,
             name => {
                 if let Some(index) = name
                     .strip_prefix("hp")
@@ -221,6 +246,7 @@ fn poll_once(client: &RestClient, entries: &[&Entry]) -> Result<HudSnapshot, Mon
             }
         }
     }
+    let (map_name, map_outdoors) = map_lookup(side, map_id);
     Ok(HudSnapshot {
         hp,
         occupied,
@@ -230,7 +256,79 @@ fn poll_once(client: &RestClient, entries: &[&Entry]) -> Result<HudSnapshot, Mon
         gems,
         food,
         food_days: food / 18,
+        direction,
+        pos_x,
+        pos_y,
+        map_id,
+        side,
+        map_name,
+        map_outdoors,
     })
+}
+
+/// 地图名条目（来源 = PL010 盘点：CUR 主图 + DARK.CC 区域名，内嵌 mapnames.csv）。
+struct MapNameEntry {
+    name: Option<String>,
+    outdoors: bool,
+}
+
+/// 按侧分表（cloud/dark 各按地图号索引）；两侧共用编号空间，25–28 号户外标志相反。
+struct MapNameTable {
+    cloud: std::collections::HashMap<u8, MapNameEntry>,
+    dark: std::collections::HashMap<u8, MapNameEntry>,
+}
+
+/// 解析内嵌 CSV（行格式 `side,map_id,outdoors,name`；`#` 注释行跳过）。
+fn parse_map_names(csv: &'static str) -> MapNameTable {
+    let mut table = MapNameTable {
+        cloud: std::collections::HashMap::new(),
+        dark: std::collections::HashMap::new(),
+    };
+    for line in csv.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let mut parts = line.splitn(4, ',');
+        let (side, id, outdoors, name) =
+            match (parts.next(), parts.next(), parts.next(), parts.next()) {
+                (Some(s), Some(i), Some(o), Some(n)) => (s, i, o, n),
+                _ => continue,
+            };
+        let (id, outdoors) = match (id.parse::<u8>(), outdoors) {
+            (Ok(id), "0" | "1") => (id, outdoors == "1"),
+            _ => continue,
+        };
+        let name = if name.is_empty() {
+            None
+        } else {
+            Some(name.to_string())
+        };
+        let target = match side {
+            "cloud" => &mut table.cloud,
+            "dark" => &mut table.dark,
+            _ => continue,
+        };
+        target.insert(id, MapNameEntry { name, outdoors });
+    }
+    table
+}
+
+/// 内嵌名表单例（编译期资产，解析失败属程序缺陷——与 cc_archive_names.csv 同类）。
+fn map_names() -> &'static MapNameTable {
+    use std::sync::OnceLock;
+    static TABLE: OnceLock<MapNameTable> = OnceLock::new();
+    TABLE.get_or_init(|| parse_map_names(include_str!("mapnames.csv")))
+}
+
+/// 按侧 + 地图号查名字与户外标志；表未收录（侧值异常/号越界）回落 None。
+fn map_lookup(side: i64, map_id: i64) -> (Option<String>, Option<bool>) {
+    let table = map_names();
+    let by_side = if side == 1 { &table.cloud } else { &table.dark };
+    match u8::try_from(map_id).ok().and_then(|id| by_side.get(&id)) {
+        Some(entry) => (entry.name.clone(), Some(entry.outdoors)),
+        None => (None, None),
+    }
 }
 
 /// 读取全队姓名块（Big5 原始字节，交由前端解码）。
