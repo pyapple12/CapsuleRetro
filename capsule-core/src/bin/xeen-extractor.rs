@@ -13,6 +13,7 @@ use std::process::ExitCode;
 use clap::{Parser, Subcommand};
 
 use capsule_core::cc_archive::CcArchive;
+use capsule_core::maze::{maze_file_name, MazeMap};
 
 #[derive(Parser)]
 #[command(
@@ -39,6 +40,11 @@ enum Cmd {
         #[arg(short, long)]
         out: Option<PathBuf>,
     },
+    /// 解析容器内全部迷宫数据并输出汇总（CUR 容器，PL010.2 全量校验）
+    Mazes {
+        /// CUR 容器路径（数据区为明文，不做 XOR）
+        cc: PathBuf,
+    },
 }
 
 fn main() -> ExitCode {
@@ -46,6 +52,7 @@ fn main() -> ExitCode {
     let result = match cli.cmd {
         Cmd::List { cc } => list(&cc),
         Cmd::Extract { cc, out } => extract(&cc, out.as_deref()),
+        Cmd::Mazes { cc } => mazes(&cc),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,
@@ -104,5 +111,51 @@ fn extract(cc: &Path, out: Option<&Path>) -> Result<(), String> {
         arch.entries.len(),
         dir.display()
     );
+    Ok(())
+}
+
+/// 全量解析容器内迷宫（CUR 明文数据），汇总主图/变体/标志；任一解析错误即整体失败。
+fn mazes(cc: &Path) -> Result<(), String> {
+    let arch = CcArchive::load(cc).map_err(|e| format!("加载 {} 失败: {e}", cc.display()))?;
+    let mut primary = 0usize;
+    let mut variants: Vec<String> = Vec::new();
+    let mut outdoor = 0usize;
+    let mut dark = 0usize;
+    let mut rest = 0usize;
+    let mut savable = 0usize;
+    for mid in 1u16..1000 {
+        let name = maze_file_name(mid);
+        let Some(entry) = arch.find(&name) else {
+            continue;
+        };
+        let raw = arch
+            .read_raw(entry)
+            .map_err(|e| format!("读取 {name} 失败: {e}"))?;
+        let m = MazeMap::parse(mid, &raw).map_err(|e| format!("{name}: {e}"))?;
+        if m.id_field == m.file_id {
+            primary += 1;
+            if m.is_outdoors {
+                outdoor += 1;
+            }
+            if m.is_dark {
+                dark += 1;
+            }
+            if m.can_rest {
+                rest += 1;
+            }
+            if m.can_save {
+                savable += 1;
+            }
+        } else {
+            variants.push(format!("{}→{}", m.file_id, m.id_field));
+        }
+    }
+    println!(
+        "# {} — 迷宫 {}（主 {primary} / 变体 {}），户外 {outdoor}、黑暗 {dark}、可休息 {rest}、可存盘 {savable}",
+        cc.display(),
+        primary + variants.len(),
+        variants.len()
+    );
+    println!("变体: {}", variants.join(", "));
     Ok(())
 }

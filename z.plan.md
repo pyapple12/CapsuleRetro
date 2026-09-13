@@ -136,7 +136,6 @@
   - `#[derive(Error)] enum ProfileError`（thiserror）：Json(serde_json::Error)、UnknownValueType(String)、WidthMismatch { expected, actual }
 
 - **`src/monitor/rest.rs`**：REST 客户端
-
   - `struct RestClient { base_url: String, timeout: Duration }`，`fn new(port: u16) -> Self`（base 固定 `http://127.0.0.1:{port}`）
   - `fn cpu_state(&self) -> Result<CpuState, MonitorError>`：GET `/api/v1/cpu/state`，`struct CpuState { registers: Registers }` 只取需要的字段
   - `fn memory(&self, segment: Option<u16>, offset: u32, len: u32) -> Result<Vec<u8>, MonitorError>`：GET `/api/v1/memory/{seg}/{off}/{len}`（seg 省略时走一参形式），响应为原始字节流
@@ -145,7 +144,6 @@
   - **无重试**（严格抛错主线）：单次调用失败一律上抛，由 CLI 轮询层决定计数策略（见错误策略节）
 
 - **`src/monitor/diff.rs`**：纯函数差分
-
   - `fn diff_snapshots(prev: &[u8], curr: &[u8]) -> Vec<u32>`：返回发生变化的地址（长度不等视为调用方错误，断言前置）
   - `fn filter_by_change(prev, curr, again: &[u8]) -> Vec<u32>`：三快照二次过滤（在首轮变化地址中挑"再次变化"的），供收敛用
 
@@ -429,7 +427,7 @@ VC0 打样 → 过：C 阶段主攻路线一 / 核心崩：直接主攻路线二
 - **PL002.19 环境探测**：VS Build Tools 2026 18.8.2（cl 14.51 + SDK 10.0.26100）在位；缺口 meson/ninja/cmake 经 pip --user + scoop 补齐（1.12.0 / 1.13.2 / 4.4.3），pip Scripts 目录补入用户 PATH；CMake 4×zlib-ng 2.1.5（要求 3.5.1）兼容核实；全记录 `.temp/p1-env.md`。
 - **路线变更（Meson → CMake+vcpkg）**：v0.83.0 tag 的 `resources/shaders/meson.build` 引用已被移除的 misc 目录（configure_file cp 失败）——tag 自身 meson 构建损毁；上游 fbef15885 "Kill the Meson build system with fire" 已整体删除 meson。0.83 官方 Windows CI 路径 = CMake+vcpkg（VS 生成器 + ClangCL 工具集），fork 演进对齐上游，判死 meson。
 - **Meson 探测沉淀**（复建/升级可复用）：本会话环境 `PYTHONUTF8=1` 使 meson 走 UTF-8 严格解码分支，cl 的 GBK 用法文本必崩（Popen_safe strict 分支）——构建须清该变量；`vcvarsall.bat x64` 显式环境可用（meson 见 VCINSTALLDIR 跳过自激活）。
-- **PL002.20 基线构建（P1–P4 全过）**：vcpkg 锁 baseline `6283825b`（34 包 22 分钟，二进制缓存沉淀，重建秒级）；ClangCL 22.1.3（用户补装 VS Clang 两组件）；cmake 直调等效 preset——preset 硬编码 VS 17 生成器且本机有 Insiders 多实例，须用 VS18 2026 生成器 + `CMAKE_GENERATOR_INSTANCE` 钉死 BuildTools（Insiders 实例 MSBuild 缺工具集触发 MSB8020 的教训）。产物 dosbox.exe（0.83.0 / 7b400），构建后 `git status --porcelain` = 0 行（零改动实证）；启动 XEEN：模式 13h 进入、REST 66 秒三连 200、5/5 档案条目读出真实数值（hp1=12 / exp1=2014），用户目视确认画面 OK。构建脚本 `.temp/p1-cmake-build.bat`（含 ALL_PROXY socks 修正——libcurl 不认 http(s)_proxy 的 socks5 方案、PYTHONUTF8 清除）。
+- **PL002.20 基线构建（P1–P4 全过）**：vcpkg 锁 baseline `6283825b`（34 包 22 分钟，二进制缓存沉淀，重建秒级）；ClangCL 22.1.3（用户补装 VS Clang 两组件）；cmake 直调等效 preset——preset 硬编码 VS 17 生成器且本机有 Insiders 多实例，须用 VS18 2026 生成器 + `CMAKE_GENERATOR_INSTANCE` 钉死 BuildTools（Insiders 实例 MSBuild 缺工具集触发 MSB8020 的教训）。产物 dosbox.exe（0.83.0 / 7b400），构建后 `git status --porcelain` = 0 行（零改动实证）；启动 XEEN：模式 13h 进入、REST 66 秒三连 200、5/5 档案条目读出真实数值（hp1=12 / exp1=2014），用户目视确认画面 OK。构建脚本 `.temp/p1-cmake-build.bat`（含 ALL_PROXY socks 修正——libcurl 不认 http(s)\_proxy 的 socks5 方案、PYTHONUTF8 清除）。
 - **PL002.22 补丁仓库结构（FB2 全过）**：公开 fork `pyapple12/DosboxCapsule`（用户建仓改名，fork 关系保留）；本地 `capsule` 分支基于 v0.83.0、双 remote（origin=fork 推送 / upstream=官方升级）；FB2-a 清洁重建全绿（build 目录全清 → 全新配置编译 → 产物 0.83.0 (7b400)）；FB2-b 结构纯净（capsule diff 零起步）；fork 仓提交风格对齐上游英文 conventional，不套 CapsuleRetro 四段式。
 - **维护套件集中化（2026-09-07 修订，用户拍板）**：PATCHES.md、清洁重建脚本、FB1 基线判定脚本统一收入 CapsuleRetro `tools/dosbox-fork/`（版本化，迁出 .temp）——capsule 分支 diff 保持 100% 代码补丁；fork 仓仅以 FORK.md 单提交声明用途。迁移一致性验证闭环（cmake 链逐行相等、capture 执行行 MD5 全等、compare 仅 docstring 与错别字差异、新位置功能跑通 PASS）。
 - **切断 fork 转独立仓（2026-09-07，用户拍板）**：删除 fork 重建同名独立公开仓（仓库初生期零迁移成本；"193 commits behind / Discard" 陷阱横幅随 fork 关系消失），本地 capsule 分支改名 main、推 main + v0.83.0 tag（基线溯源，默认分支自动 = main）；FORK.md 改独立仓表述，PATCHES.md 分支模型简化为单分支 + tag 锚点（`git diff v0.83.0..main` = 全部足迹，升级配方 rebase --onto 换轴分支名同步）。GitHub Actions 因触发上游 CI（PVS-Studio 无许可必红）已关（用户操作，仓库设置级，零 diff）。**前期准备四连（PL002.19-22）全部完结，后期实施（PL002.23 帧流端点起）就绪。**
@@ -953,7 +951,7 @@ A001 的 43 项 P 级修复经 PL003/PL004/PL005 三次大改后整体稳固：*
 > 关键洞察：容器零压缩、仅一层薄混淆，提取器是百行级小工具；`DARK.PAL = 0x48AA`（Xeen Wiki 官方示例）可作为与实现完全独立的验证锚点；游戏目录三容器 XEEN.CC(13.8MB)/DARK.CC(11.1MB)/INTRO.CC(9MB) 均为 1993 年原版文件（汉化内容是旁挂文件），提取应当原样可用。
 > 目标：正式小工具 xeen-extractor（list/extract）+ `.xeen-extract/` 本地素材库（转 PNG + 素材墙）+ 头像资源圈定清单（PL009 输入）。
 > 状态：✅ 完结（2026-09-12，8/8；VA2 素材墙就绪待用户翻库判收；证据 `.temp/pl008-verification.md`）
-> 实况修正（2026-09-12）：ScummVM **没有** xeen 引擎（146 引擎目录无 xeen，仅 devtools/create_mm/create_xeen 有 CC 实现）——肉眼基准改用 DosboxCapsule 实跑截图，格式参考改为 OpenXeen 源码（已克隆 .temp/openxeen/，其 resources/*.cc.csv 提供名字对照表）。
+> 实况修正（2026-09-12）：ScummVM **没有** xeen 引擎（146 引擎目录无 xeen，仅 devtools/create_mm/create_xeen 有 CC 实现）——肉眼基准改用 DosboxCapsule 实跑截图，格式参考改为 OpenXeen 源码（已克隆 .temp/openxeen/，其 resources/\*.cc.csv 提供名字对照表）。
 
 ### 方向定案
 
@@ -1035,3 +1033,95 @@ A001 的 43 项 P 级修复经 PL003/PL004/PL005 三次大改后整体稳固：*
 ### 拆分 todo
 
 x.progress.md「PL009」任务组 3/3 勾结，已上移已完成区。
+
+---
+
+## 附录 PL010：XEEN 地图底图自渲染（2026-09-13 立项，✅ 2026-09-13 收口 11/11——CUR 容器破译 + ScummVM 标准答案 + 622 图交付 + 用户判收"可以对的上"；机制全文转正 `retro/map-atlas.md`）
+
+> 背景：原临时备忘三项拆分立项之一（另两项 = PL011 位置读取、PL012 UI 重构）。路线 B（自渲染）锚定：XEEN 地图从不以图片存储，而是纯数据（单图 16×16 格 × 每格 4 层半字节），游戏运行时自己合成画面；格式考证双源 = OpenXeen `WOXMazeFile.loadMaze` + ScummVM `mm/xeen/interface_minimap.cpp`（**勘误 PL008"ScummVM 无 xeen 引擎"记录**——ScummVM 自 2.1.0 起官方支持，引擎后更名 mm）+ Xeen Wiki 公开文档。
+> 状态：✅ 完结——迷宫几何真实存放处破译（**DARK.CUR / XEEN.CUR**，CUR = current side 非光标；主 CC 无 MAZE 名，AAZE\*.TXT/.HED 为事件文字/事件头，XEEN.DAT 为 MZD 头运行时状态文件）；311 主图 + 96 变体盘点（结构锚点全过）；户外 76 + 户内 235 全量双分辨率渲染（622 文件 + 世界拼接整图三张）；户内规则 = ScummVM drawIndoorsMinimap 标准答案（墙帧表 + 环境集 wallKind@826 → TOWN/CAVE/TOWR/CSTL/DUNG/SCFI），暗面五地标渲染实证全对；用户目测判收"可以对的上"。
+
+### 目标与范围
+
+- 全部地图渲染为 PNG **双份分辨率**：原生 160×128 + 最近邻 ×6（960×768，保像素风）；命名 `cloudNN.png` / `darkNN.png`（按所在 CC 归属区分云端/暗面，映射关系盘点时确认）
+- 16×16 坐标系对照双交付：**程序**（渲染器本身即换算实现）+ **对照表**（index.json：地图号、名字、尺寸、每格像素数、换算式、四向邻接、户外/黑暗标志）
+- 落位 `retro/artwork/maps/` + 机制档案 `retro/map-atlas.md`（对应 face-map.md 地位）
+- **不做**：随包接线（game.json/packer 留给消费方 PL012）；世界拼接图为收尾彩蛋
+- 范围红线：launcher / capsule-pack / memory_map.json / dosbox fork 零改动，纯工具链 + 素材产出
+
+### 关键技术事实（格式全貌，Xeen Wiki）
+
+- 地图文件：`MAZE00xx.DAT`（地图号 1–99）/ `MAZEXxxx.DAT`（100–255，首位字面 X），存于 CC 包，PL008 提取链路可枚举
+- DAT 固定布局：WallData 512B（16×16 u16，每格 4 半字节 = 4 层）→ CellFlag 256B → 地图号 2B + SurrMazes 四向邻接 8B → mazeFlags 4B（bit15 户外 / bit14 黑暗）→ wallTypes/surfaceTypes 查找表各 16B → 杂项约 13B → seen/stepped 位图各 32B
+- 层语义：**户外** = 地表（16 种）/ 中层（山树）/ 顶层（城镇图标）/ 覆盖层，查 OUTDOOR.TIL（帧段 +0/+16/+32/+48）；**户内** = 朝北/东/南/西墙值，查 6 套 Environment Set 素材
+- 渲染公式（游戏 Tab 小地图同款）：每格叠 4 层 10×8 像素帧；数据 (0,0) 在**左下**，绘制需垂直翻转；换算式 `pixel = (x, 15−y) × S`
+- 勘误登记（并备忘初稿）：单图 16×16（非 22×22）；自渲染地图为游戏数据派生物、版权血统与随包游戏本体一致——相对路线 A 的真优势 = 风格可控（黑金典藏风）+ 不外求
+
+### 处理方案（阶段流）
+
+盘点（枚举清单定总量）→ DAT 解析（严格抛错）→ 户外渲染（Tab 算法逐张对照）→ 户内渲染（环境集映射，兜底色块俯视图）→ EVT 名字探测（限时决策门）→ 名字表产出 → 交付归档 → 用户验收 → 彩蛋：世界拼接。逐条做法/验证见 x.progress.md「PL010」任务组（PL010.1–.11）。
+
+### EVT 名字探测（决策门）
+
+- 方法：锚点反查——已知城镇名在 EVT 原始字节反查 Big5 串，验证名字是否可定位样式；**≥3 锚点命中同一可复用样式 = 路线 B 可靠**
+- 注意点：①汉化编码实测（PL009 已证角色名 Big5 带 `%E` 码，事件文本编码待对字节验证）②锚点地名需用户报 3–5 个或经 DosboxCapsule 进城抄横幅
+- 出口：可靠 → 自动提取 + 用户抽查校正；不可靠 → 人工对照表兜底。**PL011 的名字来源随此结论**
+
+### 检验方案
+
+- 过程检验：渲染图**逐张**与 DosboxCapsule 游戏内 Tab 地图肉眼对照（PL008 肉眼基准法）；解析层全量零错误 + 邻接表引用闭环（指向的图必须存在于清单）
+- 最终验收（用户，**不进游戏**）：抽查套图与已知地图布局比对 + 指定格子认像素（按 index.json 换算式指认对应位置）
+
+---
+
+## 附录 PL011：队伍位置读取——X/Y 坐标与所在地图（2026-09-13 立项）
+
+> 背景：原临时备忘事项①。复用 PL009 已验证的**交互式快照差分**方法论；产出数据与 PL010 底图同为 PL012 小地图的输入。
+> 状态：🚧 进行中（勘探需用户配合走动/转身/跨图拍快照）。
+
+### 目标与收尾标准
+
+- 目标：pos_x / pos_y / map_id 三字段入 memory_map → HUD 实时显示**四要素：地图编号 + 地图名字 + 户外/户内标志 + X/Y 坐标**（2026-09-13 用户定案：名字为必选需求）
+- **收尾标准（用户口径）**：HUD 显示出正确的四要素 + live 目测判收，立项即收口
+- 边界（明确不做）：任何图形化地图——底图叠加/小地图归 PL012；PL011 的"地图"是文字信息
+
+### 处理方案
+
+- 勘探：快照差分三步——转身不动（剔除朝向/视向字节）→ 走动（锁定坐标候选）→ 跨图进出（锁定地图号枚举）；优先扫名字块 0x56E5 段与面容数组 0x5A7C 段邻域（PL009 已知队伍状态块线索）；"所在地图"口径与游戏内 Tab 地图行为对齐
+- 链路：memory_map.json 登记 → hud.rs WATCHED 扩条目 → HudSnapshot 扩字段 → HudBar 四要素显示（排版实现时定）+ 名字查静态 JSON
+- 名字来源：按 PL010.6 探测结论分叉——自动提取校正版 / 人工标注版（依赖 PL010 盘点清单先行）
+
+### 检验方案
+
+- 坐标：live 走动步进对应（+1 步长与方向语义）、转身不变；与游戏内 Tab 地图位置逐次对照
+- 地图号：≥3 类图（户外/城镇/塔层）进出切换与 Tab 一致，覆盖跨图瞬间与图边界
+- 最终：live 目测判收（用户）
+
+### 拆分 todo
+
+x.progress.md「PL011」任务组（PL011.1–.7）。
+
+---
+
+## 附录 PL012：游玩 UI 重构（2026-09-13 预告登记·模糊档）
+
+> 背景：原临时备忘事项③；消费 PL010 地图资产 + PL011 位置数据，是三件套的集成面。
+> 状态：📋 模糊档——**仅立方向三点，具体设计与方案留正式立项时讨论定稿**（2026-09-13 用户定案）。
+
+### 方向三点（仅此三条）
+
+1. 会话态 UI 整体重做，比现在更好看（黑金典藏基调延续）
+2. HUD 涵盖主要信息，**含小地图显示**（底图 = retro/artwork/maps/，位置 = PL011 四要素数据）
+3. **留出攻略显示空间**（会话内攻略面板的形态位置）
+
+### 立项时讨论的决策点
+
+信息层级（游戏画面 > 状态 > 导航 > 攻略）；小地图交互形态（固定角标 / 悬停展开 / 全图切换）；攻略入口形态；连续热更 vs 整版立项
+
+### 范围
+
+会话态布局与 HUD 重构；不含发布工程（GitHub Actions / DosboxCapsule Release / 杀软实测仍按"UI 定案后另行立项"既定方针）
+
+### 拆分 todo
+
+x.progress.md「PL012」任务组（PL012.1 立项细化讨论；其余待定稿后细分）。

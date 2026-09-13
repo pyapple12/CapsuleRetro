@@ -130,8 +130,21 @@ impl CcArchive {
     /// 读取并还原资源字节（XOR 0x35）；越界严格报错。
     ///
     /// # Errors
-    /// 条目声明区间越出容器时返回 [`CcError::OutOfRange`]。
+    /// 条目声明区间越出容器时返回 [`CcError`]。
     pub fn read(&self, entry: &CcEntry) -> Result<Vec<u8>, CcError> {
+        Ok(self.slice(entry)?.iter().map(|b| b ^ 0x35).collect())
+    }
+
+    /// 读取资源原始字节（不做 XOR；CUR 容器数据区为明文——PL010）。
+    ///
+    /// # Errors
+    /// 条目声明区间越出容器时返回 [`CcError`]。
+    pub fn read_raw(&self, entry: &CcEntry) -> Result<Vec<u8>, CcError> {
+        Ok(self.slice(entry)?.to_vec())
+    }
+
+    /// 条目声明区间的切片（越界严格报错）。
+    fn slice(&self, entry: &CcEntry) -> Result<&[u8], CcError> {
         let start = entry.offset as usize;
         let end = start + entry.len as usize;
         if end > self.data.len() {
@@ -142,7 +155,7 @@ impl CcArchive {
                 size: self.data.len(),
             });
         }
-        Ok(self.data[start..end].iter().map(|b| b ^ 0x35).collect())
+        Ok(&self.data[start..end])
     }
 
     /// 容器原始大小（字节）。
