@@ -61,6 +61,11 @@ assets/design/   # UI 视觉稿库（自包含 HTML，引用 retro/artwork/ 真�
 tools/dosbox-fork/ # DosboxCapsule fork 维护套件（版本化）：PATCHES.md（补丁登记
                  #   与升级配方）、rebuild.bat（清洁重建）、baseline-capture.sh /
                  #   baseline-compare.py（FB1 基线判定，升级后必跑）
+tools/maptool/   # XEEN 地图资产管线（正式组件，Python 标准库零依赖）：til（解码+PNG）、
+                 #   xeendata（CUR/CC 数据层+区域名双表+连通分量规划）、render_indoor
+                 #   （户内四层方程式）/render_outdoor/city_stitch（整城分层，资源上下文
+                 #   归锚点）/world_stitch/gen_index/maptool.py CLI（all/publish）；
+                 #   渲染规则与验收基准见 retro/map-atlas.md 与 tools/maptool/README.md
 retro/           # 根 = 适配层（我们编写的文件）：game.json（v2：game_dir/save_files/patches）、
                  #   patches/（测试补丁包）、memory_map.json（内存档案）、face-map.md（面容档案：
                  #   face 数组 0x5A7C:0x2、槽位+1=头像文件号、角色对照总账）、xeen-guide.md（攻略）、
