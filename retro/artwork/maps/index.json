@@ -1,6 +1,6 @@
 {
   "game": "Might and Magic: World of Xeen（汉化版）",
-  "generated": "2026-09-13",
+  "generated": "2026-09-14",
   "source": {
     "maze_data": "retro/XEEN/DARK.CUR 与 retro/XEEN/XEEN.CUR（TOC 同 CC 方案，数据区无 XOR）",
     "area_names": "DARK.CC 资源 DARKxxxx.TXT（Big5，两侧共用表）",
@@ -4730,7 +4730,7 @@
     }
   },
   "city_maps": {
-    "note": "城镇/区域为多张 MAZE 沿 SurrMazes 拼合的连续空间（y.problems#21 修复）；members = 图号 → 相对锚点的图块坐标（列,行）",
+    "note": "城镇/区域为多张 MAZE 沿 SurrMazes 拼合的连续空间（y.problems#21 修复，v16 整城分层方程式定案 2026-09-14）；members = 图号 → 相对锚点的图块坐标（列,行）",
     "list": [
       {
         "side": "dark",
@@ -5229,7 +5229,7 @@
         "size": [320, 256]
       },
       {
-        "side": "cloud",
+        "side": "xeen",
         "file": "cloud025-city.png",
         "file_x6": "cloud025-city-x6.png",
         "anchor": 25,
@@ -5255,7 +5255,7 @@
         "size": [320, 256]
       },
       {
-        "side": "cloud",
+        "side": "xeen",
         "file": "cloud026-city.png",
         "file_x6": "cloud026-city-x6.png",
         "anchor": 26,
@@ -5281,7 +5281,7 @@
         "size": [320, 256]
       },
       {
-        "side": "cloud",
+        "side": "xeen",
         "file": "cloud027-city.png",
         "file_x6": "cloud027-city-x6.png",
         "anchor": 27,
@@ -5307,7 +5307,7 @@
         "size": [320, 256]
       },
       {
-        "side": "cloud",
+        "side": "xeen",
         "file": "cloud028-city.png",
         "file_x6": "cloud028-city-x6.png",
         "anchor": 28,
@@ -5333,7 +5333,7 @@
         "size": [320, 256]
       },
       {
-        "side": "cloud",
+        "side": "xeen",
         "file": "cloud030-city.png",
         "file_x6": "cloud030-city-x6.png",
         "anchor": 30,
@@ -5359,7 +5359,7 @@
         "size": [320, 256]
       },
       {
-        "side": "cloud",
+        "side": "xeen",
         "file": "cloud033-city.png",
         "file_x6": "cloud033-city-x6.png",
         "anchor": 33,
@@ -5377,7 +5377,7 @@
         "size": [160, 256]
       },
       {
-        "side": "cloud",
+        "side": "xeen",
         "file": "cloud034-city.png",
         "file_x6": "cloud034-city-x6.png",
         "anchor": 34,
@@ -5395,7 +5395,7 @@
         "size": [160, 256]
       },
       {
-        "side": "cloud",
+        "side": "xeen",
         "file": "cloud035-city.png",
         "file_x6": "cloud035-city-x6.png",
         "anchor": 35,
@@ -5413,7 +5413,7 @@
         "size": [320, 128]
       },
       {
-        "side": "cloud",
+        "side": "xeen",
         "file": "cloud038-city.png",
         "file_x6": "cloud038-city-x6.png",
         "anchor": 38,
@@ -5439,7 +5439,7 @@
         "size": [320, 256]
       },
       {
-        "side": "cloud",
+        "side": "xeen",
         "file": "cloud039-city.png",
         "file_x6": "cloud039-city-x6.png",
         "anchor": 39,
@@ -5465,7 +5465,7 @@
         "size": [320, 256]
       },
       {
-        "side": "cloud",
+        "side": "xeen",
         "file": "cloud040-city.png",
         "file_x6": "cloud040-city-x6.png",
         "anchor": 40,
@@ -5491,7 +5491,7 @@
         "size": [320, 256]
       },
       {
-        "side": "cloud",
+        "side": "xeen",
         "file": "cloud041-city.png",
         "file_x6": "cloud041-city-x6.png",
         "anchor": 41,
@@ -5517,7 +5517,7 @@
         "size": [320, 256]
       },
       {
-        "side": "cloud",
+        "side": "xeen",
         "file": "cloud050-city.png",
         "file_x6": "cloud050-city-x6.png",
         "anchor": 50,
@@ -5543,7 +5543,7 @@
         "size": [320, 256]
       },
       {
-        "side": "cloud",
+        "side": "xeen",
         "file": "cloud079-city.png",
         "file_x6": "cloud079-city-x6.png",
         "anchor": 79,
@@ -5569,7 +5569,7 @@
         "size": [320, 256]
       },
       {
-        "side": "cloud",
+        "side": "xeen",
         "file": "cloud080-city.png",
         "file_x6": "cloud080-city-x6.png",
         "anchor": 80,
@@ -5595,7 +5595,7 @@
         "size": [320, 256]
       },
       {
-        "side": "cloud",
+        "side": "xeen",
         "file": "cloud081-city.png",
         "file_x6": "cloud081-city-x6.png",
         "anchor": 81,
@@ -5621,7 +5621,7 @@
         "size": [320, 256]
       },
       {
-        "side": "cloud",
+        "side": "xeen",
         "file": "cloud082-city.png",
         "file_x6": "cloud082-city-x6.png",
         "anchor": 82,
