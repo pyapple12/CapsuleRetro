@@ -77,11 +77,11 @@ PL012 目标 = 重构游戏运行时 UI：中央为 CRT 显示器包裹的游戏
 
 ## 六、未完成事项（已对齐、待排期）
 
-1. **左栏底部操作栏**：队伍卡下方新增一行高操作栏——三个文字按钮 **魔法书 / 注音表 / 使用说明**，最右一个**设置齿轮**；点击任意按钮弹出**浮窗**（尺寸恰好盖住 CRT 显示器），点击浮窗外任意位置关闭；齿轮打开的是**基本设置**浮窗。
+1. **左栏底部操作栏**（✅ 已实装 2026-09-15）：队伍卡下方新增一行高操作栏——三个文字按钮 **魔法 / 注音 / 说明**，最右一个**设置齿轮**；点击任意按钮弹出**浮窗**（尺寸恰好盖住 CRT 显示器，JS 实时取 `#monitor` 盒定位），点击浮窗外任意位置关闭；齿轮打开的是**基本设置**浮窗（电源 / 扫描线 / 弧面反光与控制条镜像联动，状态真源 = body class；「背景跟随世界」为待实装占位）。注音数据与 `retro/zhuyin-keyboard.md` 同源；说明浮窗收录第五节归档文案。
 2. **背景图按世界切换**：星云界 / 暗黑界两套房间背景，随当前地图世界自动切换；设置中可固定不跟随。
 3. **CRT 特效调研**：扫描线、弧面之外还有哪些可做（光晕 bloom、暗角 vignette、色偏、噪点闪烁等）；DOSBox（fork）是否原生支持同类 shader 特效；特效渲染归属 **DOSBox 侧还是前端 CSS 侧**要定案；检索社区有效案例后再定。
 4. **老板按钮（Boss Key）**：点击后整个界面消失，播放 **omarchy 正在 vibe coding** 的模拟动画（伪装画面）。
-5. **UI 套件调研**：检索现成 UI kit，挑选适合老游戏像素质感的套件替换手写样式（或部分复用）。
+5. **UI 套件调研**（✅ 已完成 2026-09-16）：选定 [uiverse-io/galaxy](https://github.com/uiverse-io/galaxy)（12.1k star，**MIT**）为组件来源，纯 CSS 组件按"摘取 + 换肤"引入，Tailwind 版排除（不为此加依赖），组件头部注释登记来源与改色。已落位六个组件：**① Toggle-switches**（[r7chardgh · dry-rabbit-69](https://uiverse.io/r7chardgh/dry-rabbit-69)）——电源/扫描线/弧面反光与设置浮窗镜像，改色仅文字 off 红 / on 绿；**② Tooltip**（[TanimMahbub · white-fly-43](https://uiverse.io/TanimMahbub/white-fly-43) 改款，黑金配色）——全局 JS 单例 `#js-tip` 挂舞台内随 fitScale 缩放，mouseover 委托、换目标强制重播滑入，气泡距目标 7px、箭头嵌 3px 且经 `--ax/--ay` 指向目标中心、左右按所在框钳制，动效 = 滑入淡入 + 箭头 45°→0° 转正（A 方案）；铺满操作栏四按钮、六个演示按钮与任务链图钉（图钉文案随置顶切换 📌 置顶该链 / 📍 取消置顶）；**③ Checkbox**（[Gautammsharma · massive-rabbit-40](https://uiverse.io/Gautammsharma/massive-rabbit-40)）——任务勾选，打勾绿 #8fc46f，仍走 `.checked` class 与 data-stage 委托点击；**④ Button**（[vinodjangid07 · pink-cheetah-68](https://uiverse.io/vinodjangid07/pink-cheetah-68)）——操作栏三按钮与全部演示按钮，金渐变流光 + 按压缩放，暗色内芯以 z-index:-1 的 ::before 实现（按钮 isolation: isolate）；**⑤ Button 齿轮款**（[TroyRandall · tall-wolverine-43](https://uiverse.io/TroyRandall/tall-wolverine-43)，缩至 32×32）——基本设置，自带滑出式气泡（悬停按钮与气泡同转金渐变）；**⑥ Toggle switch 任务范围**（[santhosh_2608 · itchy-stingray-87](https://uiverse.io/santhosh_2608/itchy-stingray-87)，整体验缩至 0.5）——文字 MAP（当前地图）/ WORLD（同世界全部），checkbox 原生 checked 驱动 `state.view`；**⑦ Loaders 组合**（[BlackisPlay · sweet-frog-67](https://uiverse.io/BlackisPlay/sweet-frog-67) 吃豆人幽灵 + [f754699 · witty-duck-39](https://uiverse.io/f754699/witty-duck-39) LOADING 故障字）——CRT 启动 loading，`#loading-screen` 置于 `#screen-wrap` 内（z-index 3，盖过帧流、垫在扫描线/玻璃下），flex 居中，`.show` 不淡入防闪帧，电源开机触发 2 秒。候选留档：个人卡片式 tooltip（[vikas7754 · evil-mule-52](https://uiverse.io/vikas7754/evil-mule-52)）作队伍成员 hover 角色卡。
 6. **职业徽章**：队伍槽的职业现为纯文字，改为徽章式样（图形 + 底色）提升观感。
 7. **小地图移动增强**：中键**按住并拖动**时，队伍位置图标要随地图整体联动（全向丝滑移动，非仅南向步进）；地图与取景框贴边后该方向停止移动（钳制已有，需补拖拽联动与平滑插值）。
 

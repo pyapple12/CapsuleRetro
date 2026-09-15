@@ -10,6 +10,10 @@
         margin: 0;
         padding: 0;
       }
+      /* 按钮不继承字体是 UA 默认行为：缺这行行盒按 Arial 度量、汉字回退雅黑，文字会贴底 */
+      button {
+        font-family: inherit;
+      }
       body {
         height: 100vh;
         overflow: hidden;
@@ -150,20 +154,58 @@
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
-        margin-top: 8px;
+        margin-top: 6px;
       }
       .cheats button {
         flex: 1 1 44%;
         padding: 5px 0;
         font-size: 15px;
         cursor: pointer;
-        color: #d8c48c;
-        background: linear-gradient(#3a3324, #262219);
-        border: 1px solid #4a4234;
-        border-radius: 6px;
       }
+
+      /* ===== 金色流光按钮：Uiverse.io by vinodjangid07（pink-cheetah-68，MIT）· 除基本设置齿轮外 ===== */
+      #action-bar button:not(#btn-settings),
+      .cheats button {
+        position: relative; /* ::before 内芯的定位基准必须是按钮自身 */
+        color: #ffd277;
+        border: none;
+        border-radius: 10px;
+        background: linear-gradient(
+          to right,
+          #77530a,
+          #ffd277,
+          #77530a,
+          #77530a,
+          #ffd277,
+          #77530a
+        );
+        background-size: 250%;
+        background-position: left;
+        transition-duration: 1s;
+        overflow: hidden;
+        /* 暗色内芯 z-index:-1 压在渐变上、垫在文字下，需要按钮自成层 */
+        isolation: isolate;
+      }
+      #action-bar button:not(#btn-settings)::before,
+      .cheats button::before {
+        content: "";
+        position: absolute;
+        z-index: -1;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 97%;
+        height: 90%;
+        border-radius: 8px;
+        background-color: rgba(0, 0, 0, 0.842);
+      }
+      #action-bar button:not(#btn-settings):hover,
+      .cheats button:hover {
+        background-position: right;
+      }
+      #action-bar button:not(#btn-settings):active,
       .cheats button:active {
-        background: #4a4230;
+        transform: scale(0.95);
       }
 
       /* ============ 左：队伍六槽 ============ */
@@ -171,7 +213,7 @@
         display: flex;
         gap: 9px;
         align-items: center;
-        padding: 6px 5px;
+        padding: 5px;
         border-radius: 6px;
       }
       .slot + .slot {
@@ -231,7 +273,7 @@
         display: flex;
         align-items: center;
         gap: 6px;
-        margin-top: 3px;
+        margin-top: 2px;
       }
       .stat .lab {
         font-size: 14px;
@@ -304,10 +346,125 @@
         color: #57503f;
         font-size: 16px;
         letter-spacing: 4px;
-        padding: 14px 0;
+        /* 与人物槽等高（挤压后实测 76px = 内容 74 + 上下虚线边框） */
+        min-height: 76px;
+        padding: 0;
         border: 1px dashed #35302a;
         border-radius: 6px;
         text-align: center;
+      }
+
+      /* ============ 左：底部操作栏 ============ */
+      #action-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: linear-gradient(#3a352c, #262219);
+        border: 1px solid #45403466;
+        border-radius: 8px;
+        padding: 6px 9px;
+      }
+      #action-bar button {
+        font-size: 15px;
+        letter-spacing: 1px;
+        cursor: pointer;
+        color: #d8c48c;
+        background: linear-gradient(#3a3324, #262219);
+        border: 1px solid #4a4234;
+        border-radius: 6px;
+        padding: 5px 8px;
+        white-space: nowrap;
+        flex: none;
+      }
+      #action-bar button:active {
+        background: #4a4230;
+      }
+      /* ===== 基本设置按钮：Uiverse.io by TroyRandall（tall-wolverine-43，MIT）· 主题配色 ===== */
+      #action-bar #btn-settings {
+        position: relative;
+        width: 32px; /* 原组件 40px 的 4/5 */
+        height: 32px;
+        padding: 0;
+        margin-left: auto;
+        border: 1px solid #4a4234;
+        border-radius: 10px;
+        background: #14120f;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        overflow: visible;
+      }
+      #action-bar #btn-settings .gear-icon {
+        font-size: 18px;
+        color: #d8c48c;
+      }
+      #action-bar #btn-settings:hover {
+        background: linear-gradient(320deg, #b09a5e, #ffd277);
+        border-color: #ffd277;
+      }
+      #action-bar #btn-settings:hover .gear-icon {
+        color: #14120f;
+      }
+      #action-bar #btn-settings:active {
+        transform: scale(0.95);
+      }
+
+      /* ===== 全局 tooltip（乙款视觉：Uiverse.io by TanimMahbub · white-fly-43，MIT）：
+         单例挂在舞台内（absolute 坐标随 fitScale 缩放），不被任何 overflow 容器裁剪 ===== */
+      #js-tip {
+        position: absolute;
+        z-index: 999;
+        pointer-events: none;
+        background: #14120f;
+        border: 1px solid #b09a5e;
+        color: #e8d9a8;
+        font-size: 13px;
+        line-height: 1;
+        padding: 7px 12px;
+        border-radius: 4px;
+        white-space: nowrap;
+        opacity: 0;
+        transform: translateY(5px); /* 出现动效：自下滑入 */
+        transition:
+          opacity 0.2s ease,
+          transform 0.2s ease;
+      }
+      #js-tip.below {
+        transform: translateY(-5px); /* 朝下翻出时反向滑入 */
+      }
+      #js-tip.below.open,
+      #js-tip.open {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      #js-tip::after {
+        content: "";
+        position: absolute;
+        /* 箭头落在气泡与目标之间的空隙（距目标 2px），与乙方案一致 */
+        top: var(--ay, calc(100% - 1px));
+        left: calc(var(--ax, 50%) - 4px);
+        width: 8px;
+        height: 8px;
+        background: #14120f;
+        border-right: 1px solid #b09a5e;
+        border-bottom: 1px solid #b09a5e;
+        transform: rotate(45deg); /* 闭态：菱形 */
+        transition: transform 0.25s ease 0.1s; /* 延迟启动：气泡淡入后旋转才清晰可见 */
+      }
+      /* A 方案：就位时箭头转正成方块，保留"箭头变化"动效 */
+      #js-tip.open::after {
+        transform: rotate(0deg);
+      }
+      #js-tip.below::after {
+        transform: rotate(-135deg);
+      }
+      #js-tip.below.open::after {
+        transform: rotate(0deg);
+      }
+      #js-tip.open {
+        opacity: 1;
       }
 
       /* ============ 中：CRT 显示器 ============ */
@@ -431,52 +588,568 @@
         border-radius: 0 0 10px 10px;
       }
       #control-strip {
-        margin-top: 10px;
+        margin-top: 30px; /* 无外框后与上方 CRT 拉开 30px */
         display: flex;
         gap: 20px;
         align-items: center;
         justify-content: center;
-        background: linear-gradient(#3a352c, #262219);
-        border: 1px solid #45403466;
-        border-radius: 10px;
-        padding: 9px 18px;
-        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
       }
+      /* ===== 开关：Uiverse.io by r7chardgh（dry-rabbit-69，MIT）· 改色：off 文字红 / on 文字绿 ===== */
       .switch {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 12px;
         cursor: pointer;
         user-select: none;
+        font-size: 12px;
       }
       .switch .track {
-        width: 40px;
-        height: 18px;
-        border-radius: 9px;
-        background: #191713;
-        border: 1px solid #454034;
         position: relative;
-        transition: background 0.15s;
+        top: -3px; /* 阴影 + 面体贴底使可视重心偏下，人工抬高 */
+        display: inline-block;
+        width: 5em;
+        height: 2.5em;
+        background-color: #373737;
+        border-radius: 0.1em;
+        transition: 0.4s;
+        text-transform: uppercase;
+        font-weight: 700;
+        overflow: hidden;
+        box-shadow:
+          -0.3em 0 0 0 #373737,
+          -0.3em 0.3em 0 0 #373737,
+          0.3em 0 0 0 #373737,
+          0.3em 0.3em 0 0 #373737,
+          0 0.3em 0 0 #373737;
       }
-      .switch .track i {
+      /* off 面（默认翻平）：白面红字 */
+      .switch .left {
         position: absolute;
-        top: 1px;
-        left: 1px;
-        width: 20px;
-        height: 14px;
-        border-radius: 7px;
-        background: linear-gradient(#d9d2c2, #a89f8c);
-        transition: left 0.15s;
+        display: flex;
+        width: 50%;
+        height: 88%;
+        left: 0;
+        bottom: 0;
+        align-items: center;
+        justify-content: center;
+        background-color: #f3f3f3;
+        color: #b04a37;
+        transform-origin: right;
+        transform: rotateX(10deg);
+        transform-style: preserve-3d;
+        transition: all 150ms;
       }
-      .switch.on .track {
-        background: #3d4a2f;
+      .switch .left::before {
+        position: absolute;
+        content: "";
+        width: 100%;
+        height: 100%;
+        background-color: rgb(206, 206, 206);
+        transform-origin: center left;
+        transform: rotateY(90deg);
       }
-      .switch.on .track i {
-        left: 17px;
+      .switch .left::after {
+        position: absolute;
+        content: "";
+        width: 100%;
+        height: 100%;
+        background-color: rgb(112, 112, 112);
+        transform-origin: center bottom;
+        transform: rotateX(90deg);
+      }
+      /* on 面（默认折起）：白面灰字 */
+      .switch .right {
+        position: absolute;
+        display: flex;
+        width: 50%;
+        height: 88%;
+        right: 1px;
+        bottom: 0;
+        align-items: center;
+        justify-content: center;
+        background-color: #f3f3f3;
+        color: rgb(206, 206, 206);
+        transform-origin: left;
+        transform: rotateX(10deg) rotateY(-45deg);
+        transform-style: preserve-3d;
+        transition: all 150ms;
+      }
+      .switch .right::before {
+        position: absolute;
+        content: "";
+        width: 100%;
+        height: 100%;
+        background-color: rgb(206, 206, 206);
+        transform-origin: center right;
+        transform: rotateY(-90deg);
+      }
+      .switch .right::after {
+        position: absolute;
+        content: "";
+        width: 100%;
+        height: 100%;
+        background-color: rgb(112, 112, 112);
+        transform-origin: center bottom;
+        transform: rotateX(90deg);
+      }
+      /* on 态：on 面翻平（绿字），off 面折起文字变暗 */
+      .switch.on .track > .right {
+        transform: rotateX(10deg) rotateY(0deg);
+        color: #5da03f;
+      }
+      .switch.on .track > .left {
+        transform: rotateX(10deg) rotateY(45deg);
+        color: rgb(206, 206, 206);
       }
       .switch .lab {
         font-size: 16px;
         color: #c8bfa8;
+      }
+
+      /* ===== CRT 启动 loading（Uiverse.io by BlackisPlay · sweet-frog-67 + f754699 · witty-duck-39，均 MIT）===== */
+      #loading-screen {
+        position: absolute;
+        inset: 0;
+        z-index: 3; /* 盖过画面、垫在扫描线与玻璃之下 */
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 30px;
+        background: #050505;
+        opacity: 0;
+        visibility: hidden;
+        transition:
+          opacity 0.25s ease,
+          visibility 0.25s ease;
+      }
+      #loading-screen.show {
+        opacity: 1;
+        visibility: visible;
+        transition: none; /* 开机瞬间即以不透明态盖屏，不淡入，防止闪出底下画面 */
+      }
+
+      /* From Uiverse.io by BlackisPlay（sweet-frog-67） */
+      #ghost {
+        position: relative;
+        scale: 0.8;
+      }
+
+      #red {
+        animation: upNDown infinite 0.5s;
+        position: relative;
+        width: 140px;
+        height: 140px;
+        display: grid;
+        grid-template-columns: repeat(14, 1fr);
+        grid-template-rows: repeat(14, 1fr);
+        grid-column-gap: 0px;
+        grid-row-gap: 0px;
+        grid-template-areas:
+          "a1  a2  a3  a4  a5  top0  top0  top0  top0  a10 a11 a12 a13 a14"
+          "b1  b2  b3  top1 top1 top1 top1 top1 top1 top1 top1 b12 b13 b14"
+          "c1 c2 top2 top2 top2 top2 top2 top2 top2 top2 top2 top2 c13 c14"
+          "d1 top3 top3 top3 top3 top3 top3 top3 top3 top3 top3 top3 top3 d14"
+          "e1 top3 top3 top3 top3 top3 top3 top3 top3 top3 top3 top3 top3 e14"
+          "f1 top3 top3 top3 top3 top3 top3 top3 top3 top3 top3 top3 top3 f14"
+          "top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4"
+          "top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4"
+          "top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4"
+          "top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4"
+          "top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4"
+          "top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4"
+          "st0 st0 an4 st1 an7 st2 an10 an10 st3 an13 st4 an16 st5 st5"
+          "an1 an2 an3 an5 an6 an8 an9 an9 an11 an12 an14 an15 an17 an18";
+      }
+
+      @keyframes upNDown {
+        0%,
+        49% {
+          transform: translateY(0px);
+        }
+        50%,
+        100% {
+          transform: translateY(-10px);
+        }
+      }
+
+      #top0,
+      #top1,
+      #top2,
+      #top3,
+      #top4,
+      #st0,
+      #st1,
+      #st2,
+      #st3,
+      #st4,
+      #st5 {
+        background-color: red;
+      }
+
+      #top0 {
+        grid-area: top0;
+      }
+
+      #top1 {
+        grid-area: top1;
+      }
+
+      #top2 {
+        grid-area: top2;
+      }
+
+      #top3 {
+        grid-area: top3;
+      }
+
+      #top4 {
+        grid-area: top4;
+      }
+
+      #st0 {
+        grid-area: st0;
+      }
+
+      #st1 {
+        grid-area: st1;
+      }
+
+      #st2 {
+        grid-area: st2;
+      }
+
+      #st3 {
+        grid-area: st3;
+      }
+
+      #st4 {
+        grid-area: st4;
+      }
+
+      #st5 {
+        grid-area: st5;
+      }
+
+      #an1 {
+        grid-area: an1;
+        animation: flicker0 infinite 0.5s;
+      }
+
+      #an18 {
+        grid-area: an18;
+        animation: flicker0 infinite 0.5s;
+      }
+
+      #an2 {
+        grid-area: an2;
+        animation: flicker1 infinite 0.5s;
+      }
+
+      #an17 {
+        grid-area: an17;
+        animation: flicker1 infinite 0.5s;
+      }
+
+      #an3 {
+        grid-area: an3;
+        animation: flicker1 infinite 0.5s;
+      }
+
+      #an16 {
+        grid-area: an16;
+        animation: flicker1 infinite 0.5s;
+      }
+
+      #an4 {
+        grid-area: an4;
+        animation: flicker1 infinite 0.5s;
+      }
+
+      #an15 {
+        grid-area: an15;
+        animation: flicker1 infinite 0.5s;
+      }
+
+      #an6 {
+        grid-area: an6;
+        animation: flicker0 infinite 0.5s;
+      }
+
+      #an12 {
+        grid-area: an12;
+        animation: flicker0 infinite 0.5s;
+      }
+
+      #an7 {
+        grid-area: an7;
+        animation: flicker0 infinite 0.5s;
+      }
+
+      #an13 {
+        grid-area: an13;
+        animation: flicker0 infinite 0.5s;
+      }
+
+      #an9 {
+        grid-area: an9;
+        animation: flicker1 infinite 0.5s;
+      }
+
+      #an10 {
+        grid-area: an10;
+        animation: flicker1 infinite 0.5s;
+      }
+
+      #an8 {
+        grid-area: an8;
+        animation: flicker0 infinite 0.5s;
+      }
+
+      #an11 {
+        grid-area: an11;
+        animation: flicker0 infinite 0.5s;
+      }
+
+      @keyframes flicker0 {
+        0%,
+        49% {
+          background-color: red;
+        }
+        50%,
+        100% {
+          background-color: transparent;
+        }
+      }
+
+      @keyframes flicker1 {
+        0%,
+        49% {
+          background-color: transparent;
+        }
+        50%,
+        100% {
+          background-color: red;
+        }
+      }
+
+      #eye {
+        width: 40px;
+        height: 50px;
+        position: absolute;
+        top: 30px;
+        left: 10px;
+      }
+
+      #eye::before {
+        content: "";
+        background-color: white;
+        width: 20px;
+        height: 50px;
+        transform: translateX(10px);
+        display: block;
+        position: absolute;
+      }
+
+      #eye::after {
+        content: "";
+        background-color: white;
+        width: 40px;
+        height: 30px;
+        transform: translateY(10px);
+        display: block;
+        position: absolute;
+      }
+
+      #eye1 {
+        width: 40px;
+        height: 50px;
+        position: absolute;
+        top: 30px;
+        right: 30px;
+      }
+
+      #eye1::before {
+        content: "";
+        background-color: white;
+        width: 20px;
+        height: 50px;
+        transform: translateX(10px);
+        display: block;
+        position: absolute;
+      }
+
+      #eye1::after {
+        content: "";
+        background-color: white;
+        width: 40px;
+        height: 30px;
+        transform: translateY(10px);
+        display: block;
+        position: absolute;
+      }
+
+      #pupil {
+        width: 20px;
+        height: 20px;
+        background-color: blue;
+        position: absolute;
+        top: 50px;
+        left: 10px;
+        z-index: 1;
+        animation: eyesMovement infinite 3s;
+      }
+
+      #pupil1 {
+        width: 20px;
+        height: 20px;
+        background-color: blue;
+        position: absolute;
+        top: 50px;
+        right: 50px;
+        z-index: 1;
+        animation: eyesMovement infinite 3s;
+      }
+
+      @keyframes eyesMovement {
+        0%,
+        49% {
+          transform: translateX(0px);
+        }
+        50%,
+        99% {
+          transform: translateX(10px);
+        }
+        100% {
+          transform: translateX(0px);
+        }
+      }
+
+      #shadow {
+        background-color: black;
+        width: 140px;
+        height: 140px;
+        position: absolute;
+        border-radius: 50%;
+        transform: rotateX(80deg);
+        filter: blur(20px);
+        top: 80%;
+        animation: shadowMovement infinite 0.5s;
+      }
+
+      @keyframes shadowMovement {
+        0%,
+        49% {
+          opacity: 0.5;
+        }
+        50%,
+        100% {
+          opacity: 0.2;
+        }
+      }
+
+      /* From Uiverse.io by f754699（witty-duck-39） */
+      .glitch {
+        position: relative;
+        font-size: 25px;
+        font-weight: 700;
+        line-height: 1.2;
+        color: #fff;
+        letter-spacing: 5px;
+        z-index: 1;
+        animation: shift 1s ease-in-out infinite alternate;
+      }
+
+      .glitch:before,
+      .glitch:after {
+        display: block;
+        content: attr(data-glitch);
+        position: absolute;
+        top: 0;
+        left: 0;
+        opacity: 0.8;
+      }
+
+      .glitch:before {
+        animation: glitch 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) both
+          infinite;
+        color: black;
+        z-index: -1;
+      }
+
+      .glitch:after {
+        animation: glitch 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) reverse both
+          infinite;
+        color: rgb(121, 82, 152);
+        z-index: -2;
+      }
+
+      @keyframes glitch {
+        0% {
+          transform: translate(0);
+        }
+
+        20% {
+          transform: translate(-3px, 3px);
+        }
+
+        40% {
+          transform: translate(-3px, -3px);
+        }
+
+        60% {
+          transform: translate(3px, 3px);
+        }
+
+        80% {
+          transform: translate(3px, -3px);
+        }
+
+        to {
+          transform: translate(0);
+        }
+      }
+
+      @keyframes shift {
+        0%,
+        40%,
+        44%,
+        58%,
+        61%,
+        65%,
+        69%,
+        73%,
+        100% {
+          transform: skewX(0deg);
+        }
+
+        41% {
+          transform: skewX(10deg);
+        }
+
+        42% {
+          transform: skewX(-10deg);
+        }
+
+        59% {
+          transform: skewX(40deg) skewY(10deg);
+        }
+
+        60% {
+          transform: skewX(-40deg) skewY(-10deg);
+        }
+
+        63% {
+          transform: skewX(10deg) skewY(-5deg);
+        }
+
+        70% {
+          transform: skewX(-50deg) skewY(-20deg);
+        }
+
+        71% {
+          transform: skewX(10deg) skewY(-10deg);
+        }
       }
 
       /* ============ 右：地图 ============ */
@@ -642,27 +1315,40 @@
         align-items: center;
         justify-content: space-between;
       }
+      /* ===== 任务勾选框：Uiverse.io by Gautammsharma（massive-rabbit-40，MIT）· 主题配色，打勾绿 ===== */
       .task-box .chk {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 14px;
-        height: 14px;
-        border: 1px solid #8a7f68;
-        border-radius: 3px;
-        color: #8fc46f;
-        font-size: 15px;
-        line-height: 1;
+        position: relative;
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid #4a4234;
+        border-radius: 4px;
         margin-right: 6px;
         flex: none;
-        font-family: Consolas, monospace;
+        cursor: pointer;
+        transition: all 0.3s;
+      }
+      .task-box .chk:hover {
+        border-color: #b09a5e;
       }
       .task-box .chk.checked {
-        border-color: #8fc46f;
-        background: #26301c;
+        background: #2f2a1d;
+        border-color: #b09a5e;
+      }
+      .task-box .chk.checked::after {
+        content: "";
+        position: absolute;
+        top: 1px;
+        left: 5px;
+        width: 3px;
+        height: 8px;
+        border: solid #8fc46f;
+        border-width: 0 2px 2px 0;
+        transform: rotate(45deg);
       }
       .status-tag {
         font-size: 12px;
+        line-height: 1; /* 去掉雅黑重 descent 行盒，否则小字墨迹在胶囊内贴底 */
         padding: 1px 6px;
         border-radius: 999px;
         border: 1px solid #b09a5e;
@@ -700,43 +1386,459 @@
         filter: none;
         opacity: 1;
       }
-      /* 滑杆：地图任务 ⇄ 全部任务 */
+      /* ===== 任务范围开关：Uiverse.io by santhosh_2608（itchy-stingray-87，MIT）· 文字 MAP/WORLD ===== */
       #scope-switch {
+        zoom: 0.5; /* 整个开关缩小到组件原大小的一半 */
+        margin-right: 8px; /* 微调：整体左移 8px */
+      }
+      .toggle-switch {
         display: inline-flex;
         align-items: center;
-        gap: 7px;
+        gap: 16px;
         cursor: pointer;
         user-select: none;
-      }
-      #ui-scope-lab {
-        font-size: 14px;
-        letter-spacing: 1px;
-        color: #d8c48c;
-        white-space: nowrap;
-      }
-      .scope-track {
-        width: 32px;
-        height: 13px;
-        border-radius: 7px;
-        background: #191713;
-        border: 1px solid #454034;
         position: relative;
-        display: inline-block;
       }
-      .scope-knob {
+
+      .toggle-input {
         position: absolute;
-        top: 1px;
-        left: 1px;
-        width: 15px;
-        height: 9px;
-        border-radius: 5px;
-        background: linear-gradient(#d9d2c2, #a89f8c);
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-        transition: left 0.15s;
+        opacity: 0;
+        width: 0;
+        height: 0;
       }
-      #scope-switch.all .scope-knob {
-        left: 14px;
-        background: linear-gradient(#ffe9a8, #d8bd6a);
+
+      .toggle-track {
+        position: relative;
+        width: 76px;
+        height: 38px;
+        background: linear-gradient(
+          160deg,
+          #1c1c1c 0%,
+          #0a0a0a 40%,
+          #151515 100%
+        );
+        border: 2px solid #3a302a;
+        border-radius: 6px;
+        transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        overflow: hidden;
+        box-sizing: border-box;
+        box-shadow:
+          inset 0 4px 12px rgba(0, 0, 0, 0.5),
+          inset 0 -2px 6px rgba(255, 255, 255, 0.02),
+          0 4px 16px rgba(0, 0, 0, 0.4);
+      }
+
+      .toggle-track::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: repeating-linear-gradient(
+          90deg,
+          transparent 0px,
+          transparent 3px,
+          rgba(0, 0, 0, 0.08) 3px,
+          rgba(0, 0, 0, 0.08) 4px
+        );
+        pointer-events: none;
+        opacity: 0.5;
+      }
+
+      .toggle-track::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(255, 255, 255, 0.05),
+          transparent
+        );
+      }
+
+      .toggle-rust {
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(
+            ellipse at 5% 90%,
+            rgba(139, 69, 19, 0.2) 0%,
+            transparent 35%
+          ),
+          radial-gradient(
+            ellipse at 95% 10%,
+            rgba(120, 60, 20, 0.15) 0%,
+            transparent 30%
+          ),
+          radial-gradient(
+            ellipse at 50% 100%,
+            rgba(100, 50, 15, 0.1) 0%,
+            transparent 40%
+          );
+        pointer-events: none;
+        transition: all 0.6s ease;
+      }
+
+      .toggle-input:checked + .toggle-track {
+        border-color: #b04528;
+        background: linear-gradient(
+          160deg,
+          #281815 0%,
+          #140a08 40%,
+          #1c100c 100%
+        );
+        box-shadow:
+          inset 0 4px 12px rgba(0, 0, 0, 0.5),
+          inset 0 -2px 6px rgba(179, 74, 40, 0.08),
+          0 4px 24px rgba(179, 74, 40, 0.25),
+          0 0 50px rgba(179, 74, 40, 0.15);
+      }
+
+      .toggle-input:checked + .toggle-track .toggle-rust {
+        background:
+          radial-gradient(
+            ellipse at 5% 90%,
+            rgba(179, 74, 40, 0.2) 0%,
+            transparent 35%
+          ),
+          radial-gradient(
+            ellipse at 95% 10%,
+            rgba(220, 90, 45, 0.3) 0%,
+            transparent 45%
+          ),
+          radial-gradient(
+            ellipse at 80% 50%,
+            rgba(255, 120, 60, 0.15) 0%,
+            transparent 55%
+          );
+      }
+
+      .toggle-glow {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(
+          ellipse at 78% 50%,
+          rgba(255, 100, 50, 0.3) 0%,
+          transparent 55%
+        );
+        opacity: 0;
+        transition: opacity 0.6s ease;
+        pointer-events: none;
+      }
+
+      .toggle-input:checked + .toggle-track .toggle-glow {
+        opacity: 1;
+        animation: glowPulse 2.5s ease-in-out infinite;
+      }
+
+      @keyframes glowPulse {
+        0%,
+        100% {
+          opacity: 0.7;
+          filter: brightness(1);
+        }
+
+        50% {
+          opacity: 1;
+          filter: brightness(1.2);
+        }
+      }
+
+      .toggle-thumb {
+        position: absolute;
+        top: 4px;
+        left: 4px;
+        width: 26px;
+        height: 26px;
+        background: linear-gradient(
+          145deg,
+          #5a5048 0%,
+          #3a3028 40%,
+          #4a4038 100%
+        );
+        border: 1px solid #6a5a4a;
+        border-radius: 4px;
+        transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow:
+          0 4px 14px rgba(0, 0, 0, 0.5),
+          0 2px 4px rgba(0, 0, 0, 0.3),
+          inset 0 1px 0 rgba(255, 255, 255, 0.08),
+          inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+        box-sizing: border-box;
+        z-index: 2;
+      }
+
+      .toggle-input:checked + .toggle-track .toggle-thumb {
+        left: calc(100% - 30px);
+        background: linear-gradient(
+          145deg,
+          #e05a30 0%,
+          #b04020 40%,
+          #d04a28 100%
+        );
+        border-color: #ff7040;
+        box-shadow:
+          0 4px 24px rgba(224, 90, 48, 0.65),
+          0 0 35px rgba(224, 90, 48, 0.45),
+          0 0 70px rgba(224, 90, 48, 0.25),
+          inset 0 1px 0 rgba(255, 255, 255, 0.25),
+          inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+      }
+
+      .thumb-inner {
+        width: 12px;
+        height: 12px;
+        background: linear-gradient(145deg, #6a5a4a 0%, #4a3a30 100%);
+        border-radius: 50%;
+        transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+        position: relative;
+      }
+
+      .toggle-input:checked + .toggle-track .thumb-inner {
+        background: linear-gradient(145deg, #ff9060 0%, #ff7040 100%);
+        box-shadow:
+          0 0 14px rgba(255, 144, 96, 0.9),
+          0 0 28px rgba(255, 112, 64, 0.6),
+          0 0 42px rgba(255, 90, 50, 0.3),
+          inset 0 1px 2px rgba(255, 255, 255, 0.4);
+        animation: emberGlow 1.2s ease-in-out infinite;
+      }
+
+      @keyframes emberGlow {
+        0%,
+        100% {
+          box-shadow:
+            0 0 14px rgba(255, 144, 96, 0.9),
+            0 0 28px rgba(255, 112, 64, 0.6);
+          transform: scale(1);
+        }
+
+        50% {
+          box-shadow:
+            0 0 18px rgba(255, 144, 96, 1),
+            0 0 36px rgba(255, 112, 64, 0.8),
+            0 0 54px rgba(255, 90, 50, 0.4);
+          transform: scale(1.08);
+        }
+      }
+
+      .thumb-shine {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 45%;
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.12) 0%,
+          transparent 100%
+        );
+        border-radius: 4px 4px 0 0;
+        pointer-events: none;
+        transition: all 0.6s ease;
+      }
+
+      .toggle-input:checked + .toggle-track .thumb-shine {
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.25) 0%,
+          transparent 100%
+        );
+      }
+
+      .toggle-icons {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 11px;
+        pointer-events: none;
+        z-index: 1;
+      }
+
+      .toggle-icons svg {
+        width: 16px;
+        height: 16px;
+        transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      .icon-off {
+        color: #6a6050;
+        opacity: 1;
+        transform: rotate(0deg) scale(1);
+      }
+
+      .icon-on {
+        color: #4a3828;
+        opacity: 0.35;
+        transform: rotate(-20deg) scale(0.9);
+      }
+
+      .toggle-input:checked + .toggle-track .icon-off {
+        opacity: 0.15;
+        color: #3a3028;
+        transform: rotate(180deg) scale(0.8);
+      }
+
+      .toggle-input:checked + .toggle-track .icon-on {
+        opacity: 1;
+        color: #ff9060;
+        transform: rotate(0deg) scale(1.1);
+        filter: drop-shadow(0 0 8px rgba(255, 144, 96, 0.7));
+      }
+
+      .toggle-label {
+        position: relative;
+        font-family: "Consolas", "Courier New", monospace;
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        min-width: 32px;
+      }
+
+      .label-off,
+      .label-on {
+        position: absolute;
+        transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      .label-off {
+        color: #5a5040;
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .label-on {
+        color: #e05a30;
+        opacity: 0;
+        transform: translateY(10px);
+      }
+
+      .toggle-input:checked ~ .toggle-label .label-off {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+
+      .toggle-input:checked ~ .toggle-label .label-on {
+        opacity: 1;
+        transform: translateY(0);
+        text-shadow:
+          0 0 12px rgba(224, 90, 48, 0.6),
+          0 0 24px rgba(224, 90, 48, 0.3);
+        animation: labelGlow 2s ease-in-out infinite;
+      }
+
+      @keyframes labelGlow {
+        0%,
+        100% {
+          text-shadow:
+            0 0 12px rgba(224, 90, 48, 0.6),
+            0 0 24px rgba(224, 90, 48, 0.3);
+        }
+
+        50% {
+          text-shadow:
+            0 0 16px rgba(224, 90, 48, 0.8),
+            0 0 32px rgba(224, 90, 48, 0.5);
+        }
+      }
+
+      .toggle-switch:hover .toggle-track {
+        border-color: #5a4838;
+        transform: scale(1.03);
+      }
+
+      .toggle-switch:hover .toggle-input:checked + .toggle-track {
+        border-color: #d45030;
+      }
+
+      .toggle-switch:hover .toggle-thumb {
+        box-shadow:
+          0 6px 18px rgba(0, 0, 0, 0.6),
+          0 2px 4px rgba(0, 0, 0, 0.4),
+          inset 0 1px 0 rgba(255, 255, 255, 0.12);
+      }
+
+      .toggle-switch:hover .toggle-input:checked + .toggle-track .toggle-thumb {
+        box-shadow:
+          0 6px 28px rgba(224, 90, 48, 0.75),
+          0 0 50px rgba(224, 90, 48, 0.55),
+          0 0 90px rgba(224, 90, 48, 0.3),
+          inset 0 1px 0 rgba(255, 255, 255, 0.3);
+      }
+
+      .toggle-switch:active .toggle-thumb {
+        width: 32px;
+        transition: all 0.12s ease;
+      }
+
+      .toggle-switch:active
+        .toggle-input:checked
+        + .toggle-track
+        .toggle-thumb {
+        left: calc(100% - 36px);
+        width: 32px;
+      }
+
+      .toggle-input:focus-visible + .toggle-track {
+        outline: 2px solid #ff7040;
+        outline-offset: 4px;
+      }
+
+      .toggle-switch::before {
+        content: "";
+        position: absolute;
+        top: -6px;
+        left: -6px;
+        right: -6px;
+        bottom: -6px;
+        background: radial-gradient(
+          ellipse at center,
+          rgba(224, 90, 48, 0.08) 0%,
+          transparent 70%
+        );
+        opacity: 0;
+        transition: opacity 0.6s ease;
+        pointer-events: none;
+        border-radius: 12px;
+      }
+
+      .toggle-switch:hover::before {
+        opacity: 1;
+      }
+
+      .toggle-switch::after {
+        content: "";
+        position: absolute;
+        bottom: -14px;
+        left: 10px;
+        width: 56px;
+        height: 14px;
+        background: radial-gradient(
+          ellipse,
+          rgba(0, 0, 0, 0.35) 0%,
+          transparent 70%
+        );
+        filter: blur(5px);
+        opacity: 0.7;
+        transition: all 0.6s ease;
+        pointer-events: none;
+      }
+
+      .toggle-switch:hover::after {
+        opacity: 0.9;
+        transform: scale(1.08);
       }
       /* 内容超框：清单向右扩 8px（滑轨落在扩展区，不压缩内容） */
       #task-list.overflowing {
@@ -770,6 +1872,201 @@
         color: #57503f;
         line-height: 1.7;
         text-align: center;
+      }
+
+      /* ============ 浮窗：恰好覆盖 CRT 显示器（点击窗外关闭） ============ */
+      #modal-backdrop {
+        position: absolute;
+        inset: 0;
+        z-index: 50;
+        display: none;
+      }
+      #modal-backdrop.open {
+        display: block;
+      }
+      #modal-win {
+        position: absolute;
+        z-index: 51;
+        display: none;
+        flex-direction: column;
+        background: linear-gradient(165deg, #26221c, #14120f 70%);
+        border: 2px solid #b09a5e;
+        border-radius: 12px;
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.05),
+          0 24px 60px rgba(0, 0, 0, 0.7);
+        overflow: hidden;
+      }
+      #modal-win.open {
+        display: flex;
+      }
+      #modal-head {
+        display: flex;
+        align-items: baseline;
+        gap: 14px;
+        padding: 13px 20px 11px;
+        background: #1c1915;
+        border-bottom: 1px solid #3a352c;
+      }
+      #modal-title {
+        font-size: 21px;
+        letter-spacing: 6px;
+        color: #e8d9a8;
+      }
+      #modal-hint {
+        margin-left: auto;
+        font-size: 14px;
+        color: #6f6852;
+      }
+      #modal-body {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: #454034 transparent;
+        padding: 16px 22px 20px;
+      }
+      .modal-page {
+        display: none;
+      }
+      .modal-page h4 {
+        font-size: 16px;
+        letter-spacing: 3px;
+        color: #b09a5e;
+        margin: 16px 0 8px;
+      }
+      .modal-page h4:first-child {
+        margin-top: 0;
+      }
+      .modal-page .demo-note {
+        font-size: 14px;
+        color: #6f6852;
+        margin-bottom: 10px;
+      }
+      .modal-page kbd {
+        font-family: Consolas, monospace;
+        font-size: 14px;
+        color: #d8c48c;
+        background: #262219;
+        border: 1px solid #4a4234;
+        border-bottom-width: 2px;
+        border-radius: 4px;
+        padding: 0 5px;
+      }
+      /* 魔法书 */
+      .spell-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .spell {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        background: #12100d;
+        border: 1px solid #35302a;
+        border-radius: 6px;
+        padding: 8px 10px;
+      }
+      .spell .snm {
+        font-size: 17px;
+        color: #ead9ab;
+      }
+      .spell .scost {
+        font-size: 14px;
+        color: #8aa6cc;
+        font-family: Consolas, monospace;
+        white-space: nowrap;
+      }
+      .spell .sdesc {
+        font-size: 14px;
+        color: #8a7f68;
+        margin-left: auto;
+        text-align: right;
+      }
+      /* 注音表 */
+      .zh-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 6px;
+      }
+      .zh-grid.zh-tone {
+        grid-template-columns: repeat(5, 1fr);
+      }
+      .zh-chip {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        background: #12100d;
+        border: 1px solid #35302a;
+        border-radius: 6px;
+        padding: 4px 8px;
+      }
+      .zh-chip kbd {
+        min-width: 14px;
+        text-align: center;
+      }
+      .zh-chip .zy {
+        font-size: 18px;
+        color: #ead9ab;
+      }
+      .zh-chip .py {
+        font-size: 13px;
+        color: #8a7f68;
+        margin-left: auto;
+        font-family: Consolas, monospace;
+      }
+      .zh-words {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 6px;
+      }
+      .zh-word {
+        background: #12100d;
+        border: 1px solid #35302a;
+        border-radius: 6px;
+        padding: 6px 8px;
+        text-align: center;
+      }
+      .zh-word .w {
+        display: block;
+        font-size: 17px;
+        color: #ead9ab;
+      }
+      .zh-word .k {
+        display: block;
+        font-size: 13px;
+        color: #d8c48c;
+        font-family: Consolas, monospace;
+        margin-top: 2px;
+      }
+      /* 使用说明 */
+      .help-sec {
+        font-size: 16px;
+        line-height: 1.9;
+        color: #c8bfa8;
+        padding-left: 20px;
+      }
+      /* 基本设置 */
+      .set-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        background: #12100d;
+        border: 1px solid #35302a;
+        border-radius: 6px;
+        padding: 10px 12px;
+        margin-bottom: 8px;
+      }
+      .set-row .set-desc {
+        font-size: 14px;
+        color: #8a7f68;
+      }
+      .set-row.disabled {
+        opacity: 0.45;
+      }
+      .set-row.disabled .switch {
+        cursor: not-allowed;
       }
     </style>
   </head>
@@ -806,19 +2103,33 @@
             <span class="val dim" id="ui-food-days">≈ 8 天</span>
           </div>
           <div class="cheats">
-            <button id="cheat-gold">+10000 金币</button>
-            <button id="cheat-gems">+10000 宝石</button>
+            <button id="cheat-gold" data-tip="金币 +10000">+10000 金币</button>
+            <button id="cheat-gems" data-tip="宝石 +10000">+10000 宝石</button>
           </div>
         </div>
         <div class="card" style="flex: 1">
           <h3>队 伍</h3>
           <div id="party"></div>
           <div class="cheats">
-            <button id="cheat-hp">+100 HP</button>
-            <button id="cheat-mp">+100 MP</button>
+            <button id="cheat-hp" data-tip="全队 HP +100（200 封顶）">
+              +100 HP
+            </button>
+            <button id="cheat-mp" data-tip="全队 MP +100（200 封顶）">
+              +100 MP
+            </button>
             <button id="btn-dmg">受伤 −30</button>
             <button id="btn-reset">重置</button>
           </div>
+        </div>
+        <div id="action-bar">
+          <button data-modal="spell" data-tip="法术列表与 MP 消耗">魔法</button>
+          <button data-modal="zhuyin" data-tip="游戏内注音打字对照">
+            注音
+          </button>
+          <button data-modal="help" data-tip="操作与玩法说明">说明</button>
+          <button id="btn-settings" data-modal="settings" data-tip="基本设置">
+            <span class="gear-icon">⚙&#xFE0E;</span>
+          </button>
         </div>
       </aside>
 
@@ -828,6 +2139,48 @@
           <div id="screen-wrap">
             <div id="game-view">
               <img src="./pl012-gameview-sample.png" alt="游戏实机画面" />
+            </div>
+            <!-- ================= 启动 loading：幽灵在上 + 故障字在下，屏内居中 ================= -->
+            <div id="loading-screen">
+              <div id="ghost">
+                <div id="red">
+                  <div id="top0"></div>
+                  <div id="top1"></div>
+                  <div id="top2"></div>
+                  <div id="top3"></div>
+                  <div id="top4"></div>
+                  <div id="st0"></div>
+                  <div id="st1"></div>
+                  <div id="st2"></div>
+                  <div id="st3"></div>
+                  <div id="st4"></div>
+                  <div id="st5"></div>
+                  <div id="an1"></div>
+                  <div id="an2"></div>
+                  <div id="an3"></div>
+                  <div id="an4"></div>
+                  <div id="an5"></div>
+                  <div id="an6"></div>
+                  <div id="an7"></div>
+                  <div id="an8"></div>
+                  <div id="an9"></div>
+                  <div id="an10"></div>
+                  <div id="an11"></div>
+                  <div id="an12"></div>
+                  <div id="an13"></div>
+                  <div id="an14"></div>
+                  <div id="an15"></div>
+                  <div id="an16"></div>
+                  <div id="an17"></div>
+                  <div id="an18"></div>
+                  <div id="eye"></div>
+                  <div id="eye1"></div>
+                  <div id="pupil"></div>
+                  <div id="pupil1"></div>
+                </div>
+                <div id="shadow"></div>
+              </div>
+              <div class="glitch" data-glitch="LOADING">LOADING</div>
             </div>
             <div id="scanlines"></div>
             <div id="screen-glass"></div>
@@ -843,15 +2196,18 @@
         <div id="stand"></div>
         <div id="control-strip">
           <span class="switch on" id="sw-power"
-            ><span class="track"><i></i></span
+            ><span class="track"
+              ><span class="left">off</span><span class="right">on</span></span
             ><span class="lab">电源</span></span
           >
           <span class="switch on" id="sw-scan"
-            ><span class="track"><i></i></span
+            ><span class="track"
+              ><span class="left">off</span><span class="right">on</span></span
             ><span class="lab">扫描线</span></span
           >
           <span class="switch on" id="sw-curve"
-            ><span class="track"><i></i></span
+            ><span class="track"
+              ><span class="left">off</span><span class="right">on</span></span
             ><span class="lab">弧面反光</span></span
           >
         </div>
@@ -886,10 +2242,51 @@
         <div class="card" id="guide">
           <h3 id="task-header">
             <span>任 务 · <span id="ui-region">佛提格市</span></span>
-            <span id="scope-switch">
-              <span id="ui-scope-lab">地图任务</span>
-              <span class="scope-track"><span class="scope-knob"></span></span>
-            </span>
+            <label
+              class="toggle-switch"
+              id="scope-switch"
+              data-tip="切换任务范围：地图或全部"
+            >
+              <input type="checkbox" class="toggle-input" id="scope-input" />
+              <span class="toggle-track">
+                <span class="toggle-rust"></span>
+                <span class="toggle-glow"></span>
+                <span class="toggle-thumb">
+                  <span class="thumb-inner"></span>
+                  <span class="thumb-shine"></span>
+                </span>
+                <span class="toggle-icons">
+                  <svg
+                    class="icon-off"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      d="M12 21s-7-6.1-7-11a7 7 0 0 1 14 0c0 4.9-7 11-7 11z"
+                    ></path>
+                    <circle cx="12" cy="10" r="2.6"></circle>
+                  </svg>
+                  <svg
+                    class="icon-on"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <circle cx="12" cy="12" r="9"></circle>
+                    <path
+                      d="M3 12h18M12 3c2.5 2.6 3.8 5.7 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.7-3.8-9S9.5 5.6 12 3z"
+                    ></path>
+                  </svg>
+                </span>
+              </span>
+              <span class="toggle-label">
+                <span class="label-off">MAP</span>
+                <span class="label-on">WORLD</span>
+              </span>
+            </label>
           </h3>
           <div id="task-list"></div>
         </div>
@@ -897,6 +2294,133 @@
 
       <div id="foot">
         游玩界面实验场 v4 · XEEN v1.0 · Copyright © CapsuleRetro
+      </div>
+
+      <!-- ================= 浮窗：JS 定位为恰好覆盖 CRT 显示器；点击窗外关闭 ================= -->
+      <div id="modal-backdrop"></div>
+      <div id="modal-win">
+        <div id="modal-head">
+          <span id="modal-title">魔法书</span>
+          <span id="modal-hint">点击浮窗外任意位置关闭</span>
+        </div>
+        <div id="modal-body">
+          <section class="modal-page" data-page="spell">
+            <div class="demo-note">
+              演示数据 · 正式版按当前施法角色列出可用法术
+            </div>
+            <div class="spell-grid">
+              <div class="spell">
+                <span class="snm">火花</span><span class="scost">1 MP</span
+                ><span class="sdesc">单体火焰小伤害</span>
+              </div>
+              <div class="spell">
+                <span class="snm">冰射线</span><span class="scost">2 MP</span
+                ><span class="sdesc">单体寒冰伤害</span>
+              </div>
+              <div class="spell">
+                <span class="snm">闪电箭</span><span class="scost">3 MP</span
+                ><span class="sdesc">单体电击伤害</span>
+              </div>
+              <div class="spell">
+                <span class="snm">火球术</span><span class="scost">5 MP</span
+                ><span class="sdesc">一组敌人尽受火伤</span>
+              </div>
+              <div class="spell">
+                <span class="snm">酸弹</span><span class="scost">6 MP</span
+                ><span class="sdesc">组伤并腐蚀护甲</span>
+              </div>
+              <div class="spell">
+                <span class="snm">飞行术</span><span class="scost">8 MP</span
+                ><span class="sdesc">野外飞越障碍</span>
+              </div>
+              <div class="spell">
+                <span class="snm">传送术</span><span class="scost">10 MP</span
+                ><span class="sdesc">传送到去过的地点</span>
+              </div>
+              <div class="spell">
+                <span class="snm">星陨术</span><span class="scost">15 MP</span
+                ><span class="sdesc">陨石重创全体敌群</span>
+              </div>
+            </div>
+          </section>
+          <section class="modal-page" data-page="zhuyin">
+            <div class="demo-note">
+              倚天系标准排列 · 与 retro/zhuyin-keyboard.md
+              同源，游戏内个别键以屏幕实际显示为准
+            </div>
+            <h4>声 母</h4>
+            <div class="zh-grid" id="zh-initials"></div>
+            <h4>介 音</h4>
+            <div class="zh-grid" id="zh-medials"></div>
+            <h4>韵 母</h4>
+            <div class="zh-grid" id="zh-finals"></div>
+            <h4>声 调</h4>
+            <div class="zh-grid zh-tone" id="zh-tones"></div>
+            <h4>常用字速查</h4>
+            <div class="zh-words" id="zh-words"></div>
+          </section>
+          <section class="modal-page" data-page="help">
+            <h4>操 作</h4>
+            <ul class="help-sec">
+              <li>移动：W / A / S / D 或方向键；转向：Q（左）/ E（右）</li>
+              <li>切换地图：数字键 1 – 3</li>
+              <li>小地图上按住中键：朝向持续前进，贴边自动停下</li>
+            </ul>
+            <h4>任 务</h4>
+            <ul class="help-sec">
+              <li>点击任务框展开所在链的清单</li>
+              <li>📌 置顶一条链后无视规则置顶显示（📍 为已钉住，再点取消）</li>
+              <li>勾选状态本地记录</li>
+            </ul>
+            <h4>显 示</h4>
+            <ul class="help-sec">
+              <li>显示器下方控制条：电源 / 扫描线 / 弧面反光</li>
+              <li>
+                任务头部开关：MAP = 当前地图的任务，WORLD = 同世界全部任务
+              </li>
+            </ul>
+          </section>
+          <section class="modal-page" data-page="settings">
+            <div class="set-row">
+              <span class="switch" id="set-power"
+                ><span class="track"
+                  ><span class="left">off</span
+                  ><span class="right">on</span></span
+                ><span class="lab">电源</span></span
+              >
+              <span class="set-desc">熄灭 CRT 屏，仅保留机身与电源灯</span>
+            </div>
+            <div class="set-row">
+              <span class="switch" id="set-scan"
+                ><span class="track"
+                  ><span class="left">off</span
+                  ><span class="right">on</span></span
+                ><span class="lab">扫描线</span></span
+              >
+              <span class="set-desc">叠加显像管扫描线纹理</span>
+            </div>
+            <div class="set-row">
+              <span class="switch" id="set-curve"
+                ><span class="track"
+                  ><span class="left">off</span
+                  ><span class="right">on</span></span
+                ><span class="lab">弧面反光</span></span
+              >
+              <span class="set-desc">玻璃弧面高光与暗角</span>
+            </div>
+            <div class="set-row disabled">
+              <span class="switch" id="set-world"
+                ><span class="track"
+                  ><span class="left">off</span
+                  ><span class="right">on</span></span
+                ><span class="lab">背景跟随世界</span></span
+              >
+              <span class="set-desc"
+                >星云界 / 暗黑界两套房间背景（待实装）</span
+              >
+            </div>
+          </section>
+        </div>
       </div>
     </div>
 
@@ -1486,7 +3010,7 @@
         return `
       <div class="chain-row${cur ? " cur" : ""}">
         <div class="t1">
-          <span class="chk${done ? " checked" : ""}" data-stage="${ch.id}:${i}">${done ? "✓" : ""}</span>
+          <span class="chk${done ? " checked" : ""}" data-stage="${ch.id}:${i}"></span>
           <span class="${done ? "done-lab" : ""}">${s.npc} · ${s.title}</span>
         </div>
         <div class="t2">位置（${s.map}：${s.x}, ${s.y}）${showDist ? `，<span class="dist">${fmtDist(dist(s))}</span>` : ""}</div>
@@ -1562,8 +3086,8 @@
                 : "";
           d.innerHTML = `
         <div class="t1">
-          <span class="chk${stageDone ? " checked" : ""}" data-stage="${e.ch.id}:${e.idx}">${stageDone ? "✓" : ""}</span>
-          <span class="pin-btn${store[e.ch.id]?.pinned ? " active" : ""}" data-pin-chain="${e.ch.id}" title="置顶">${store[e.ch.id]?.pinned ? "📍" : "📌"}</span>
+          <span class="chk${stageDone ? " checked" : ""}" data-stage="${e.ch.id}:${e.idx}"></span>
+          <span class="pin-btn${store[e.ch.id]?.pinned ? " active" : ""}" data-pin-chain="${e.ch.id}" data-tip="${store[e.ch.id]?.pinned ? "取消置顶" : "置顶该链"}">${store[e.ch.id]?.pinned ? "📍" : "📌"}</span>
           <span class="${stageDone ? "done-lab" : ""}">${s.npc} · ${s.title}</span>
           ${tag}
         </div>
@@ -1574,13 +3098,9 @@
         }
         updateOverflow();
       }
-      document.getElementById("scope-switch").onclick = () => {
-        state.view = state.view === "local" ? "all" : "local";
-        document.getElementById("ui-scope-lab").textContent =
-          state.view === "local" ? "地图任务" : "全部任务";
-        document
-          .getElementById("scope-switch")
-          .classList.toggle("all", state.view === "all");
+      /* 任务范围开关：MAP = 当前地图，WORLD = 同世界全部（itchy-stingray-87） */
+      document.getElementById("scope-input").onchange = (e) => {
+        state.view = e.target.checked ? "all" : "local";
         renderTasks();
       };
       /* 溢出检测：内容超框的面板/清单向右扩 4px（滑轨落在扩展区，不压缩内容） */
@@ -1683,23 +3203,164 @@
         }
       });
 
-      /* ================= 开关 ================= */
-      function bindSwitch(id, fn) {
-        const el = document.getElementById(id);
-        el.onclick = () => {
-          el.classList.toggle("on");
-          fn(el.classList.contains("on"));
-        };
+      /* ================= 开关：控制条与设置浮窗镜像联动（状态真源 = body class） ================= */
+      const TOGGLES = {
+        power: {
+          get: () => !document.body.classList.contains("power-off"),
+          apply: (on) => document.body.classList.toggle("power-off", !on),
+        },
+        scan: {
+          get: () => document.body.classList.contains("scanlines"),
+          apply: (on) => document.body.classList.toggle("scanlines", on),
+        },
+        curve: {
+          get: () => !document.body.classList.contains("no-curve"),
+          apply: (on) => document.body.classList.toggle("no-curve", !on),
+        },
+      };
+      /* 两侧开关 UI 一并刷新，保证控制条与设置浮窗永远一致 */
+      function refreshSwitchUI() {
+        for (const [key, t] of Object.entries(TOGGLES)) {
+          const on = t.get();
+          document.getElementById("sw-" + key).classList.toggle("on", on);
+          document.getElementById("set-" + key).classList.toggle("on", on);
+        }
       }
-      bindSwitch("sw-power", (on) =>
-        document.body.classList.toggle("power-off", !on),
-      );
-      bindSwitch("sw-scan", (on) =>
-        document.body.classList.toggle("scanlines", on),
-      );
-      bindSwitch("sw-curve", (on) =>
-        document.body.classList.toggle("no-curve", !on),
-      );
+      for (const key of Object.keys(TOGGLES)) {
+        for (const pre of ["sw-", "set-"]) {
+          document.getElementById(pre + key).onclick = () => {
+            const t = TOGGLES[key];
+            t.apply(!t.get());
+            refreshSwitchUI();
+            /* 开机演示：电源打开时播放 CRT 启动 loading */
+            if (key === "power" && t.get()) showBootLoading();
+          };
+        }
+      }
+
+      /* ================= CRT 启动 loading：幽灵在上 + 故障字在下，播 2 秒进画面 ================= */
+      function showBootLoading() {
+        const el = document.getElementById("loading-screen");
+        el.classList.add("show");
+        setTimeout(() => el.classList.remove("show"), 2000);
+      }
+
+      /* ================= 浮窗：魔法书 / 注音表 / 使用说明 / 基本设置 ================= */
+      const MODAL_TITLES = {
+        spell: "魔 法",
+        zhuyin: "注 音",
+        help: "说 明",
+        settings: "基 本 设 置",
+      };
+      /* 打开：位置尺寸实时取 #monitor 相对舞台的盒，恰好盖住 CRT 显示器 */
+      function openModal(key) {
+        const mon = document.getElementById("monitor");
+        const win = document.getElementById("modal-win");
+        win.style.left = mon.offsetLeft + "px";
+        win.style.top = mon.offsetTop + "px";
+        win.style.width = mon.offsetWidth + "px";
+        win.style.height = mon.offsetHeight + "px";
+        document.querySelectorAll(".modal-page").forEach((p) => {
+          p.style.display = p.dataset.page === key ? "block" : "none";
+        });
+        document.getElementById("modal-title").textContent = MODAL_TITLES[key];
+        document.getElementById("modal-backdrop").classList.add("open");
+        win.classList.add("open");
+      }
+      function closeModal() {
+        document.getElementById("modal-backdrop").classList.remove("open");
+        document.getElementById("modal-win").classList.remove("open");
+      }
+      document.querySelectorAll("[data-modal]").forEach((b) => {
+        b.onclick = (e) => {
+          e.stopPropagation();
+          openModal(b.dataset.modal);
+        };
+      });
+      /* 背景幕铺满舞台、垫在浮窗下：点它 = 点浮窗外任意位置 */
+      document.getElementById("modal-backdrop").onclick = closeModal;
+
+      /* ================= 注音表数据（与 retro/zhuyin-keyboard.md 同源） ================= */
+      const ZHUYIN = {
+        initials: [
+          ["1", "ㄅ", "b"],
+          ["q", "ㄆ", "p"],
+          ["a", "ㄇ", "m"],
+          ["2", "ㄉ", "d"],
+          ["w", "ㄊ", "t"],
+          ["s", "ㄋ", "n"],
+          ["e", "ㄍ", "g"],
+          ["d", "ㄎ", "k"],
+          ["c", "ㄏ", "h"],
+          ["r", "ㄐ", "j"],
+          ["f", "ㄑ", "q"],
+          ["v", "ㄒ", "x"],
+          ["5", "ㄓ", "zh"],
+          ["t", "ㄔ", "ch"],
+          ["g", "ㄕ", "sh"],
+          ["b", "ㄖ", "r"],
+          ["y", "ㄗ", "z"],
+          ["h", "ㄘ", "c"],
+          ["n", "ㄙ", "s"],
+        ],
+        medials: [
+          ["u", "ㄧ", "i"],
+          ["j", "ㄨ", "u"],
+          ["m", "ㄩ", "ü"],
+        ],
+        finals: [
+          ["8", "ㄚ", "a"],
+          ["i", "ㄛ", "o"],
+          ["k", "ㄜ", "e"],
+          [",", "ㄝ", "ê"],
+          ["9", "ㄞ", "ai"],
+          ["o", "ㄟ", "ei"],
+          ["l", "ㄠ", "ao"],
+          [".", "ㄡ", "ou"],
+          ["0", "ㄢ", "an"],
+          ["p", "ㄣ", "en"],
+          [";", "ㄤ", "ang"],
+          ["/", "ㄥ", "eng"],
+          ["-", "ㄦ", "er"],
+        ],
+        tones: [
+          ["无", "一声", "直接上屏"],
+          ["6", "二声 ˊ", ""],
+          ["3", "三声 ˇ", ""],
+          ["4", "四声 ˋ", ""],
+          ["7", "轻声 ˙", ""],
+        ],
+        words: [
+          ["默認", "ai4 bp4"],
+          ["預設", "m4 gk4"],
+          ["存檔", "hjp6 2;4"],
+          ["遊戲", "u.6 vu4"],
+          ["保存", "1l3 hjp6"],
+        ],
+      };
+      function zhChip([key, zy, py]) {
+        return `<span class="zh-chip"><kbd>${key}</kbd><span class="zy">${zy}</span><span class="py">${py}</span></span>`;
+      }
+      function renderZhuyin() {
+        document.getElementById("zh-initials").innerHTML = ZHUYIN.initials
+          .map(zhChip)
+          .join("");
+        document.getElementById("zh-medials").innerHTML = ZHUYIN.medials
+          .map(zhChip)
+          .join("");
+        document.getElementById("zh-finals").innerHTML = ZHUYIN.finals
+          .map(zhChip)
+          .join("");
+        document.getElementById("zh-tones").innerHTML = ZHUYIN.tones
+          .map(zhChip)
+          .join("");
+        document.getElementById("zh-words").innerHTML = ZHUYIN.words
+          .map(
+            ([w, k]) =>
+              `<span class="zh-word"><span class="w">${w}</span><span class="k">${k}</span></span>`,
+          )
+          .join("");
+      }
 
       /* ================= 整体等比缩放（设计尺寸 1850×1000，长宽比锁定） ================= */
       const DESIGN_W = 1850,
@@ -1716,11 +3377,79 @@
         updateOverflow();
       });
 
+      /* ================= 全局 tooltip：贴目标上方、舞台坐标系、自动避让边缘 ================= */
+      const jsTip = document.createElement("div");
+      jsTip.id = "js-tip";
+      document.getElementById("stage").appendChild(jsTip);
+      const tipStage = document.getElementById("stage");
+      let tipTarget = null;
+      function showTip(target) {
+        /* 每次显示都先回闭态并强制回流，再开 → 换目标也必播滑入动效 */
+        jsTip.classList.remove("open");
+        jsTip.textContent = target.dataset.tip;
+        /* 视口坐标 → 舞台坐标：气泡随 fitScale 一起缩放，字体与其他 UI 一致 */
+        const sr = tipStage.getBoundingClientRect();
+        const scale = sr.width / DESIGN_W;
+        const r = target.getBoundingClientRect();
+        const sx = (r.left - sr.left) / scale;
+        const sy = (r.top - sr.top) / scale;
+        let left = sx + r.width / scale / 2 - jsTip.offsetWidth / 2;
+        /* 左右不越缘：以按钮所在的可视框（带边框的那个）为界，贴到框边为止 */
+        let lo = 8;
+        let hi = DESIGN_W - jsTip.offsetWidth - 8;
+        const box = target.closest(".task-box, #action-bar, .card");
+        if (box) {
+          const pr = box.getBoundingClientRect();
+          lo = Math.max(lo, (pr.left - sr.left) / scale + 2);
+          hi = Math.min(
+            hi,
+            (pr.right - sr.left) / scale - 2 - jsTip.offsetWidth,
+          );
+        }
+        left = Math.max(lo, Math.min(left, hi));
+        /* 贴边钳制后箭头仍指向目标中心 */
+        const ax = Math.max(
+          6,
+          Math.min(sx + r.width / scale / 2 - left - 4, jsTip.offsetWidth - 12),
+        );
+        jsTip.style.setProperty("--ax", ax + "px");
+        let top = sy - jsTip.offsetHeight - 7;
+        if (top < 8) {
+          /* 目标太靠上则翻到下方 */
+          top = sy + r.height / scale + 7;
+          jsTip.classList.add("below");
+          jsTip.style.setProperty("--ay", "-5px");
+        } else {
+          jsTip.classList.remove("below");
+          /* 箭头压进气泡下缘 3px、距目标 2px，与乙方案一致 */
+          jsTip.style.setProperty("--ay", jsTip.offsetHeight - 3 + "px");
+        }
+        jsTip.style.left = left + "px";
+        jsTip.style.top = top + "px";
+        void jsTip.offsetWidth; /* 强制回流：提交闭态，再开 → 过渡必播 */
+        jsTip.classList.add("open");
+      }
+      function hideTip() {
+        tipTarget = null;
+        jsTip.classList.remove("open");
+      }
+      addEventListener("mouseover", (e) => {
+        const t = e.target.closest("[data-tip]");
+        if (t === tipTarget) return;
+        tipTarget = t;
+        if (t) showTip(t);
+        else hideTip();
+      });
+      /* 点击后目标可能被重渲（如图钉），先收起，再移动鼠标时按新状态显示 */
+      addEventListener("mousedown", hideTip);
+
       /* ================= 启动 ================= */
       fitScale();
       renderParty();
       renderCalendar();
       renderResources();
+      renderZhuyin();
+      refreshSwitchUI();
       applyMap();
       updateOverflow();
     </script>
