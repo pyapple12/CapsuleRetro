@@ -1,0 +1,1728 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>PL012 游玩界面实验场 v4</title>
+    <style>
+      /* ============ 房间与舞台（1080P · 1820 宽） ============ */
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        height: 100vh;
+        overflow: hidden;
+        background: radial-gradient(
+          1400px 900px at 50% 30%,
+          #1c1a17,
+          #0c0b0a 70%
+        );
+        color: #d8cfbf;
+        font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+        position: relative;
+      }
+      /* 固定设计尺寸 1850×1000；JS 按窗口等比 scale（长宽比锁定） */
+      #stage {
+        width: 1850px;
+        height: 1000px;
+        display: flex;
+        gap: 16px;
+        align-items: stretch;
+        position: absolute;
+        transform-origin: 0 0;
+        left: 35px;
+        top: 40px;
+      }
+
+      /* ============ 通用面板（左右同宽） ============ */
+      .panel {
+        width: 335px;
+        height: 1000px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: #454034 transparent;
+        flex-shrink: 0;
+        transition: width 0.15s ease;
+        background: linear-gradient(160deg, #23201b, #171512);
+        border: 1px solid #3a352c;
+        border-radius: 10px;
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.04),
+          0 8px 24px rgba(0, 0, 0, 0.5);
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      /* 内容超框：面板向右扩 4px，滑轨落在扩展区 */
+      .panel.overflowing {
+        width: 339px;
+      }
+      .panel::-webkit-scrollbar {
+        width: 4px;
+      }
+      .panel::-webkit-scrollbar-thumb {
+        background: #454034;
+        border-radius: 2px;
+      }
+      .panel::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .card {
+        background: #12100d;
+        border: 1px solid #35302a;
+        border-radius: 8px;
+        padding: 9px;
+      }
+      .card h3 {
+        font-size: 15px;
+        letter-spacing: 3px;
+        color: #b09a5e;
+        border-bottom: 1px solid #35302a;
+        padding-bottom: 5px;
+        margin-bottom: 7px;
+      }
+
+      /* ============ 左：日历（魔年） ============ */
+      #date-card .big {
+        display: flex;
+        align-items: baseline;
+        gap: 7px;
+      }
+      #date-card .era {
+        font-size: 21px;
+        color: #b09a5e;
+        letter-spacing: 2px;
+      }
+      #date-card .year {
+        font-size: 35px;
+        font-weight: 700;
+        color: #e8d9a8;
+      }
+      #date-card .unit {
+        font-size: 15px;
+        color: #8a7f68;
+      }
+      #date-card .sub {
+        margin-top: 6px;
+        font-size: 16px;
+        color: #c8bfa8;
+        white-space: pre;
+        display: flex;
+        align-items: center;
+      }
+      #date-card .emoji {
+        font-size: 22px;
+      }
+
+      /* ============ 左：资源（金币/宝石/食物 + 作弊按钮） ============ */
+      #res-card .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 3px 2px;
+        font-size: 17px;
+      }
+      #res-card .row + .row {
+        border-top: 1px dashed #2c2822;
+      }
+      #res-card .ico {
+        font-size: 21px;
+        width: 22px;
+        text-align: center;
+      }
+      #res-card .lab {
+        color: #8a7f68;
+        font-size: 16px;
+        width: 56px;
+      }
+      #res-card .val {
+        color: #ead9ab;
+        font-family: Consolas, monospace;
+        font-size: 20px;
+      }
+      #res-card .val.dim {
+        color: #c8bfa8;
+        font-size: 16px;
+      }
+      .cheats {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .cheats button {
+        flex: 1 1 44%;
+        padding: 5px 0;
+        font-size: 15px;
+        cursor: pointer;
+        color: #d8c48c;
+        background: linear-gradient(#3a3324, #262219);
+        border: 1px solid #4a4234;
+        border-radius: 6px;
+      }
+      .cheats button:active {
+        background: #4a4230;
+      }
+
+      /* ============ 左：队伍六槽 ============ */
+      .slot {
+        display: flex;
+        gap: 9px;
+        align-items: center;
+        padding: 6px 5px;
+        border-radius: 6px;
+      }
+      .slot + .slot {
+        border-top: 1px dashed #2c2822;
+      }
+      .slot img {
+        width: 48px;
+        height: 56px; /* 官方头像比例 100:118 ≈ 0.85（48→56） */
+        object-fit: fill;
+        border-radius: 6px;
+        border: 2px solid #4a4234;
+        background: #000;
+        image-rendering: pixelated;
+        flex: none;
+      }
+      .slot .ph {
+        width: 48px;
+        height: 56px;
+        border-radius: 6px;
+        border: 2px solid #6a6a6a;
+        background: #1a1a1a;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        color: #9a9a9a;
+        letter-spacing: 2px;
+        flex: none;
+      }
+      .slot .ph.dead {
+        border-color: #8a3a3a;
+        background: #200d0d;
+        color: #d0705c;
+      }
+      .slot .info {
+        flex: 1;
+        min-width: 0;
+      }
+      .slot .nm {
+        font-size: 17px;
+        color: #ead9ab;
+        display: flex;
+        justify-content: space-between;
+      }
+      .slot .nm .who {
+        white-space: pre;
+      }
+      .slot .nm .cls {
+        font-size: 14px;
+        color: #8a7f68;
+      }
+      .slot .nm .lv {
+        color: #b09a5e;
+        font-size: 14px;
+      }
+      .stat {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 3px;
+      }
+      .stat .lab {
+        font-size: 14px;
+        width: 17px;
+        color: #8a7f68;
+      }
+      .bar {
+        flex: 1;
+        height: 7px;
+        border-radius: 4px;
+        background: #262219;
+        overflow: hidden;
+      }
+      .bar i {
+        display: block;
+        height: 100%;
+        border-radius: 4px;
+      }
+      .stat .val {
+        font-size: 14px;
+        width: 58px;
+        text-align: right;
+        font-family: Consolas, monospace;
+      }
+      .hp-g .bar i {
+        background: #5da03f;
+      }
+      .hp-g .val {
+        color: #8fc46f;
+      }
+      .hp-y .bar i {
+        background: #c2a13c;
+      }
+      .hp-y .val {
+        color: #d8bd6a;
+      }
+      .hp-r .bar i {
+        background: #b04a37;
+      }
+      .hp-r .val {
+        color: #d0705c;
+      }
+      .hp-k .bar i {
+        background: #4a6f9e;
+      }
+      .hp-k .val {
+        color: #7fa3cc;
+      }
+      /* 超过自然上限（作弊抬高）= 银色 */
+      .hp-s .bar i {
+        background: linear-gradient(180deg, #eef1f5, #9aa2ac);
+      }
+      .hp-s .val {
+        color: #cdd4dc;
+      }
+      .slot.ko img {
+        filter: grayscale(1) brightness(0.5);
+      }
+      .slot.ko .nm {
+        color: #6f7f96;
+      }
+      .mp .bar i {
+        background: #46628f;
+      }
+      .mp .val {
+        color: #8aa6cc;
+      }
+      .slot.empty {
+        justify-content: center;
+        color: #57503f;
+        font-size: 16px;
+        letter-spacing: 4px;
+        padding: 14px 0;
+        border: 1px dashed #35302a;
+        border-radius: 6px;
+        text-align: center;
+      }
+
+      /* ============ 中：CRT 显示器 ============ */
+      #center {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      #monitor {
+        background: linear-gradient(175deg, #d8cdb4, #b8ab90 55%, #a3977c);
+        border-radius: 22px;
+        padding: 24px 24px 12px;
+        box-shadow:
+          inset 0 2px 2px rgba(255, 255, 255, 0.55),
+          inset 0 -3px 6px rgba(0, 0, 0, 0.25),
+          0 18px 40px rgba(0, 0, 0, 0.6);
+      }
+      #screen-wrap {
+        position: relative;
+        width: 1080px;
+        height: 810px;
+        background: #050505;
+        overflow: hidden;
+        box-shadow:
+          inset 0 0 0 3px #1a1a1a,
+          inset 0 0 30px rgba(0, 0, 0, 0.9);
+      }
+      #screen-glass {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 5;
+        background:
+          radial-gradient(
+            140% 90% at 28% 12%,
+            rgba(255, 255, 255, 0.14),
+            rgba(255, 255, 255, 0) 42%
+          ),
+          radial-gradient(
+            120% 120% at 50% 55%,
+            rgba(255, 255, 255, 0) 62%,
+            rgba(0, 0, 0, 0.35) 100%
+          );
+        box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.55);
+      }
+      body.no-curve #screen-glass {
+        background: none;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+      }
+      #scanlines {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 4;
+        display: none;
+        background: repeating-linear-gradient(
+          0deg,
+          rgba(0, 0, 0, 0.28) 0 1px,
+          transparent 1px 3px
+        );
+        mix-blend-mode: multiply;
+      }
+      body.scanlines #scanlines {
+        display: block;
+      }
+      #game-view {
+        position: absolute;
+        inset: 0;
+      }
+      #game-view img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+        image-rendering: pixelated;
+      }
+      #bezel-bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 11px;
+        padding: 0 6px;
+      }
+      #brand {
+        font-size: 16px;
+        letter-spacing: 4px;
+        color: #6e6350;
+        font-weight: 700;
+      }
+      #bezel-bar .spacer {
+        flex: 1;
+      }
+      .knob {
+        width: 26px;
+        height: 12px;
+        border-radius: 4px;
+        background: linear-gradient(#c9bda2, #9a8d72);
+        box-shadow:
+          inset 0 1px 1px rgba(255, 255, 255, 0.5),
+          0 1px 2px rgba(0, 0, 0, 0.4);
+      }
+      #led {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #6fce58;
+        box-shadow: 0 0 8px #6fce58;
+      }
+      body.power-off #led {
+        background: #c25036;
+        box-shadow: 0 0 6px #c25036;
+      }
+      body.power-off #screen-wrap > :not(#screen-glass) {
+        visibility: hidden;
+      }
+      #stand {
+        width: 180px;
+        height: 24px;
+        background: linear-gradient(#a89b80, #8d8168);
+        margin: 0 auto;
+        border-radius: 0 0 10px 10px;
+      }
+      #control-strip {
+        margin-top: 10px;
+        display: flex;
+        gap: 20px;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(#3a352c, #262219);
+        border: 1px solid #45403466;
+        border-radius: 10px;
+        padding: 9px 18px;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+      }
+      .switch {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        user-select: none;
+      }
+      .switch .track {
+        width: 40px;
+        height: 18px;
+        border-radius: 9px;
+        background: #191713;
+        border: 1px solid #454034;
+        position: relative;
+        transition: background 0.15s;
+      }
+      .switch .track i {
+        position: absolute;
+        top: 1px;
+        left: 1px;
+        width: 20px;
+        height: 14px;
+        border-radius: 7px;
+        background: linear-gradient(#d9d2c2, #a89f8c);
+        transition: left 0.15s;
+      }
+      .switch.on .track {
+        background: #3d4a2f;
+      }
+      .switch.on .track i {
+        left: 17px;
+      }
+      .switch .lab {
+        font-size: 16px;
+        color: #c8bfa8;
+      }
+
+      /* ============ 右：地图 ============ */
+      #map-name {
+        font-size: 22px;
+        color: #ead9ab;
+        letter-spacing: 2px;
+      }
+      #minimap {
+        position: relative;
+        width: 270px;
+        height: 216px;
+        margin: 7px auto 0;
+        background: #000;
+        border: 1px solid #454034;
+        border-radius: 6px;
+        overflow: hidden;
+        cursor: crosshair;
+      }
+      #map-world {
+        position: absolute;
+        left: 0;
+        top: 0;
+        transition: transform 0.16s ease-out;
+      }
+      #minimap img {
+        position: absolute;
+        left: 0;
+        top: 0;
+        image-rendering: pixelated;
+      }
+      #minimap .grid-overlay {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background:
+          repeating-linear-gradient(
+            0deg,
+            transparent 0 23px,
+            rgba(255, 255, 255, 0.05) 23px 24px
+          ),
+          repeating-linear-gradient(
+            90deg,
+            transparent 0 29px,
+            rgba(255, 255, 255, 0.05) 29px 30px
+          );
+      }
+      #facing {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 30px;
+        height: 30px;
+        transform: translate(-50%, -50%);
+        z-index: 3;
+        pointer-events: none;
+      }
+      #facing .ring {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        background: rgba(10, 8, 6, 0.55);
+        border: 1px solid rgba(232, 217, 168, 0.7);
+      }
+      #facing .arrow {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.16s ease-out;
+      }
+      #facing .arrow::before {
+        content: "";
+        width: 0;
+        height: 0;
+        border-left: 6px solid transparent;
+        border-right: 6px solid transparent;
+        border-bottom: 14px solid #ffd76e;
+        filter: drop-shadow(0 0 3px rgba(255, 215, 110, 0.8));
+      }
+      #map-meta {
+        margin: 7px 8px 0;
+        font-size: 15px;
+        color: #8a7f68;
+        display: flex;
+        justify-content: space-between;
+      }
+      #map-meta b {
+        color: #c8bfa8;
+        font-family: Consolas, monospace;
+        font-weight: 400;
+      }
+
+      /* ============ 右：任务 ============ */
+      #guide {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      #task-list {
+        flex: 1;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: #454034 #171512;
+      }
+      .task-box {
+        background: #12100d;
+        border: 1px solid #35302a;
+        border-radius: 6px;
+        padding: 7px 9px;
+        margin-bottom: 7px;
+        font-size: 16px;
+        cursor: pointer;
+      }
+      .task-box.featured {
+        border-color: #b09a5e;
+        background: #1c1810;
+        box-shadow: 0 0 0 1px #4a4234;
+      }
+      .task-box.expanded {
+        border-color: #ffd76e;
+        background: #201b10;
+      }
+      .task-box .t1 {
+        color: #ead9ab;
+        font-size: 17px;
+        display: flex;
+        align-items: center;
+      }
+      .task-box .t1 .done-lab {
+        text-decoration: line-through;
+        color: #6f6852;
+      }
+      .chain-row .t1 {
+        gap: 6px;
+      }
+      .task-box .t1 .done-lab {
+        text-decoration: line-through;
+        color: #6f6852;
+      }
+      .task-box .t2 {
+        margin-top: 4px;
+        color: #b5ac97;
+        font-size: 15px;
+      }
+      .task-box .t2 .dist {
+        color: #8aa6cc;
+        font-family: Consolas, monospace;
+      }
+      .task-box .t3 {
+        margin-top: 4px;
+        color: #c8bfa8;
+        font-size: 15px;
+        line-height: 1.6;
+      }
+      .task-box .t3 .lab {
+        color: #8a7f68;
+      }
+      #task-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .task-box .chk {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 14px;
+        height: 14px;
+        border: 1px solid #8a7f68;
+        border-radius: 3px;
+        color: #8fc46f;
+        font-size: 15px;
+        line-height: 1;
+        margin-right: 6px;
+        flex: none;
+        font-family: Consolas, monospace;
+      }
+      .task-box .chk.checked {
+        border-color: #8fc46f;
+        background: #26301c;
+      }
+      .status-tag {
+        font-size: 12px;
+        padding: 1px 6px;
+        border-radius: 999px;
+        border: 1px solid #b09a5e;
+        color: #e8d9a8;
+        margin-left: auto;
+        white-space: nowrap;
+        flex: none;
+      }
+      .status-tag.pin-tag {
+        border-color: #ffd76e;
+        color: #ffd76e;
+      }
+      .status-tag.exe-ok {
+        border-color: #5da03f;
+        color: #8fc46f;
+      }
+      .status-tag.exe-wait {
+        border-color: #c2a13c;
+        color: #d8bd6a;
+      }
+      /* 图钉：两符号两态（📌=未钉住 灰暗 / 📍=已钉住 原色） */
+      .task-box .pin-btn {
+        margin-right: 6px;
+        font-size: 16px;
+        line-height: 1;
+        cursor: pointer;
+        flex: none;
+        filter: grayscale(1);
+        opacity: 0.5;
+        transition:
+          filter 0.15s,
+          opacity 0.15s;
+      }
+      .task-box .pin-btn.active {
+        filter: none;
+        opacity: 1;
+      }
+      /* 滑杆：地图任务 ⇄ 全部任务 */
+      #scope-switch {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        cursor: pointer;
+        user-select: none;
+      }
+      #ui-scope-lab {
+        font-size: 14px;
+        letter-spacing: 1px;
+        color: #d8c48c;
+        white-space: nowrap;
+      }
+      .scope-track {
+        width: 32px;
+        height: 13px;
+        border-radius: 7px;
+        background: #191713;
+        border: 1px solid #454034;
+        position: relative;
+        display: inline-block;
+      }
+      .scope-knob {
+        position: absolute;
+        top: 1px;
+        left: 1px;
+        width: 15px;
+        height: 9px;
+        border-radius: 5px;
+        background: linear-gradient(#d9d2c2, #a89f8c);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        transition: left 0.15s;
+      }
+      #scope-switch.all .scope-knob {
+        left: 14px;
+        background: linear-gradient(#ffe9a8, #d8bd6a);
+      }
+      /* 内容超框：清单向右扩 8px（滑轨落在扩展区，不压缩内容） */
+      #task-list.overflowing {
+        margin-right: -8px;
+      }
+      .task-box .chain {
+        margin-top: 6px;
+        padding-top: 6px;
+        border-top: 1px dashed #35302a;
+      }
+      .task-box .chain-row {
+        padding: 5px 0 5px 8px;
+        border-left: 2px solid #35302a;
+        margin-bottom: 6px;
+      }
+      .task-box .chain-row:last-child {
+        margin-bottom: 0;
+      }
+      .task-box .chain-row.cur {
+        border-left-color: #b09a5e;
+      }
+
+      /* ============ 页脚 ============ */
+      /* 页脚：随舞台缩放，贴底居中 */
+      #foot {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 4px;
+        font-size: 14px;
+        color: #57503f;
+        line-height: 1.7;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body class="scanlines">
+    <div id="stage">
+      <!-- ================= 左：日历 + 资源 + 队伍 ================= -->
+      <aside class="panel">
+        <div class="card" id="date-card">
+          <h3>日 历</h3>
+          <div class="big">
+            <span class="era">魔年</span>
+            <span class="year" id="ui-year">573</span
+            ><span class="unit">年</span>
+            <span class="year" id="ui-day">37</span
+            ><span class="unit">/100 天</span>
+          </div>
+          <div class="sub">
+            <span id="ui-weekline">第 3 星期 第 七 天 ☀️ 09:40</span>
+          </div>
+        </div>
+        <div class="card" id="res-card">
+          <h3>资 源</h3>
+          <div class="row">
+            <span class="ico">💰</span><span class="lab">金币</span
+            ><span class="val" id="ui-gold">12,480</span>
+          </div>
+          <div class="row">
+            <span class="ico">💎</span><span class="lab">宝石</span
+            ><span class="val" id="ui-gems">376</span>
+          </div>
+          <div class="row">
+            <span class="ico">🍞</span><span class="lab">食物</span
+            ><span class="val" id="ui-food">42</span>
+            <span class="val dim" id="ui-food-days">≈ 8 天</span>
+          </div>
+          <div class="cheats">
+            <button id="cheat-gold">+10000 金币</button>
+            <button id="cheat-gems">+10000 宝石</button>
+          </div>
+        </div>
+        <div class="card" style="flex: 1">
+          <h3>队 伍</h3>
+          <div id="party"></div>
+          <div class="cheats">
+            <button id="cheat-hp">+100 HP</button>
+            <button id="cheat-mp">+100 MP</button>
+            <button id="btn-dmg">受伤 −30</button>
+            <button id="btn-reset">重置</button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- ================= 中：CRT 显示器 ================= -->
+      <main id="center">
+        <div id="monitor">
+          <div id="screen-wrap">
+            <div id="game-view">
+              <img src="./pl012-gameview-sample.png" alt="游戏实机画面" />
+            </div>
+            <div id="scanlines"></div>
+            <div id="screen-glass"></div>
+          </div>
+          <div id="bezel-bar">
+            <span id="brand">CAPSULETRON&nbsp;14"</span>
+            <span class="spacer"></span>
+            <span class="knob"></span>
+            <span class="knob"></span>
+            <span id="led"></span>
+          </div>
+        </div>
+        <div id="stand"></div>
+        <div id="control-strip">
+          <span class="switch on" id="sw-power"
+            ><span class="track"><i></i></span
+            ><span class="lab">电源</span></span
+          >
+          <span class="switch on" id="sw-scan"
+            ><span class="track"><i></i></span
+            ><span class="lab">扫描线</span></span
+          >
+          <span class="switch on" id="sw-curve"
+            ><span class="track"><i></i></span
+            ><span class="lab">弧面反光</span></span
+          >
+        </div>
+      </main>
+
+      <!-- ================= 右：地图 + 任务 ================= -->
+      <aside class="panel">
+        <div class="card">
+          <h3>
+            地 图 ·
+            <span id="ui-mapname" style="letter-spacing: 1px">佛提格市</span>
+          </h3>
+          <div id="minimap">
+            <div id="map-world">
+              <img
+                id="map-img"
+                src="../../retro/artwork/maps/cloud028-city.png"
+                alt=""
+              />
+              <div class="grid-overlay"></div>
+            </div>
+            <div id="facing">
+              <span class="ring"></span
+              ><span class="arrow" id="ui-arrow"></span>
+            </div>
+          </div>
+          <div id="map-meta">
+            <span>坐标 <b id="ui-pos">24, 20</b></span>
+            <span>朝向 <b id="ui-face">南</b></span>
+          </div>
+        </div>
+        <div class="card" id="guide">
+          <h3 id="task-header">
+            <span>任 务 · <span id="ui-region">佛提格市</span></span>
+            <span id="scope-switch">
+              <span id="ui-scope-lab">地图任务</span>
+              <span class="scope-track"><span class="scope-knob"></span></span>
+            </span>
+          </h3>
+          <div id="task-list"></div>
+        </div>
+      </aside>
+
+      <div id="foot">
+        游玩界面实验场 v4 · XEEN v1.0 · Copyright © CapsuleRetro
+      </div>
+    </div>
+
+    <script>
+      /* ================= 假数据（寄存器语义对齐） ================= */
+      const PARTY = [
+        {
+          name: "艾德里安",
+          cls: "骑士",
+          lv: 1,
+          hp: 87,
+          mhp: 96,
+          mp: 11,
+          mmp: 11,
+          face: "char01.png",
+        },
+        {
+          name: "丝莉尔",
+          cls: "游侠",
+          lv: 1,
+          hp: 34,
+          mhp: 64,
+          mp: 3,
+          mmp: 6,
+          face: "char05.png",
+        },
+        {
+          name: "老墨",
+          cls: "法师",
+          lv: 1,
+          hp: 8,
+          mhp: 41,
+          mp: 29,
+          mmp: 31,
+          face: "char09.png",
+        },
+        {
+          name: "铁牛",
+          cls: "矮人",
+          lv: 1,
+          hp: -9,
+          mhp: 88,
+          mp: 0,
+          mmp: 0,
+          face: "char13.png",
+        },
+        {
+          name: "莉雅",
+          cls: "牧师",
+          lv: 1,
+          hp: 52,
+          mhp: 58,
+          mp: 44,
+          mmp: 47,
+          face: "char17.png",
+        },
+        null /* 空槽占位 */,
+      ];
+      const CALENDAR = { year: 573, day: 37, minutes: 9 * 60 + 40 }; // 一年 100 天，十天一周
+      const RES = { gold: 12480, gems: 376, food: 42 }; // 可维持天数 = ⌊food ÷ 在编人数⌋
+
+      /* 任务链进度/置顶状态：本地记录（正式版为 json/sqlite） */
+      if (!localStorage.getItem("pl012-chains")) {
+        /* 演示种子：守卫队长链已完成前两阶段（→ 当前为第 3 阶段"夺回城徽"） */
+        localStorage.setItem(
+          "pl012-chains",
+          JSON.stringify({ "fg-guard": { done: 2 } }),
+        );
+      }
+      const store = JSON.parse(localStorage.getItem("pl012-chains") || "{}");
+      function saveStore() {
+        localStorage.setItem("pl012-chains", JSON.stringify(store));
+      }
+
+      /* 世界名：xeen = 星云界（Clouds of Xeen），dark = 暗黑界（Darkside of Xeen） */
+      const WORLD_NAME = { xeen: "星云界", dark: "暗黑界" };
+
+      /* 地图（name 必须与任务链 stage.map 一致） */
+      const MAPS = [
+        {
+          name: "佛提格市",
+          world: "xeen",
+          img: "../../retro/artwork/maps/cloud028-city.png",
+          cells: [32, 32],
+          spawn: [24, 20],
+        },
+        {
+          name: "矮人礦場 1",
+          world: "xeen",
+          img: "../../retro/artwork/maps/cloud/cloud033.png",
+          cells: [16, 16],
+          spawn: [7, 7],
+        },
+        {
+          name: "亡者地牢第四層",
+          world: "dark",
+          img: "../../retro/artwork/maps/dark124-city.png",
+          cells: [32, 32],
+          spawn: [5, 26],
+        },
+      ];
+
+      /* 任务链：每条链独立 NPC 线，stage 按先后顺序排列；跨地图链用于演示"未执行到" */
+      const CHAINS = [
+        {
+          id: "fg-guard",
+          world: "xeen",
+          stages: [
+            {
+              map: "佛提格市",
+              x: 24,
+              y: 26,
+              npc: "守卫队长",
+              title: "城门失窃",
+              info: "城徽钥匙连夜失窃，协助追查下落",
+            },
+            {
+              map: "佛提格市",
+              x: 9,
+              y: 17,
+              npc: "守卫队长",
+              title: "夜间蹲守",
+              info: "与守卫蹲守北广场，抓住内贼",
+            },
+            {
+              map: "佛提格市",
+              x: 24,
+              y: 26,
+              npc: "守卫队长",
+              title: "夺回城徽",
+              info: "从内贼手中追回城徽钥匙",
+            },
+            {
+              map: "佛提格市",
+              x: 24,
+              y: 26,
+              npc: "守卫队长",
+              title: "交还领赏",
+              info: "交还钥匙，赏 2000 金币",
+            },
+          ],
+        },
+        {
+          id: "fg-mona",
+          world: "xeen",
+          stages: [
+            {
+              map: "佛提格市",
+              x: 5,
+              y: 22,
+              npc: "药剂师莫娜",
+              title: "夜巡药方",
+              info: "入夜在北广场接她的委托",
+            },
+            {
+              map: "佛提格市",
+              x: 18,
+              y: 6,
+              npc: "药剂师莫娜",
+              title: "夜露草",
+              info: "绿坪外围采三株夜露草",
+            },
+            {
+              map: "佛提格市",
+              x: 5,
+              y: 22,
+              npc: "药剂师莫娜",
+              title: "熬药交付",
+              info: "交付夜露草，取得药水酬谢",
+            },
+          ],
+        },
+        {
+          id: "fg-barro",
+          world: "xeen",
+          stages: [
+            {
+              map: "矮人礦場 1",
+              x: 12,
+              y: 4,
+              npc: "铁匠巴罗",
+              title: "陨铁开采",
+              info: "到矿场开采第一块陨铁",
+            },
+            {
+              map: "矮人礦場 1",
+              x: 2,
+              y: 9,
+              npc: "铁匠巴罗",
+              title: "轨道深处的陨铁",
+              info: "矿车轨道深处取得第二块",
+            },
+            {
+              map: "佛提格市",
+              x: 10,
+              y: 14,
+              npc: "铁匠巴罗",
+              title: "炉心淬火",
+              info: "带陨铁回铁匠铺淬火重铸",
+            },
+          ],
+        },
+        {
+          id: "fg-turtle",
+          world: "xeen",
+          stages: [
+            {
+              map: "佛提格市",
+              x: 27,
+              y: 8,
+              npc: "井底老龟",
+              title: "水井回声",
+              info: "调查水井，听井底回声",
+            },
+            {
+              map: "佛提格市",
+              x: 27,
+              y: 8,
+              npc: "井底老龟",
+              title: "深海符牌",
+              info: "连续七日调查得深海符牌",
+            },
+            {
+              map: "佛提格市",
+              x: 20,
+              y: 3,
+              npc: "井底老龟",
+              title: "符牌的秘密",
+              info: "符牌指向龙塔的密道",
+            },
+          ],
+        },
+        {
+          id: "ny-shadow",
+          world: "xeen",
+          stages: [
+            {
+              map: "夜影镇",
+              x: 8,
+              y: 8,
+              npc: "影子商人",
+              title: "黑市名单",
+              info: "替影子商人取回黑市名单",
+            },
+            {
+              map: "夜影镇",
+              x: 3,
+              y: 12,
+              npc: "影子商人",
+              title: "夜影斗篷",
+              info: "用名单换一件夜影斗篷",
+            },
+          ],
+        },
+        {
+          id: "dw-elevator",
+          world: "xeen",
+          stages: [
+            {
+              map: "矮人礦場 1",
+              x: 12,
+              y: 4,
+              npc: "矿工头子",
+              title: "曲柄遗失",
+              info: "修电梯的曲柄丢在东侧工棚",
+            },
+            {
+              map: "矮人礦場 1",
+              x: 2,
+              y: 9,
+              npc: "监工格鲁姆",
+              title: "矿车清障",
+              info: "清掉堵路的三辆矿车",
+            },
+            {
+              map: "矮人礦場 1",
+              x: 7,
+              y: 12,
+              npc: "电梯技师",
+              title: "电梯修复",
+              info: "装上曲柄，电梯下行二层",
+            },
+          ],
+        },
+        {
+          id: "dw-gem",
+          world: "xeen",
+          stages: [
+            {
+              map: "矮人礦場 1",
+              x: 14,
+              y: 2,
+              npc: "老矿工",
+              title: "萤石矿脉",
+              info: "寻找传说中的萤石矿脉",
+            },
+            {
+              map: "矮人礦場 1",
+              x: 5,
+              y: 6,
+              npc: "老矿工",
+              title: "萤石切割",
+              info: "采下的萤石帮忙切割打磨",
+            },
+          ],
+        },
+        {
+          id: "dd-coffin",
+          world: "dark",
+          stages: [
+            {
+              map: "亡者地牢第四層",
+              x: 4,
+              y: 4,
+              npc: "石棺守灵人",
+              title: "太阳徽记",
+              info: "四座石棺各藏一枚徽记碎片",
+            },
+            {
+              map: "亡者地牢第四層",
+              x: 10,
+              y: 10,
+              npc: "石棺守灵人",
+              title: "徽记合成",
+              info: "碎片在祭坛合成太阳徽记",
+            },
+            {
+              map: "亡者地牢第四層",
+              x: 16,
+              y: 16,
+              npc: "中央竖梯守卫",
+              title: "下层许可",
+              info: "出示徽记放行中央竖梯",
+            },
+          ],
+        },
+        {
+          id: "dd-ghost",
+          world: "dark",
+          stages: [
+            {
+              map: "亡者地牢第四層",
+              x: 28,
+              y: 28,
+              npc: "传送带旁的幽魂",
+              title: "亡者怀表",
+              info: "帮幽魂找到生前的怀表",
+            },
+            {
+              map: "亡者地牢第四層",
+              x: 30,
+              y: 24,
+              npc: "传送带旁的幽魂",
+              title: "逆转传送带",
+              info: "总闸在西侧凹室，逆转传送带",
+            },
+          ],
+        },
+        {
+          id: "sha-sand",
+          world: "dark",
+          stages: [
+            {
+              map: "擲沙城",
+              x: 9,
+              y: 9,
+              npc: "沙匪头目",
+              title: "沙暴信标",
+              info: "夺回沙匪的信标",
+            },
+            {
+              map: "擲沙城",
+              x: 15,
+              y: 14,
+              npc: "沙匪头目",
+              title: "沙漠绿洲",
+              info: "信标指向绿洲的秘密",
+            },
+          ],
+        },
+      ];
+
+      /* 取景 9×9 格；原生 10×8 × 3 → 单格 30×24 */
+      const VIEW = 9;
+      const TILE_W = 30,
+        TILE_H = 24;
+      const FACE_NAME = { n: "北", e: "东", s: "南", w: "西" };
+      const FACE_ROT = { n: 0, e: 90, s: 180, w: 270 };
+      const FACE_VEC = { n: [0, -1], e: [1, 0], s: [0, 1], w: [-1, 0] };
+
+      /* ================= 渲染：队伍 ================= */
+      function hpClass(hp, mhp) {
+        if (hp < 0) return "hp-k";
+        if (hp > mhp) return "hp-s"; /* 超过自然上限（作弊抬高）= 银色 */
+        const p = hp / mhp;
+        return p >= 0.6 ? "hp-g" : p >= 0.2 ? "hp-y" : "hp-r";
+      }
+      function renderParty() {
+        const box = document.getElementById("party");
+        box.innerHTML = "";
+        PARTY.forEach((p) => {
+          if (!p) {
+            const d = document.createElement("div");
+            d.className = "slot empty";
+            d.textContent = "空 槽";
+            box.appendChild(d);
+            return;
+          }
+          const d = document.createElement("div");
+          d.className = "slot" + (p.hp < 0 ? " ko" : "");
+          /* 状态头像占位：昏迷(hp<0)/死亡(hp≤−10)；真机由内存条件寄存器驱动，
+               真头像待提取（昏迷/中毒/石化/死亡套图） */
+          let cond = null;
+          if (p.hp < 0) cond = p.hp <= -10 ? "死亡" : "昏迷";
+          const avatar = cond
+            ? `<span class="ph${p.hp <= -10 ? " dead" : ""}">${cond}</span>`
+            : `<img src="../../retro/artwork/faces/${p.face}" alt="" />`;
+          d.innerHTML = `
+        ${avatar}
+        <div class="info">
+          <div class="nm"><span class="who">${p.name}   LV.${p.lv}</span><span class="cls">${p.cls}</span></div>
+          <div class="stat ${hpClass(p.hp, p.mhp)}"><span class="lab">HP</span>
+            <span class="bar"><i style="width: ${Math.max(0, Math.min(100, (p.hp / p.mhp) * 100))}%"></i></span>
+            <span class="val">${p.hp} / ${p.mhp}</span></div>
+          <div class="stat mp"><span class="lab">MP</span>
+            <span class="bar"><i style="width: ${(p.mp / p.mmp) * 100}%"></i></span>
+            <span class="val">${p.mp} / ${p.mmp}</span></div>
+        </div>`;
+          box.appendChild(d);
+        });
+      }
+
+      /* ================= 渲染：日历 + 资源 ================= */
+      function renderCalendar() {
+        const c = CALENDAR;
+        document.getElementById("ui-year").textContent = c.year;
+        document.getElementById("ui-day").textContent = c.day;
+        const h = Math.floor(c.minutes / 60),
+          m = c.minutes % 60;
+        const night = c.minutes < 5 * 60 || c.minutes >= 21 * 60;
+        const emoji = night ? "🌙" : "☀️";
+        document.getElementById("ui-weekline").textContent =
+          `第 ${Math.floor(c.day / 10)} 星期 第 ${CN_NUM[c.day % 10]} 天   ${emoji} ${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      }
+      function renderResources() {
+        document.getElementById("ui-gold").textContent =
+          RES.gold.toLocaleString();
+        document.getElementById("ui-gems").textContent = RES.gems;
+        document.getElementById("ui-food").textContent = RES.food;
+        const heads = PARTY.filter(Boolean).length;
+        document.getElementById("ui-food-days").textContent =
+          `≈ ${Math.floor(RES.food / heads)} 天`;
+      }
+      document.getElementById("cheat-gold").onclick = () => {
+        RES.gold += 10000;
+        renderResources();
+      };
+      document.getElementById("cheat-gems").onclick = () => {
+        RES.gems += 10000;
+        renderResources();
+      };
+      /* HP/MP 作弊：只加"当前值"，200 硬上限；自然最大值（分母）纹丝不动 */
+      document.getElementById("cheat-hp").onclick = () => {
+        PARTY.forEach((p) => {
+          if (p) p.hp = Math.min(p.hp + 100, 200);
+        });
+        renderParty();
+      };
+      document.getElementById("cheat-mp").onclick = () => {
+        PARTY.forEach((p) => {
+          if (p) p.mp = Math.min(p.mp + 100, 200);
+        });
+        renderParty();
+      };
+      /* 演示：全队受伤 −30（可降到负值 = 击倒蓝） */
+      document.getElementById("btn-dmg").onclick = () => {
+        PARTY.forEach((p) => {
+          if (p) p.hp -= 30;
+        });
+        renderParty();
+      };
+      /* 重置：清掉超出自然上限的作弊水位（回到自然值） */
+      document.getElementById("btn-reset").onclick = () => {
+        PARTY.forEach((p) => {
+          if (!p) return;
+          p.hp = Math.min(p.hp, p.mhp);
+          p.mp = Math.min(p.mp, p.mmp);
+        });
+        renderParty();
+      };
+
+      /* ================= 地图：固定中心 + 地图平移（边缘钳制） ================= */
+      const state = {
+        map: 0,
+        x: 0,
+        y: 0,
+        facing: "s",
+        view: "local" /* local=地图任务 all=全部任务（同世界） */,
+        expanded: null /* 展开清单的链 id */,
+      };
+      const mapImg = document.getElementById("map-img");
+      const mapWorld = document.getElementById("map-world");
+      const arrow = document.getElementById("ui-arrow");
+
+      function applyMap() {
+        const m = MAPS[state.map];
+        [state.x, state.y] = m.spawn;
+        state.expanded = null;
+        document.getElementById("ui-mapname").textContent =
+          WORLD_NAME[m.world] + " · " + m.name;
+        document.getElementById("ui-region").textContent = m.name;
+        mapImg.src = m.img;
+        mapImg.style.width = m.cells[0] * TILE_W + "px";
+        mapImg.style.height = m.cells[1] * TILE_H + "px";
+        mapWorld.style.width = m.cells[0] * TILE_W + "px";
+        mapWorld.style.height = m.cells[1] * TILE_H + "px";
+        renderPos();
+      }
+      function renderPos() {
+        const m = MAPS[state.map];
+        const vw = VIEW * TILE_W,
+          vh = VIEW * TILE_H;
+        const iw = m.cells[0] * TILE_W,
+          ih = m.cells[1] * TILE_H;
+        const TEST_OFFSET_X = -5; /* 实测定格：地图整体左移 5px 对齐箭头 */
+        const tx =
+          Math.max(vw - iw, Math.min(0, vw / 2 - (state.x + 0.5) * TILE_W)) +
+          TEST_OFFSET_X;
+        const ty = Math.max(
+          vh - ih,
+          Math.min(0, vh / 2 - (state.y + 0.5) * TILE_H),
+        );
+        mapWorld.style.transform = `translate(${tx}px, ${ty}px)`;
+        arrow.style.transform = `rotate(${FACE_ROT[state.facing]}deg)`;
+        document.getElementById("ui-pos").textContent =
+          `${state.x}, ${state.y}`;
+        document.getElementById("ui-face").textContent =
+          FACE_NAME[state.facing];
+        renderTasks();
+      }
+      function move(dx, dy) {
+        const m = MAPS[state.map];
+        const nx = state.x + dx,
+          ny = state.y + dy;
+        if (nx < 0 || nx >= m.cells[0] || ny < 0 || ny >= m.cells[1]) return;
+        state.x = nx;
+        state.y = ny;
+        if (dy < 0) state.facing = "n";
+        else if (dy > 0) state.facing = "s";
+        else if (dx < 0) state.facing = "w";
+        else if (dx > 0) state.facing = "e";
+        renderPos();
+      }
+      function turn(dir) {
+        const order = ["n", "e", "s", "w"];
+        const i = order.indexOf(state.facing);
+        state.facing = order[(i + (dir === "e" ? 1 : 3)) % 4];
+        renderPos();
+      }
+
+      /* ================= 任务链 ================= */
+      const CN_NUM = [
+        "〇",
+        "一",
+        "二",
+        "三",
+        "四",
+        "五",
+        "六",
+        "七",
+        "八",
+        "九",
+      ];
+      function dist(s) {
+        return Math.hypot(s.x - state.x, s.y - state.y);
+      }
+      function fmtDist(d) {
+        return d === 0 ? "就在脚下" : `${d.toFixed(1)}格`;
+      }
+      function chainDone(ch) {
+        return store[ch.id]?.done || 0;
+      }
+      function chainRow(ch, i, mm, showDist) {
+        const s = ch.stages[i];
+        const done = i < chainDone(ch);
+        const cur = i === chainDone(ch) && !chainComplete(ch);
+        return `
+      <div class="chain-row${cur ? " cur" : ""}">
+        <div class="t1">
+          <span class="chk${done ? " checked" : ""}" data-stage="${ch.id}:${i}">${done ? "✓" : ""}</span>
+          <span class="${done ? "done-lab" : ""}">${s.npc} · ${s.title}</span>
+        </div>
+        <div class="t2">位置（${s.map}：${s.x}, ${s.y}）${showDist ? `，<span class="dist">${fmtDist(dist(s))}</span>` : ""}</div>
+        <div class="t3"><span class="lab">任务：</span>${s.info}</div>
+      </div>`;
+      }
+      function chainComplete(ch) {
+        return chainDone(ch) >= ch.stages.length;
+      }
+      function renderTasks() {
+        const m = MAPS[state.map];
+        const worldChains = CHAINS.filter((c) => c.world === m.world);
+        const items = []; // {ch, st, idx, reached} 本地区相关
+        for (const ch of worldChains) {
+          if (chainComplete(ch)) continue;
+          const done = chainDone(ch);
+          const cur = ch.stages[done];
+          if (cur.map === m.name) {
+            items.push({ ch, st: cur, idx: done, reached: true });
+          } else {
+            const fi = ch.stages.findIndex(
+              (s, i) => i >= done && s.map === m.name,
+            );
+            if (fi >= 0)
+              items.push({ ch, st: ch.stages[fi], idx: fi, reached: false });
+          }
+        }
+        const pinChain = items.find((e) => store[e.ch.id]?.pinned);
+        const g1 = items
+          .filter((e) => e.reached && (!pinChain || e.ch !== pinChain.ch))
+          .sort((a, b) => dist(a.st) - dist(b.st));
+        const g2 = items
+          .filter((e) => !e.reached && (!pinChain || e.ch !== pinChain.ch))
+          .sort((a, b) => dist(a.st) - dist(b.st));
+        /* 排序：置顶 → 已执行到本地区（近→远）→ 未执行到（近→远） */
+        const ordered = [];
+        if (pinChain) ordered.push({ ...pinChain, tag: "置顶任务" });
+        if (g1[0]) g1[0].tag = "最近任务";
+        ordered.push(...g1, ...g2);
+
+        let tail = [];
+        if (state.view === "all") {
+          const used = new Set(items.map((e) => e.ch.id));
+          tail = worldChains
+            .filter((ch) => !used.has(ch.id) && !chainComplete(ch))
+            .map((ch) => ({
+              ch,
+              st: ch.stages[chainDone(ch)],
+              idx: chainDone(ch),
+            }))
+            .filter((e) => e.st);
+        }
+
+        const box = document.getElementById("task-list");
+        box.innerHTML = "";
+        for (const e of [...ordered, ...tail]) {
+          const d = document.createElement("div");
+          const expanded = state.expanded === e.ch.id;
+          d.className =
+            "task-box" +
+            (e.tag ? " featured" : "") +
+            (expanded ? " expanded" : "");
+          d.dataset.chain = e.ch.id;
+          const s = e.st;
+          const stageDone = e.idx < chainDone(e.ch);
+          /* 标签单发，优先级：置顶任务 > 最近任务 > 可执行/未准备；贴右边缘 */
+          const tag = e.tag
+            ? `<span class="status-tag${e.tag === "置顶任务" ? " pin-tag" : ""}">${e.tag}</span>`
+            : e.reached === true
+              ? '<span class="status-tag exe-ok">可执行</span>'
+              : e.reached === false
+                ? '<span class="status-tag exe-wait">未准备</span>'
+                : "";
+          d.innerHTML = `
+        <div class="t1">
+          <span class="chk${stageDone ? " checked" : ""}" data-stage="${e.ch.id}:${e.idx}">${stageDone ? "✓" : ""}</span>
+          <span class="pin-btn${store[e.ch.id]?.pinned ? " active" : ""}" data-pin-chain="${e.ch.id}" title="置顶">${store[e.ch.id]?.pinned ? "📍" : "📌"}</span>
+          <span class="${stageDone ? "done-lab" : ""}">${s.npc} · ${s.title}</span>
+          ${tag}
+        </div>
+        <div class="t2">位置（${s.map}：${s.x}, ${s.y}）${s.map === m.name ? `，<span class="dist">${fmtDist(dist(s))}</span>` : ""}</div>
+        <div class="t3"><span class="lab">任务：</span>${s.info}</div>
+        ${expanded ? `<div class="chain">${e.ch.stages.map((_, i) => chainRow(e.ch, i, m, true)).join("")}</div>` : ""}`;
+          box.appendChild(d);
+        }
+        updateOverflow();
+      }
+      document.getElementById("scope-switch").onclick = () => {
+        state.view = state.view === "local" ? "all" : "local";
+        document.getElementById("ui-scope-lab").textContent =
+          state.view === "local" ? "地图任务" : "全部任务";
+        document
+          .getElementById("scope-switch")
+          .classList.toggle("all", state.view === "all");
+        renderTasks();
+      };
+      /* 溢出检测：内容超框的面板/清单向右扩 4px（滑轨落在扩展区，不压缩内容） */
+      function updateOverflow() {
+        document.querySelectorAll(".panel").forEach((p) => {
+          p.classList.toggle(
+            "overflowing",
+            p.scrollHeight > p.clientHeight + 1,
+          );
+        });
+        const tl = document.getElementById("task-list");
+        tl.classList.toggle(
+          "overflowing",
+          tl.scrollHeight > tl.clientHeight + 1,
+        );
+      }
+      document.getElementById("task-list").addEventListener("click", (e) => {
+        const stage = e.target.closest("[data-stage]");
+        if (stage) {
+          const [cid, idxStr] = stage.dataset.stage.split(":");
+          const idx = +idxStr;
+          const done = chainDone({ id: cid });
+          store[cid] = { ...store[cid], done: idx < done ? idx : idx + 1 };
+          saveStore();
+          renderTasks();
+          e.stopPropagation();
+          return;
+        }
+        const pin = e.target.closest("[data-pin-chain]");
+        if (pin) {
+          const cid = pin.dataset.pinChain;
+          const wasPinned = !!store[cid]?.pinned;
+          /* 置顶互斥：同一时间只置顶一条链；再点已置顶的链 = 取消 */
+          for (const k of Object.keys(store)) store[k].pinned = false;
+          store[cid] = { ...store[cid], pinned: !wasPinned };
+          saveStore();
+          renderTasks();
+          e.stopPropagation();
+          return;
+        }
+        const box = e.target.closest(".task-box");
+        if (box) {
+          state.expanded =
+            state.expanded === box.dataset.chain ? null : box.dataset.chain;
+          renderTasks();
+          e.stopPropagation();
+        }
+      });
+      /* 点击别处收起展开清单 */
+      addEventListener("click", (e) => {
+        if (!e.target.closest(".task-box") && state.expanded) {
+          state.expanded = null;
+          renderTasks();
+        }
+      });
+
+      /* ================= 中键按住 = 朝向持续移动 ================= */
+      let autoTimer = null;
+      function startAuto() {
+        if (autoTimer) return;
+        autoTimer = setInterval(() => {
+          const [dx, dy] = FACE_VEC[state.facing];
+          move(dx, dy);
+        }, 200);
+      }
+      function stopAuto() {
+        clearInterval(autoTimer);
+        autoTimer = null;
+      }
+      const mm = document.getElementById("minimap");
+      mm.addEventListener("mousedown", (e) => {
+        if (e.button === 1) {
+          e.preventDefault();
+          startAuto();
+        }
+      });
+      addEventListener("mouseup", stopAuto);
+      mm.addEventListener("mouseleave", stopAuto);
+
+      /* ================= 键盘：移动/转向/切图 ================= */
+      addEventListener("keydown", (e) => {
+        const k = e.key.toLowerCase();
+        if (k === "w" || k === "arrowup") {
+          move(0, -1);
+          e.preventDefault();
+        } else if (k === "s" || k === "arrowdown") {
+          move(0, 1);
+          e.preventDefault();
+        } else if (k === "a" || k === "arrowleft") {
+          move(-1, 0);
+          e.preventDefault();
+        } else if (k === "d" || k === "arrowright") {
+          move(1, 0);
+          e.preventDefault();
+        } else if (k === "q") turn("w");
+        else if (k === "e") turn("e");
+        else if (k >= "1" && k <= "3") {
+          state.map = +k - 1;
+          applyMap();
+        }
+      });
+
+      /* ================= 开关 ================= */
+      function bindSwitch(id, fn) {
+        const el = document.getElementById(id);
+        el.onclick = () => {
+          el.classList.toggle("on");
+          fn(el.classList.contains("on"));
+        };
+      }
+      bindSwitch("sw-power", (on) =>
+        document.body.classList.toggle("power-off", !on),
+      );
+      bindSwitch("sw-scan", (on) =>
+        document.body.classList.toggle("scanlines", on),
+      );
+      bindSwitch("sw-curve", (on) =>
+        document.body.classList.toggle("no-curve", !on),
+      );
+
+      /* ================= 整体等比缩放（设计尺寸 1850×1000，长宽比锁定） ================= */
+      const DESIGN_W = 1850,
+        DESIGN_H = 1000;
+      function fitScale() {
+        const s = Math.min(innerWidth / DESIGN_W, innerHeight / DESIGN_H);
+        const stage = document.getElementById("stage");
+        stage.style.transform = `scale(${s})`;
+        stage.style.left = (innerWidth - DESIGN_W * s) / 2 + "px";
+        stage.style.top = (innerHeight - DESIGN_H * s) / 2 + "px";
+      }
+      addEventListener("resize", () => {
+        fitScale();
+        updateOverflow();
+      });
+
+      /* ================= 启动 ================= */
+      fitScale();
+      renderParty();
+      renderCalendar();
+      renderResources();
+      applyMap();
+      updateOverflow();
+    </script>
+  </body>
+</html>
