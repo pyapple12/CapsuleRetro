@@ -26,6 +26,25 @@
         font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
         position: relative;
       }
+      /* ===== 房间背景图层：世界自动跟随 / 手动固定，毛玻璃模糊可调 ===== */
+      #bg-scene {
+        position: fixed;
+        inset: -40px; /* 外扩遮住模糊产生的透明边 */
+        z-index: 0;
+        background-size: cover;
+        background-position: center;
+        filter: blur(6px);
+      }
+      #bg-scene::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(
+          1400px 900px at 50% 30%,
+          rgba(28, 26, 23, 0.4),
+          rgba(12, 11, 10, 0.75) 70%
+        );
+      }
       /* 固定设计尺寸 1850×1000；JS 按窗口等比 scale（长宽比锁定） */
       #stage {
         width: 1850px;
@@ -2062,15 +2081,369 @@
         font-size: 14px;
         color: #8a7f68;
       }
-      .set-row.disabled {
-        opacity: 0.45;
+      /* ===== 背景图选择：三图互斥（Nawsome · empty-snail-69 街机开关，MIT）===== */
+      .set-block {
+        border: 1px solid #35302a;
+        border-radius: 6px;
+        padding: 12px;
+        background: #12100d;
+        margin-bottom: 12px;
       }
-      .set-row.disabled .switch {
-        cursor: not-allowed;
+      .set-block-title {
+        display: flex;
+        align-items: center;
+        gap: 8px; /* 标题与旋钮间隔 8px */
+        margin-bottom: 12px;
+      }
+      .set-block-name {
+        font-size: 21px; /* 原 14px 放大 50% */
+        letter-spacing: 2px;
+        color: #b09a5e;
+      }
+      #bg-blur-knob {
+        zoom: 0.3333; /* 旋钮视觉 20px */
+        margin-left: 24px; /* 右移 8px */
+      }
+      .set-block-note {
+        margin-left: auto;
+        font-size: 14px;
+        color: #6f6852;
+      }
+      .bg-picker {
+        display: flex;
+        gap: 10px; /* 单元间隔 10px */
+      }
+      .bg-opt {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 4px; /* 开关与图片间隔 4px */
+        min-width: 0;
+      }
+      .bg-opt .arc-switch {
+        zoom: 0.4; /* 开关高 78px = 图片高（组件 195px × 0.4） */
+        flex: none;
+      }
+      .bg-thumb {
+        flex: 1; /* 宽度自行计算：占满开关右侧剩余空间 */
+        min-width: 0;
+        height: 78px;
+        object-fit: cover;
+        border: 2px solid #4a4234;
+        border-radius: 6px;
+        image-rendering: pixelated;
+        transition:
+          border-color 0.2s ease,
+          box-shadow 0.2s ease;
+      }
+      .bg-opt:has(.arc-input:checked) .bg-thumb {
+        border-color: #ffd277;
+        box-shadow: 0 0 12px rgba(255, 210, 119, 0.3);
+      }
+      /* ===== 毛玻璃模糊旋钮：Uiverse.io by SelfMadeSystem（grumpy-deer-99，MIT）· 6 档 × 3px ===== */
+      .clock-input {
+        display: flex;
+        position: relative;
+        width: 60px;
+        height: 60px;
+        --a: #0004, #fff4;
+        --b: var(--a), var(--a), var(--a);
+        --c: var(--b), var(--b), var(--b);
+        background:
+          conic-gradient(
+            from -2deg,
+            #efefff88,
+            #00000088,
+            #efefff88,
+            #00000088,
+            #efefff88
+          ),
+          radial-gradient(var(--c), var(--c)),
+          radial-gradient(circle at 12% 12%, #efefff, #9999a4);
+        background-size: calc(100% + 8px) calc(100% + 8px);
+        background-position: -4px -4px;
+        border: 4px solid #0005;
+        border-radius: 50%;
+      }
+      .clock-input input {
+        display: none;
+        pointer-events: none;
+      }
+      .dial {
+        position: absolute;
+        width: 26px;
+        height: 4px;
+        border-radius: 99px;
+        background-color: #000b;
+        top: calc(50% - 2px);
+        left: calc(50% - 2px);
+        transform-origin: 2px 50%;
+        pointer-events: none;
+        transition: 0.15s;
+        animation: owo 0.15s;
+      }
+      @keyframes owo {
+        0% {
+          transform: rotate(-60deg);
+        }
+        to {
+          transform: rotate(0deg);
+        }
+      }
+      .clock-input label {
+        position: absolute;
+        width: 48px;
+        height: 48px;
+        cursor: pointer;
+      }
+      #v1:checked ~ #l2 {
+        z-index: 2;
+      }
+      #v1:checked ~ .dial {
+        transform: rotate(0deg);
+      }
+      #v2:checked ~ #l3 {
+        z-index: 2;
+      }
+      #v2:checked ~ .dial {
+        transform: rotate(60deg);
+        animation: none;
+      }
+      #v3:checked ~ #l4 {
+        z-index: 2;
+      }
+      #v3:checked ~ .dial {
+        transform: rotate(120deg);
+        animation: none;
+      }
+      #v4:checked ~ #l5 {
+        z-index: 2;
+      }
+      #v4:checked ~ .dial {
+        transform: rotate(180deg);
+        animation: none;
+      }
+      #v5:checked ~ #l6 {
+        z-index: 2;
+      }
+      #v5:checked ~ .dial {
+        transform: rotate(240deg);
+        animation: none;
+      }
+      #v6:checked ~ #l1 {
+        z-index: 2;
+      }
+      #v6:checked ~ .dial {
+        transform: rotate(300deg);
+        animation: none;
+      }
+      .notch {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 8px;
+        height: 1px;
+        transform: translate(-50%) rotate(calc((var(--n) - 1) * 60deg))
+          translateX(38px);
+      }
+      .notch::before {
+        content: var(--t); /* 刻度值：0/3/6/9/12/15（每档 3px） */
+        position: absolute;
+        color: #fffc;
+        transform: translate(6px, -50%) rotate(calc((var(--n) - 1) * -60deg));
+        font-size: 18px; /* 0.3333 缩放下渲染 6px */
+      }
+      /* 街机开关本体（类名 .switch 已被翻牌开关占用，改名 .arc-switch） */
+      .arc-switch {
+        display: block;
+        background-color: black;
+        width: 150px;
+        height: 195px;
+        box-shadow:
+          0 0 10px 2px rgba(0, 0, 0, 0.2),
+          0 0 1px 2px black,
+          inset 0 2px 2px -2px white,
+          inset 0 0 2px 15px #47434c,
+          inset 0 0 2px 22px black;
+        border-radius: 5px;
+        padding: 20px;
+        perspective: 700px;
+      }
+
+      .arc-switch input {
+        display: none;
+      }
+
+      .arc-switch input:checked + .button {
+        transform: translateZ(20px) rotateX(25deg);
+        box-shadow: 0 -10px 20px #ff1818;
+      }
+
+      .arc-switch input:checked + .button .light {
+        animation: flicker 0.2s infinite 0.3s;
+      }
+
+      .arc-switch input:checked + .button .shine {
+        opacity: 1;
+      }
+
+      .arc-switch input:checked + .button .shadow {
+        opacity: 0;
+      }
+
+      .arc-switch .button {
+        display: block;
+        transition: all 0.3s cubic-bezier(1, 0, 1, 1);
+        transform-origin: center center -20px;
+        transform: translateZ(20px) rotateX(-25deg);
+        transform-style: preserve-3d;
+        background-color: #9b0621;
+        height: 100%;
+        position: relative;
+        cursor: pointer;
+        background: linear-gradient(
+          #980000 0%,
+          #6f0000 30%,
+          #6f0000 70%,
+          #980000 100%
+        );
+        background-repeat: no-repeat;
+      }
+
+      .arc-switch .button::before {
+        content: "";
+        background:
+          linear-gradient(
+              rgba(255, 255, 255, 0.8) 10%,
+              rgba(255, 255, 255, 0.3) 30%,
+              #650000 75%,
+              #320000
+            )
+            50% 50%/97% 97%,
+          #b10000;
+        background-repeat: no-repeat;
+        width: 100%;
+        height: 50px;
+        transform-origin: top;
+        transform: rotateX(-90deg);
+        position: absolute;
+        top: 0;
+      }
+
+      .arc-switch .button::after {
+        content: "";
+        background-image: linear-gradient(#650000, #320000);
+        width: 100%;
+        height: 50px;
+        transform-origin: top;
+        transform: translateY(50px) rotateX(-90deg);
+        position: absolute;
+        bottom: 0;
+        box-shadow:
+          0 50px 8px 0px black,
+          0 80px 20px 0px rgba(0, 0, 0, 0.5);
+      }
+
+      .arc-switch .light {
+        opacity: 0;
+        animation: light-off 1s;
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        background-image: radial-gradient(
+          #ffc97e,
+          #ff1818 40%,
+          transparent 70%
+        );
+      }
+
+      .arc-switch .dots {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        background-image: radial-gradient(
+          transparent 30%,
+          rgba(101, 0, 0, 0.7) 70%
+        );
+        background-size: 10px 10px;
+      }
+
+      .arc-switch .characters {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        background:
+          linear-gradient(white, white) 50% 20%/5% 20%,
+          radial-gradient(
+              circle,
+              transparent 50%,
+              white 52%,
+              white 70%,
+              transparent 72%
+            )
+            50% 80%/33% 25%;
+        background-repeat: no-repeat;
+      }
+
+      .arc-switch .shine {
+        transition: all 0.3s cubic-bezier(1, 0, 1, 1);
+        opacity: 0.3;
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        background:
+          linear-gradient(white, transparent 3%) 50% 50%/97% 97%,
+          linear-gradient(
+              rgba(255, 255, 255, 0.5),
+              transparent 50%,
+              transparent 80%,
+              rgba(255, 255, 255, 0.5)
+            )
+            50% 50%/97% 97%;
+        background-repeat: no-repeat;
+      }
+
+      .arc-switch .shadow {
+        transition: all 0.3s cubic-bezier(1, 0, 1, 1);
+        opacity: 1;
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(transparent 70%, rgba(0, 0, 0, 0.8));
+        background-repeat: no-repeat;
+      }
+
+      @keyframes flicker {
+        0% {
+          opacity: 1;
+        }
+
+        80% {
+          opacity: 0.8;
+        }
+
+        100% {
+          opacity: 1;
+        }
+      }
+
+      @keyframes light-off {
+        0% {
+          opacity: 1;
+        }
+
+        80% {
+          opacity: 0;
+        }
+
+        100% {
+          opacity: 1;
+        }
       }
     </style>
   </head>
   <body class="scanlines">
+    <div id="bg-scene"></div>
     <div id="stage">
       <!-- ================= 左：日历 + 资源 + 队伍 ================= -->
       <aside class="panel">
@@ -2408,16 +2781,83 @@
               >
               <span class="set-desc">玻璃弧面高光与暗角</span>
             </div>
-            <div class="set-row disabled">
-              <span class="switch" id="set-world"
-                ><span class="track"
-                  ><span class="left">off</span
-                  ><span class="right">on</span></span
-                ><span class="lab">背景跟随世界</span></span
-              >
-              <span class="set-desc"
-                >星云界 / 暗黑界两套房间背景（待实装）</span
-              >
+            <div class="set-block">
+              <div class="set-block-title">
+                <span class="set-block-name">背 景 图</span>
+                <div
+                  class="clock-input"
+                  id="bg-blur-knob"
+                  data-tip="毛玻璃模糊：6px"
+                >
+                  <input type="radio" name="bg-blur" id="v1" />
+                  <input type="radio" name="bg-blur" id="v2" />
+                  <input type="radio" name="bg-blur" id="v3" checked />
+                  <input type="radio" name="bg-blur" id="v4" />
+                  <input type="radio" name="bg-blur" id="v5" />
+                  <input type="radio" name="bg-blur" id="v6" />
+                  <span class="dial"></span>
+                  <span class="notch" style="--n: 1; --t: &quot;0&quot;"></span>
+                  <span class="notch" style="--n: 2; --t: &quot;3&quot;"></span>
+                  <span class="notch" style="--n: 3; --t: &quot;6&quot;"></span>
+                  <span class="notch" style="--n: 4; --t: &quot;9&quot;"></span>
+                  <span
+                    class="notch"
+                    style="--n: 5; --t: &quot;12&quot;"
+                  ></span>
+                  <span
+                    class="notch"
+                    style="--n: 6; --t: &quot;15&quot;"
+                  ></span>
+                  <label for="v1" id="l1"></label>
+                  <label for="v2" id="l2"></label>
+                  <label for="v3" id="l3"></label>
+                  <label for="v4" id="l4"></label>
+                  <label for="v5" id="l5"></label>
+                  <label for="v6" id="l6"></label>
+                </div>
+                <span class="set-block-note">互斥：全关 = 跟随世界</span>
+              </div>
+              <div class="bg-picker">
+                <div class="bg-opt">
+                  <img class="bg-thumb" src="./MM4-Clouds.jpg" alt="星云界" />
+                  <label class="arc-switch">
+                    <input type="checkbox" class="arc-input" data-bg="mm4" />
+                    <span class="button">
+                      <span class="light"></span>
+                      <span class="dots"></span>
+                      <span class="characters"></span>
+                      <span class="shine"></span>
+                      <span class="shadow"></span>
+                    </span>
+                  </label>
+                </div>
+                <div class="bg-opt">
+                  <img class="bg-thumb" src="./MM5-Darkside.jpg" alt="暗黑界" />
+                  <label class="arc-switch">
+                    <input type="checkbox" class="arc-input" data-bg="mm5" />
+                    <span class="button">
+                      <span class="light"></span>
+                      <span class="dots"></span>
+                      <span class="characters"></span>
+                      <span class="shine"></span>
+                      <span class="shadow"></span>
+                    </span>
+                  </label>
+                </div>
+                <div class="bg-opt">
+                  <img class="bg-thumb" src="./xeed16x9.jpeg" alt="主视觉" />
+                  <label class="arc-switch">
+                    <input type="checkbox" class="arc-input" data-bg="key" />
+                    <span class="button">
+                      <span class="light"></span>
+                      <span class="dots"></span>
+                      <span class="characters"></span>
+                      <span class="shine"></span>
+                      <span class="shadow"></span>
+                    </span>
+                  </label>
+                </div>
+              </div>
             </div>
           </section>
         </div>
@@ -2928,6 +3368,7 @@
       function applyMap() {
         const m = MAPS[state.map];
         [state.x, state.y] = m.spawn;
+        applyBackground(); /* 背景跟随世界（手动固定时不切换） */
         state.expanded = null;
         document.getElementById("ui-mapname").textContent =
           WORLD_NAME[m.world] + " · " + m.name;
@@ -3103,6 +3544,47 @@
         state.view = e.target.checked ? "all" : "local";
         renderTasks();
       };
+
+      /* ================= 房间背景：世界自动跟随 / 手动固定，毛玻璃模糊旋钮 6 档 ================= */
+      const BG_IMGS = {
+        mm4: "./MM4-Clouds.jpg",
+        mm5: "./MM5-Darkside.jpg",
+        key: "./xeed16x9.jpeg",
+      };
+      const bgScene = document.getElementById("bg-scene");
+      state.bgMode = "auto"; /* auto = 跟随世界；mm4 / mm5 / key = 手动固定 */
+      function applyBackground() {
+        const world = MAPS[state.map].world;
+        const file =
+          state.bgMode === "auto"
+            ? world === "dark"
+              ? BG_IMGS.mm5
+              : BG_IMGS.mm4
+            : BG_IMGS[state.bgMode];
+        bgScene.style.backgroundImage = `url("${file}")`;
+      }
+      document.querySelectorAll(".arc-input").forEach((input) => {
+        input.onchange = () => {
+          /* 互斥：开一个关其余；全关 = 跟随世界 */
+          document.querySelectorAll(".arc-input").forEach((i) => {
+            if (i !== input) i.checked = false;
+          });
+          state.bgMode = input.checked ? input.dataset.bg : "auto";
+          applyBackground();
+        };
+      });
+      /* 毛玻璃模糊旋钮：6 档 × 3px（0/3/6/9/12/15），tooltip 动态显示当前值 */
+      const bgBlurKnob = document.getElementById("bg-blur-knob");
+      document.querySelectorAll("#bg-blur-knob input").forEach((r) => {
+        r.onchange = () => {
+          const px = (Number(r.id.slice(1)) - 1) * 3;
+          bgScene.style.filter = `blur(${px}px)`;
+          bgBlurKnob.dataset.tip = `毛玻璃模糊：${px}px`;
+          /* 点击时指针仍停在旋钮上，气泡保持并同步数值 */
+          if (tipTarget === bgBlurKnob)
+            jsTip.textContent = bgBlurKnob.dataset.tip;
+        };
+      });
       /* 溢出检测：内容超框的面板/清单向右扩 4px（滑轨落在扩展区，不压缩内容） */
       function updateOverflow() {
         document.querySelectorAll(".panel").forEach((p) => {
@@ -3440,8 +3922,11 @@
         if (t) showTip(t);
         else hideTip();
       });
-      /* 点击后目标可能被重渲（如图钉），先收起，再移动鼠标时按新状态显示 */
-      addEventListener("mousedown", hideTip);
+      /* 点击后目标可能被重渲（如图钉），先收起；旋钮点击换档则保持气泡同步数值 */
+      addEventListener("mousedown", (e) => {
+        if (e.target.closest("#bg-blur-knob")) return;
+        hideTip();
+      });
 
       /* ================= 启动 ================= */
       fitScale();
