@@ -292,7 +292,7 @@ mod tests {
     use super::*;
     use crate::monitor::profile::MemoryMap;
 
-    /// 独立结构样例：仓库真实 memory_map.json（92 条登记条目）——验证
+    /// 独立结构样例：仓库真实 memory_map.json（109 条登记条目）——验证
     /// 样例取自真实数据，禁止手写与实现同源的 mock 自证。
     fn real_map() -> MemoryMap {
         let path =

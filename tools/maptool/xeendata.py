@@ -92,13 +92,12 @@ def maze_name(mid, stem, ext):
 
 
 def decode_name(raw):
-    """区域名解码：Big5 优先，latin-1 单字节直映任意字节均成功，无需第三级保底。"""
-    for codec in ("big5", "latin-1"):
-        try:
-            return raw.decode(codec).strip().strip("\x00").strip()
-        except UnicodeDecodeError:
-            continue
-    return None
+    """区域名解码：Big5 优先（中文正文），latin-1 直返（单字节直映任意字节
+    恒成功——保底即必达，无需第三级分支）。"""
+    try:
+        return raw.decode("big5").strip().strip("\x00").strip()
+    except UnicodeDecodeError:
+        return raw.decode("latin-1").strip().strip("\x00").strip()
 
 
 def load_inventory():

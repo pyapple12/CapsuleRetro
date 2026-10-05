@@ -211,6 +211,8 @@ pub fn builtin_names() -> HashMap<u16, String> {
     parse_names_table(NAMES_CSV)
 }
 
+/// 目录表解密：逐字节循环左移 2 位后加滚动计数（初值 0xAC，每字节后 +0x67
+/// ——算法推导与双源依据见模块头注释）。
 fn decrypt_toc(raw: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(raw.len());
     let mut cnt: u8 = 0xAC;

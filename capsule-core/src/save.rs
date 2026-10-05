@@ -178,7 +178,8 @@ pub fn unpack(archive_path: &Path, work_dir: &Path) -> Result<SaveMeta, SaveErro
 }
 
 /// 收集工作副本中命中任一 pattern 的顶层文件，连同 meta 打包为 save zip 写到
-/// `out_path`，返回打包的存档文件数。
+/// `out_path`，返回打包的存档文件数；`None` = 零命中（patterns 无一匹配——
+/// 多为通配符拼写笔误，调用方应区分决策而非当正常 0 消费，A004 #1）。
 ///
 /// # Errors
 /// 清单为空或含空白条目返回 [`SaveError::InvalidPattern`]；工作副本不可读或
@@ -188,7 +189,7 @@ pub fn pack(
     patterns: &[String],
     meta: &SaveMeta,
     out_path: &Path,
-) -> Result<usize, SaveError> {
+) -> Result<Option<usize>, SaveError> {
     if patterns.is_empty() {
         return Err(SaveError::InvalidPattern("存档清单为空".to_string()));
     }
@@ -232,7 +233,8 @@ pub fn pack(
             .map_err(|e| SaveError::Zip(e.to_string()))?;
     }
     writer.finish().map_err(|e| SaveError::Zip(e.to_string()))?;
-    Ok(names.len())
+    let count = names.len();
+    Ok((count > 0).then_some(count))
 }
 
 /// 只读解析 save 档案的 meta（不解包、不落盘）——UI 待机页状态展示用。

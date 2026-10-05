@@ -236,19 +236,15 @@ fn unix_secs() -> Result<u64> {
         .as_secs())
 }
 
-/// 校验条目相对配置值为安全仓库相对路径（组件全部为普通名）——zip 条目名由
-/// 这些值拼出，穿越形态在此拒绝（写侧防护；读侧另有 payload 校验兜底）。
+/// 校验条目相对配置值为安全仓库相对路径——校验体复用 capsule-core 的
+/// [`capsule_core::validate_rel_path`] 单份实现（A004 #13 收敛第四份），
+/// 含反斜杠拒绝语义；错误文案带资源 label 便于定位。
 fn ensure_safe_rel(value: &Path, label: &str) -> Result<()> {
-    use std::path::Component;
-    let ok = !value.as_os_str().is_empty()
-        && value
-            .components()
-            .all(|c| matches!(c, Component::Normal(_)));
-    if ok {
+    if capsule_core::validate_rel_path(&value.to_string_lossy()).is_some() {
         Ok(())
     } else {
         Err(anyhow!(
-            "{label} 须为仓库相对路径（不含 .. / 绝对路径）: {}",
+            "{label} 须为仓库相对路径（不含 .. / 绝对路径 / 反斜杠）: {}",
             value.display()
         ))
     }

@@ -199,6 +199,24 @@ fn game_dir越界拒绝() {
     assert!(err.to_string().contains("仓库相对路径"), "{err:#}");
 }
 
+/// A004 #13（FIX004.13）验证：ensure_safe_rel 收敛到 core 单份校验体后获得
+/// 反斜杠拒绝语义——Windows 风格相对路径不再放行（zip 条目名由配置值拼出）。
+#[test]
+fn game_dir反斜杠拒绝() {
+    let root = fixture_repo("backslash-gamedir");
+    let evil_text = GAME_JSON.replace(r#""game_dir": "GAMEDIR""#, r#""game_dir": "sub\\dir""#);
+    write(&root.join("retro/game.json"), evil_text.as_bytes());
+    let mut evil_inputs = inputs(&root);
+    evil_inputs.config = evil_text
+        .parse()
+        .expect("反斜杠 game_dir 的配置应可解析（拒绝发生在打包校验层）");
+    let err = capsule_pack::build_package(&evil_inputs).expect_err("反斜杠 game_dir 应报错");
+    assert!(
+        err.to_string().contains("仓库相对路径") && err.to_string().contains("反斜杠"),
+        "错误消息应含反斜杠语义说明: {err:#}"
+    );
+}
+
 /// PL006.2 验证：cover/hero 可选资产链——cover 缺省打包成功但告警（待机页
 /// 回落占位的前置）；配置且文件在位则严格校验并收集为 payload 条目；文件
 /// 缺失或路径越界仍严格报错（错误策略主线不因"可选"放宽已配置项）。

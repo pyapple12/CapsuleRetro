@@ -68,7 +68,7 @@ struct BuildMeta {
 /// 把 payload zip 追加到 exe 尾部并写 trailer（就地修改，调用方先复制好目标）。
 ///
 /// # 参数
-/// - `exe_path`：目标 exe（应为 launcher 本体的副本，不得已含 payload）
+/// - `exe_path`：目标 exe（应为 launcher 本体的副本——不应已含 payload，含者被拒绝）
 /// - `payload_zip`：资源 zip（布局见模块文档）
 ///
 /// # Errors

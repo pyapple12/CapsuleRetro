@@ -1,6 +1,6 @@
 # CapsuleRetro —— 老 DOS 游戏的现代包装系统
 
-[![Version](https://img.shields.io/badge/Version-0.1.0.23-blue.svg)](Cargo.toml)
+[![Version](https://img.shields.io/badge/Version-0.1.0.24-blue.svg)](Cargo.toml)
 [![Rust](https://img.shields.io/badge/Rust-1.96-orange.svg)](https://www.rust-lang.org)
 [![Phase](https://img.shields.io/badge/Phase-PL006%E2%80%93PL011%E5%AE%8C%E6%88%90-brightgreen.svg)](z.plan.md)
 
@@ -80,7 +80,7 @@ fork DOSBox 把渲染帧经 chunked 长连接直推 Tauri 画布（每帧即推�
 ## DosboxCapsule（fork 仓）
 
 - 独立仓 `DosboxCapsule`：v0.83.0 tag 锚点 + 5 个主题化代码补丁（单 main 分支，`git diff v0.83.0..main` 即全部足迹）
-- 补丁纪律：最小 diff、PATCHES.md 登记、清洁重建（`tools/dosbox-fork/rebuild.bat`）、每次升级必跑 FB1 基线判定（92 条目内存字节级对照，假 GO 双路径已封堵）
+- 补丁纪律：最小 diff、PATCHES.md 登记、清洁重建（`tools/dosbox-fork/rebuild.bat`）、每次升级必跑 FB1 基线判定（109 条目内存字节级对照，假 GO 双路径已封堵）
 - fork 基于 GPLv3，分发须遵守开源义务
 
 ## 项目结构

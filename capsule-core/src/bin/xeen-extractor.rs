@@ -64,6 +64,7 @@ fn main() -> ExitCode {
     }
 }
 
+/// 打印容器资源清单（ID/名字/偏移/长度）与命名覆盖率摘要。
 fn list(cc: &Path) -> Result<(), String> {
     let arch = CcArchive::load(cc).map_err(|e| format!("加载 {} 失败: {e}", cc.display()))?;
     let named = arch.entries.iter().filter(|e| e.name.is_some()).count();
@@ -83,6 +84,7 @@ fn list(cc: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// 全量导出容器资源；输出目录缺省回落 `<容器基名小写>/`。
 fn extract(cc: &Path, out: Option<&Path>) -> Result<(), String> {
     let arch = CcArchive::load(cc).map_err(|e| format!("加载 {} 失败: {e}", cc.display()))?;
     let stem = cc

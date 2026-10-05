@@ -22,11 +22,21 @@ def grid_of(name):
 
 
 def stitch(maps_by_id, frames, ids_by_cell):
-    """按 (列字母, 行数字) 键缝合世界图；缺位网格显式报错，拒绝产出缺块图。"""
+    """按 (列字母, 行数字) 键缝合世界图；网格不完整显式报错，拒绝产出缺块图。
+
+    期望网格固定 A–F × 1–4（6×4，A1 为原点——与落位公式的隐含契约一致，
+    A004 #11 显式化）：整列/整行缺失时现存键包络会收缩、无"缺位"可报，
+    故先断言包络再查内部空洞。
+    """
     tw = max(w for w, _, _ in frames)
     th = max(h for _, h, _ in frames)
     cols = sorted({letter for letter, _ in ids_by_cell})
     rows = sorted({number for _, number in ids_by_cell})
+    if cols != list("ABCDEF") or rows != [1, 2, 3, 4]:
+        raise ValueError(
+            f"world 网格不完整：列 {cols} 行 {rows}，期望 A–F × 1–4"
+            "——区域名解析缺图，请核查区域名表与户外图覆盖后再缝合"
+        )
     for letter in cols:
         for number in rows:
             if (letter, number) not in ids_by_cell:

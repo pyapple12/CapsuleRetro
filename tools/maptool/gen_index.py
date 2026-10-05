@@ -35,9 +35,18 @@ WORLDS = [
 
 
 def png_size(path):
-    """读 PNG IHDR 实际像素尺寸（标准库实现；产物为真源，清单不手抄尺寸——A003 #27）。"""
-    with open(path, "rb") as f:
-        head = f.read(24)
+    """读 PNG IHDR 实际像素尺寸（标准库实现；产物为真源，清单不手抄尺寸——A003 #27）。
+
+    产物缺失转带指引的错误（A004 #10）：index 依赖 world 缝合产物，未渲染
+    时给出行动指引而非裸 FileNotFoundError。
+    """
+    try:
+        with open(path, "rb") as f:
+            head = f.read(24)
+    except FileNotFoundError:
+        raise ValueError(
+            f"世界图尚未渲染，缺 {path}——请先执行 world（或 all）再生成 index"
+        ) from None
     if head[:8] != b"\x89PNG\r\n\x1a\n" or head[12:16] != b"IHDR":
         raise ValueError(f"非 PNG 文件或头部异常: {path}")
     return list(struct.unpack_from(">II", head, 16))

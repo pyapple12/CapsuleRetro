@@ -967,6 +967,49 @@ fn cover_data_url(bytes: &[u8], path: &Path) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::hud::parse_map_names;
+
+    /// A004 #8（FIX004.8）验证：face_id_from_name 文件名判定边界——正常
+    /// 两位数字命中，位数不符/非数字/杂物/大小写后缀全部判非头像。
+    #[test]
+    fn 头像文件名判定边界() {
+        assert_eq!(face_id_from_name("char01.png"), Some(1));
+        assert_eq!(face_id_from_name("char00.png"), Some(0));
+        assert_eq!(face_id_from_name("char99.png"), Some(99));
+        assert_eq!(face_id_from_name("char24.png"), Some(24));
+        // 判非：位数不符 / 非数字 / 杂物文件 / 大小写后缀（Windows 语义上
+        // 是头像但资产约定全小写，判杂物走 warn+skip 白名单路径）
+        assert_eq!(face_id_from_name("char1.png"), None);
+        assert_eq!(face_id_from_name("char123.png"), None);
+        assert_eq!(face_id_from_name("Thumbs.db"), None);
+        assert_eq!(face_id_from_name("char01.PNG"), None);
+        assert_eq!(face_id_from_name("CHAR01.png"), None);
+    }
+
+    /// A004 #7/#8（FIX004.7/8）联动验证：parse_map_names 对坏行（字段不足/
+    /// id 越界/outdoors 非法/侧名非法）跳过不阻断、重复 id 后者覆盖，
+    /// 合法行与注释行照常解析。
+    #[test]
+    fn mapnames解析坏行跳过与重复覆盖() {
+        let csv = "# comment\n\
+                   cloud,1,0,第一个\n\
+                   bad-line\n\
+                   cloud,999,0,越界id\n\
+                   cloud,2,2,outdoors非法\n\
+                   west,3,0,侧名非法\n\
+                   cloud,1,1,覆盖后\n\
+                   dark,4,1,暗面图\n";
+        let table = parse_map_names(csv);
+        assert_eq!(
+            table.cloud.len(),
+            1,
+            "坏行全部跳过后 cloud 仅剩 id 1（越界/outdoors 非法行不入表）"
+        );
+        let first = &table.cloud[&1];
+        assert_eq!(first.name.as_deref(), Some("覆盖后"), "重复 id 后者覆盖");
+        assert!(first.outdoors, "覆盖行的 outdoors 随之更新");
+        assert_eq!(table.dark[&4].name.as_deref(), Some("暗面图"));
+    }
 
     /// PL006.4 验证：封面按扩展名转 data URL（大小写不敏感），编码可无损
     /// 解码回原字节；未知扩展名严格报错。

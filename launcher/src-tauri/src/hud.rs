@@ -272,24 +272,30 @@ fn poll_once(client: &RestClient, entries: &[&Entry]) -> Result<HudSnapshot, Mon
 }
 
 /// 地图名条目（来源 = PL010 盘点：CUR 主图 + DARK.CC 区域名，内嵌 mapnames.csv）。
-struct MapNameEntry {
-    name: Option<String>,
-    outdoors: bool,
+/// `pub(crate)` 及字段可见性供 commands.rs 测试模块断言（生产消费仅 hud 内部）。
+pub(crate) struct MapNameEntry {
+    pub(crate) name: Option<String>,
+    pub(crate) outdoors: bool,
 }
 
 /// 按侧分表（cloud/dark 各按地图号索引）；两侧共用编号空间，25–28 号户外标志相反。
-struct MapNameTable {
-    cloud: std::collections::HashMap<u8, MapNameEntry>,
-    dark: std::collections::HashMap<u8, MapNameEntry>,
+/// `pub(crate)` 及字段可见性供 commands.rs 测试模块断言（生产消费仅 hud 内部）。
+pub(crate) struct MapNameTable {
+    pub(crate) cloud: std::collections::HashMap<u8, MapNameEntry>,
+    pub(crate) dark: std::collections::HashMap<u8, MapNameEntry>,
 }
 
 /// 解析内嵌 CSV（行格式 `side,map_id,outdoors,name`；`#` 注释行跳过）。
-fn parse_map_names(csv: &'static str) -> MapNameTable {
+/// 坏行（字段缺失/id 非 u8/侧名非法）与重复 map_id 打警告后跳过——内嵌
+/// 资产解析失败属程序缺陷，必须显式留痕（对齐 FIX003.5 同语义标准，A004 #7；
+/// 用 launcher 的 logging 而非 cc_archive 的 eprintln：库 crate 无 logging）。
+/// `pub(crate)` 供 commands.rs 测试模块直测（生产消费仅 hud 内部）。
+pub(crate) fn parse_map_names(csv: &'static str) -> MapNameTable {
     let mut table = MapNameTable {
         cloud: std::collections::HashMap::new(),
         dark: std::collections::HashMap::new(),
     };
-    for line in csv.lines() {
+    for (n, line) in csv.lines().enumerate() {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;
@@ -298,11 +304,23 @@ fn parse_map_names(csv: &'static str) -> MapNameTable {
         let (side, id, outdoors, name) =
             match (parts.next(), parts.next(), parts.next(), parts.next()) {
                 (Some(s), Some(i), Some(o), Some(n)) => (s, i, o, n),
-                _ => continue,
+                _ => {
+                    crate::logging::warn(&format!(
+                        "mapnames.csv 第 {} 行字段不足，已跳过: {line}",
+                        n + 1
+                    ));
+                    continue;
+                }
             };
         let (id, outdoors) = match (id.parse::<u8>(), outdoors) {
             (Ok(id), "0" | "1") => (id, outdoors == "1"),
-            _ => continue,
+            _ => {
+                crate::logging::warn(&format!(
+                    "mapnames.csv 第 {} 行 id/outdoors 非法，已跳过: {line}",
+                    n + 1
+                ));
+                continue;
+            }
         };
         let name = if name.is_empty() {
             None
@@ -312,8 +330,20 @@ fn parse_map_names(csv: &'static str) -> MapNameTable {
         let target = match side {
             "cloud" => &mut table.cloud,
             "dark" => &mut table.dark,
-            _ => continue,
+            _ => {
+                crate::logging::warn(&format!(
+                    "mapnames.csv 第 {} 行侧名非法，已跳过: {line}",
+                    n + 1
+                ));
+                continue;
+            }
         };
+        if target.contains_key(&id) {
+            crate::logging::warn(&format!(
+                "mapnames.csv 第 {} 行重复 map_id {id}，后者覆盖前者: {line}",
+                n + 1
+            ));
+        }
         target.insert(id, MapNameEntry { name, outdoors });
     }
     table

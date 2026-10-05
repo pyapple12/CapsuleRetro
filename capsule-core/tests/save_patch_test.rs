@@ -114,7 +114,7 @@ fn save打包解包往返一致() {
         &out.join("s.save"),
     )
     .expect("pack");
-    assert_eq!(packed, 3, "应打包 3 个命中文件");
+    assert_eq!(packed, Some(3), "应打包 3 个命中文件");
 
     let restore = temp_dir("pack-restore");
     let got = save::unpack(&out.join("s.save"), &restore).expect("unpack");
@@ -599,6 +599,68 @@ fn 回写序列原子替换() {
     assert_eq!(got.hack.as_deref(), Some("test-hack"), "meta 应随回写更新");
     assert_eq!(read(&restore, "XEEN01.SAV"), b"round2", "后写胜出");
     assert!(!out.join("s.save.tmp").exists(), "回写后不应残留临时文件");
+}
+
+/// A004 #1（FIX004.1）验证：零命中 + 旧 save 存在 → 拒绝替换（ZeroHitReject），
+/// 旧档字节保持不变；零命中 + 无旧档（首次游玩）→ 放行写入仅含 meta 的空档。
+#[test]
+fn 零命中回写按旧档存在性分流() {
+    let out = temp_dir("fix004-zero");
+
+    // 半区 1：旧档在——不可命中 pattern（首格空格）→ 拒绝且旧档原样
+    let work1 = temp_dir("fix004-zero-work1");
+    write(&work1, "XEEN01.SAV", b"userdata");
+    let save1 = out.join("has-old.save");
+    let old_meta = meta(None);
+    write(
+        &out,
+        "has-old.save",
+        &save_bytes(&work1, &["*.SAV".to_string()], &old_meta),
+    );
+    let before = std::fs::read(&save1).expect("读旧档");
+
+    let err = paths::writeback(
+        &work1,
+        &save1,
+        &[" *.SAV".to_string()],
+        &meta(Some("test-hack")),
+    )
+    .expect_err("零命中 + 有旧档应拒绝替换");
+    assert!(
+        matches!(err, paths::LifecycleError::ZeroHitReject(_)),
+        "应报 ZeroHitReject，实际: {err:?}"
+    );
+    assert_eq!(
+        std::fs::read(&save1).expect("复读旧档"),
+        before,
+        "拒绝替换后旧 save 字节必须原样"
+    );
+
+    // 半区 2：无旧档——同样的不可命中 pattern → 放行（首次游玩合法初始态）
+    let work2 = temp_dir("fix004-zero-work2");
+    write(&work2, "XEEN01.SAV", b"first-session");
+    let save2 = out.join("no-old.save");
+    let n = paths::writeback(&work2, &save2, &[" *.SAV".to_string()], &meta(None))
+        .expect("零命中 + 无旧档应放行");
+    assert_eq!(n, 0);
+    assert!(save2.is_file(), "空档（仅 meta）应落盘");
+    let got = save::unpack(&save2, &temp_dir("fix004-zero-restore")).expect("空档应可解包");
+    assert_eq!(got, meta(None));
+    assert!(
+        dir_files(&temp_dir("fix004-zero-restore"))
+            .iter()
+            .all(|f| f == "meta.json"),
+        "空档不应含存档文件"
+    );
+}
+
+/// 便捷构造：打包 save 字节（供半区 1 造旧档）。
+fn save_bytes(work: &Path, patterns: &[String], meta: &SaveMeta) -> Vec<u8> {
+    let tmp = work.parent().expect("work 必有父目录").join("mk-save.tmp");
+    save::pack(work, patterns, meta, &tmp)
+        .expect("pack")
+        .expect("造旧档应有命中");
+    std::fs::read(&tmp).expect("读临时档")
 }
 
 /// bzip2 补丁包 fixture（Python 标准库 zipfile 生成：manifest 条目 deflate、

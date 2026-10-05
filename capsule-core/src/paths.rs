@@ -27,6 +27,10 @@ pub enum LifecycleError {
     /// 补丁应用失败。
     #[error(transparent)]
     Patch(#[from] PatchError),
+    /// 回写零命中拒绝替换：patterns 无一匹配（多为 save_files 通配符拼写
+    /// 笔误）且旧 save 存在——拒绝以空档覆盖既有用户数据（A004 #1）。
+    #[error("存档回写 0 个文件（save_files 通配符无一命中，请核查拼写）——已保留旧存档: {0}")]
+    ZeroHitReject(String),
 }
 
 /// 启动前置序列：全量重建工作副本 → 应用补丁（可选）→ 解包 save（含损坏
@@ -60,11 +64,16 @@ pub fn prepare_session(
 /// 退出回写序列：按 patterns 收集工作副本存档 → 打包到同目录临时文件 →
 /// 原子替换 save 档案，返回打包的存档文件数。
 ///
+/// 零命中分流（A004 #1）：patterns 无一匹配且旧 save 存在 → 拒绝替换
+/// （空档会不可逆清掉既有用户数据，多为通配符拼写笔误）；零命中但旧
+/// save 不存在（新游戏首次游玩退出）→ 放行写入空档，属合法初始态。
+///
 /// 临时文件在失败时可能残留（部分写入），不做事后清理——下次打包会以
 /// `File::create` 截断重建，残留无害且自愈。
 ///
 /// # Errors
-/// 打包或替换失败严格上抛，旧 save 保持完整可用。
+/// 打包或替换失败严格上抛，旧 save 保持完整可用；零命中拒绝替换时返回
+/// [`LifecycleError::ZeroHitReject`]，旧 save 同样保持完整。
 pub fn writeback(
     work_dir: &Path,
     save_zip: &Path,
@@ -73,8 +82,18 @@ pub fn writeback(
 ) -> Result<usize, LifecycleError> {
     let tmp = tmp_sibling(save_zip);
     let packed = save::pack(work_dir, patterns, meta, &tmp)?;
+    let Some(count) = packed else {
+        if save_zip.exists() {
+            return Err(LifecycleError::ZeroHitReject(
+                save_zip.display().to_string(),
+            ));
+        }
+        // 无旧档的首次游玩：空档（仅 meta）是合法初始态，照常落盘
+        save::replace_atomically(&tmp, save_zip)?;
+        return Ok(0);
+    };
     save::replace_atomically(&tmp, save_zip)?;
-    Ok(packed)
+    Ok(count)
 }
 
 /// save 档案的同目录临时兄弟路径（原名追加 `.tmp`，保证与目标同卷可原子替换）。

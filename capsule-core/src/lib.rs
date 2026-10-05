@@ -7,6 +7,8 @@
 //! launcher（B 壳）与 xmonitor CLI（A 壳诊断工具）共同消费；cc_archive 与
 //! maze 供 xeen-extractor CLI 使用。
 
+use std::path::Component;
+
 pub mod cc_archive;
 pub mod game_config;
 pub mod maze;
@@ -18,13 +20,12 @@ pub mod save;
 
 /// 校验 zip 条目相对路径：非空、不含反斜杠、组件全部为普通名（拒绝 `..` /
 /// 根 / 盘符等路径穿越形态，zip slip 家族的唯一写侧闸门）。save / patch /
-/// payload 三格式共用单份校验体（A003 #6 收敛），错误映射由调用方按各自
-/// 错误变体完成。
+/// payload 三格式与 capsule-pack 配置值校验共用单份校验体（A003 #6 / A004
+/// #13 收敛），错误映射由调用方按各自错误变体完成。
 ///
 /// # 返回
 /// `Some(rel)` = 合法相对路径；`None` = 非法（调用方决定报错形态）。
-pub(crate) fn validate_rel_path(path: &str) -> Option<std::path::PathBuf> {
-    use std::path::Component;
+pub fn validate_rel_path(path: &str) -> Option<std::path::PathBuf> {
     if path.is_empty() || path.contains('\\') {
         return None;
     }
