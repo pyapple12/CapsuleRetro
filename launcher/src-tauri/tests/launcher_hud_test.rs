@@ -7,9 +7,13 @@
 
 use std::sync::mpsc;
 
+use capsule_core::monitor::profile::MemoryMap;
+use capsule_core::monitor::rest::RestClient;
 use launcher_lib::commands::start_session;
 use launcher_lib::gameconf;
 use launcher_lib::hud::{HudPollEvent, HudPoller};
+use windows::Win32::Foundation::FILETIME;
+use windows::Win32::System::Threading::{GetCurrentProcess, GetProcessTimes};
 
 /// VD1 + VD3 联合验证。
 #[test]
@@ -71,9 +75,6 @@ fn hud_双通道对照与cpu开销() {
 
 /// 独立直读：不经 HudPoller，用独立客户端与档案实例读同名字段。
 fn direct_read(port: u16, map_path: &std::path::Path) -> DirectValues {
-    use capsule_core::monitor::profile::MemoryMap;
-    use capsule_core::monitor::rest::RestClient;
-
     let client = RestClient::new(port);
     let map = MemoryMap::load(map_path).expect("档案加载");
     let mut values = std::collections::HashMap::new();
@@ -117,9 +118,6 @@ struct DirectValues {
 
 /// 本进程累计 CPU 时间（user+kernel，秒）。
 fn cpu_seconds() -> f64 {
-    use windows::Win32::Foundation::FILETIME;
-    use windows::Win32::System::Threading::{GetCurrentProcess, GetProcessTimes};
-
     let handle = unsafe { GetCurrentProcess() };
     let mut creation = FILETIME::default();
     let mut exit = FILETIME::default();

@@ -11,7 +11,9 @@ import struct
 import zlib
 from pathlib import Path
 
-REPO_ROOT = os.path.realpath("E:/GameMission/CapsuleRetro")
+# 仓库根自脚本位置派生（本文件位于 <仓库根>/tools/maptool/ 下，上溯两级）——
+# 不得写死机器绝对路径，否则换克隆位置整条管线失效（A003 #2）
+REPO_ROOT = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 EXTRACT = os.path.realpath(os.path.join(REPO_ROOT, ".xeen-extract"))
 ALLOWED = EXTRACT + os.sep
 

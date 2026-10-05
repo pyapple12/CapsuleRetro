@@ -2,7 +2,7 @@
 
 老 DOS 游戏现代包装系统：把任意 DOS 游戏打包成"看起来像移植的现代游戏"，三平台（Windows / macOS / Linux）通用。产物 = 执行文件 + save 文件 + readme.md 三个文件走天下。总体规划见 `CapsuleRetro_plan.md`。
 
-**当前状态**：PL001–PL003 主线与 FIX001 审计修复完结（2026-09-05 / 07 / 08），PL004 capsule-pack 打包器 + 打包形态落地完结（2026-09-09，产品三文件闭环达成、dist 可产出，见 z.plan.md 附录 PL004）——`capsule-core`（monitor 观察库 + game.json 解析 + save/patch/paths 生命周期三模块）+ `xmonitor` 诊断 CLI + `launcher`（Tauri 2 + Vue 3；统一窗口形态 + save 闭环 + hack 切换 + 攻略渲染，见 z.plan.md 附录 PL002/PL003）。已有素材：`retro/XEEN/`（《魔法门 XEEN》DOS 版，含 CHINFONT 汉化字体与 CMM4.PAT 补丁）、`retro/` 根适配层（game.json v2、xeen-guide.md 攻略、zhuyin-keyboard.md 注音对照、memory_map.json 内存档案、patches/test-hack.zip 测试补丁包）、`.archived/`（mm4/mm5 原版 zip）、`.agents/skills/`（项目自建 skill）、独立模拟器仓 `DosboxCapsule`（`E:\GameMission\DosboxCapsule`，v0.83.0 + 5 代码补丁，维护套件见 `tools/dosbox-fork/`）。遗留与远期项登记 `y.problems.md`。PL005 会话体验硬化已完结（2026-09-09，帧流 chunked 直推降延迟 + dosbox 静默启动，见 z.plan.md 附录 PL005；体验硬化阶梯与回退锚点 V0.1.0.6 见 CapsuleRetro_plan.md §10）；FIX002 第 2 轮审计修复已完结（2026-09-10，39 条 + 快速重启竞态连带修复，见 z.plan.md 附录 A002）；PL006 UI 第一遍打磨已完结并经用户目测判收（2026-09-10，v3 黑金典藏版落地：待机页/会话态/攻略面板按稿移植 + cover/hero 封面资产链 + 金框卡带图标与窗口标题，见 z.plan.md 附录 PL006）。PL007 会话内数值修改器（金手指第一歩）已完结（2026-09-11——实况修正：上游 vanilla v0.83.0 webserver 本就内置内存写端点，fork 零改动；落地为 monitor 白名单闸 write_memory/adjust_field + launcher cheat_adjust + 会话态「金币/宝石 +10000」按钮，live 双向闭环实证，见 z.plan.md 附录 PL007）。PL008 CC 素材提取链路已完结（2026-09-12——实况修正：ScummVM 无 xeen 引擎，肉眼基准用 DosboxCapsule 截图、格式参考用 OpenXeen；落地为 capsule-core cc_archive 模块 + xeen-extractor list/extract CLI + `.xeen-extract/` 素材库（2457 原始资源 + 1059 PNG + 素材墙 + 161 头像清单），见 z.plan.md 附录 PL008）。下一步：**UI 持续迭代期（2026-09-10 用户定调）**——第一遍仅是起点，后续以连续小热更新方式打磨 UI，最终形态待用户深入考虑后定案；期间不进发布工程立项（GitHub Actions / DosboxCapsule Release / 杀软实测在 UI 定案后另行立项），0.2.0 三端适配为远期目标。PL009 角色头像上屏已完结（2026-09-12——face 机制破解：面容文件号 = 名册槽位 + 1（第 N 槽用 CHAR(N+1).FAC），live 面容数组 0x5A7C:0x2；24 张头像随包 `retro/artwork/faces/` + HUD 头像缩略与 HP 着色（≥60% 绿 / 20–60% 黄 / <20% 红 / 负值蓝，会话滚动基线）+ 空槽占位；机制档案 `retro/face-map.md`，见 z.plan.md 附录 PL009）。
+**当前状态**：PL001–PL003 主线与 FIX001 审计修复完结（2026-09-05 / 07 / 08），PL004 capsule-pack 打包器 + 打包形态落地完结（2026-09-09，产品三文件闭环达成、dist 可产出，见 z.plan.md 附录 PL004）——`capsule-core`（monitor 观察库 + game.json 解析 + save/patch/paths 生命周期三模块）+ `xmonitor` 诊断 CLI + `launcher`（Tauri 2 + Vue 3；统一窗口形态 + save 闭环 + hack 切换 + 攻略渲染，见 z.plan.md 附录 PL002/PL003）。已有素材：`retro/XEEN/`（《魔法门 XEEN》DOS 版，含 CHINFONT 汉化字体与 CMM4.PAT 补丁）、`retro/` 根适配层（game.json v2、xeen-guide.md 攻略、zhuyin-keyboard.md 注音对照、memory_map.json 内存档案、patches/test-hack.zip 测试补丁包）、`.archived/`（mm4/mm5 原版 zip）、`.agents/skills/`（项目自建 skill）、独立模拟器仓 `DosboxCapsule`（`E:\GameMission\DosboxCapsule`，v0.83.0 + 5 代码补丁，维护套件见 `tools/dosbox-fork/`）。遗留与远期项登记 `y.problems.md`。PL005 会话体验硬化已完结（2026-09-09，帧流 chunked 直推降延迟 + dosbox 静默启动，见 z.plan.md 附录 PL005；体验硬化阶梯与回退锚点 V0.1.0.6 见 CapsuleRetro_plan.md §10）；FIX002 第 2 轮审计修复已完结（2026-09-10，39 条 + 快速重启竞态连带修复，见 z.plan.md 附录 A002）；PL006 UI 第一遍打磨已完结并经用户目测判收（2026-09-10，v3 黑金典藏版落地：待机页/会话态/攻略面板按稿移植 + cover/hero 封面资产链 + 金框卡带图标与窗口标题，见 z.plan.md 附录 PL006）。PL007 会话内数值修改器（金手指第一歩）已完结（2026-09-11——实况修正：上游 vanilla v0.83.0 webserver 本就内置内存写端点，fork 零改动；落地为 monitor 白名单闸 write_memory/adjust_field + launcher cheat_adjust + 会话态「金币/宝石 +10000」按钮，live 双向闭环实证，见 z.plan.md 附录 PL007）。PL008 CC 素材提取链路已完结（2026-09-12——实况修正：ScummVM 无 xeen 引擎，肉眼基准用 DosboxCapsule 截图、格式参考用 OpenXeen；落地为 capsule-core cc_archive 模块 + xeen-extractor list/extract CLI + `.xeen-extract/` 素材库（2457 原始资源 + 1059 PNG + 素材墙 + 161 头像清单），见 z.plan.md 附录 PL008）。下一步：**UI 持续迭代期（2026-09-10 用户定调）**——第一遍仅是起点，后续以连续小热更新方式打磨 UI，最终形态待用户深入考虑后定案；期间不进发布工程立项（GitHub Actions / DosboxCapsule Release / 杀软实测在 UI 定案后另行立项），0.2.0 三端适配为远期目标。PL009 角色头像上屏已完结（2026-09-12——face 机制破解：面容文件号 = 名册槽位 + 1（第 N 槽用 CHAR(N+1).FAC），live 面容数组 0x5A7C:0x2；24 张头像随包 `retro/artwork/faces/` + HUD 头像缩略与 HP 着色（≥60% 绿 / 20–60% 黄 / <20% 红 / 负值蓝，会话滚动基线）+ 空槽占位；机制档案 `retro/face-map.md`，见 z.plan.md 附录 PL009）。PL010 XEEN 地图底图自渲染已完结（2026-09-13，311 主图 + 96 变体盘点、892B 布局 Rust 化 `maze.rs` + `mazes` 校验命令、76 户外 + 235 户内双分辨率共 622 图交付、index.json 与 `retro/map-atlas.md` 转正，见 z.plan.md 附录 PL010）；PL011 队伍位置读取已完结（2026-09-13，四连字节 `0x5A7CA` + 侧标志 `0x5A7CE` 锁定、区域名双文件族 `XEEN/DARKxxxx.TXT` 按侧破解、HUD 五要素 live 判收"HUD 对的"，见 z.plan.md 附录 PL011）；**PL012 游玩 UI 重构进行中**（2026-09-15 起实验场阶段：自包含 HTML 四轮迭代至 v4.5，含左栏操作栏与浮窗、背景图按世界切换与毛玻璃滑杆、Uiverse 六组件接入、CRT 特效归属定案为前端侧；**对接 Launcher 未开始**，交接文档 `assets/design/PL012-game-ui-handoff.md` 含对接要点与后端六项缺口）。下一步：实验场收口 → 补后端缺口 → 按交接文档对接 Launcher；期间仍不进发布工程立项。
 
 ## 技术栈
 
@@ -14,7 +14,7 @@
 | 打包器     | Rust CLI（capsule-pack）       |
 | 核心库     | Rust crate（capsule-core）     |
 
-## 启动命令（规划）
+## 启动命令
 
 ```bash
 cargo run -p launcher                            # 开发运行启动器（或 cargo tauri dev）
@@ -48,16 +48,21 @@ capsule-core/    # Rust crate：save 打包/解包、补丁应用、配置、路
                  #   src/patch.rs      补丁包解析与应用（PL003）
                  #   src/paths.rs      运行时释放与生命周期编排（PL003）
                  #   src/payload.rs    exe 尾部 payload 拼装/解析/extract-once（PL004）
+                 #   src/maze.rs       CUR 的 892B 迷宫布局严格解析（PL010）
+                 #   src/cc_archive.rs CC 容器目录解密与资源还原（PL008）
                  #   src/bin/xmonitor  诊断 CLI（watch/search/bench）
+                 #   src/bin/xeen-extractor  CC 素材提取 CLI（list/extract/mazes，PL008/PL010）
                  #   tests/            集成测试（cargo test 自动发现）
-launcher/        # Tauri 2 应用（src-tauri/：commands / gameconf / hud / winembed / winproc / jobctl
-                 #   + src/：App / GameCanvas / HudBar）
+launcher/        # Tauri 2 应用（src-tauri/：commands / gameconf / hud / logging / jobctl / winproc
+                 #   + mapnames.csv 区域名表；+ src/：App / GameCanvas / HudBar）
 capsule-pack/    # Rust CLI 打包器（PL004）：game.json + launcher exe → dist 三文件
                  #   （GameName.exe 资源内嵌 + readme.md；save 由产品首启生成）
 assets/dosbox/   # DOSBox Staging v0.83.0 sidecar（锁版本，进 git 的是 zip；
                  #   解压目录 dosbox-staging/ 为派生产物，已 gitignore）
-assets/design/   # UI 视觉稿库（自包含 HTML，引用 retro/artwork/ 真图）：
-                 #   v3 黑金典藏版 = PL006 视觉定案，其余四版留作 theme 迭代参考
+assets/design/   # UI 视觉稿库与 PL012 实验场（自包含 HTML，引用 retro/artwork/ 真图）：
+                 #   v3 黑金典藏版 = PL006 视觉定案，其余四版留作 theme 迭代参考；
+                 #   pl012-游玩界面实验场.html（PL012 评审媒介）+ PL012-game-ui-handoff.md
+                 #   （对接要点与后端缺口）；背景候选三图（MM4-Clouds / MM5-Darkside / xeed16x9）
 tools/dosbox-fork/ # DosboxCapsule fork 维护套件（版本化）：PATCHES.md（补丁登记
                  #   与升级配方）、rebuild.bat（清洁重建）、baseline-capture.sh /
                  #   baseline-compare.py（FB1 基线判定，升级后必跑）
@@ -67,16 +72,18 @@ tools/maptool/   # XEEN 地图资产管线（正式组件，Python 标准库零�
                  #   归锚点）/world_stitch/gen_index/maptool.py CLI（all/publish）；
                  #   渲染规则与验收基准见 retro/map-atlas.md 与 tools/maptool/README.md
 retro/           # 根 = 适配层（我们编写的文件）：game.json（v2：game_dir/save_files/patches）、
-                 #   patches/（测试补丁包）、memory_map.json（内存档案）、face-map.md（面容档案：
-                 #   face 数组 0x5A7C:0x2、槽位+1=头像文件号、角色对照总账）、xeen-guide.md（攻略）、
-                 #   zhuyin-keyboard.md（注音对照）、artwork/（封面与主视觉，PL006 随包）
+                 #   patches/（测试补丁包）、memory_map.json（109 条目内存档案）、face-map.md（面容档案：
+                 #   face 数组 0x5A7C:0x2、槽位+1=头像文件号、角色对照总账）、map-atlas.md（地图档案：
+                 #   892B 布局、户内四层渲染定案、区域名双文件族、坐标换算）、xeen-guide.md（攻略）、
+                 #   zhuyin-keyboard.md（注音对照）、artwork/（封面/主视觉/faces 头像 24 张/maps 地图资产）
                  # 子目录（如 retro/XEEN/）= 纯原版游戏文件，字面意义只读
 .agents/skills/  # 项目自建 skill（audit-project / audit-report / progress-task），ZCode workspace 级扫描目录
 .archived/       # 归档素材（mm4.zip / mm5.zip，只读）
+.reference/      # 外部参考图（MM4/MM5 官方世界地图与主视觉，本地留存，gitignore 不入库）
 .temp/           # 临时脚本与文件（gitignore）；探针、快照、验证记录放这里
 .xeen-extract/   # CC 素材工坊（gitignore，版权素材只留本地）：xeen-extractor 的
                  #   提取输出（cc/）、转码素材（png/）、素材墙（browse.html）、
-                 #   ScummVM 便携版（tools/scummvm/）；PL008/PL009 工作区
+                 #   OpenXeen 参考克隆（tools/）；PL008–PL011 工作区
 y.problems.md    # 问题与远期改进备忘录（只增不删、编号递增；任务清单以 [problems#N] 引用）
 ```
 

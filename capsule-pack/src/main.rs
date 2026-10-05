@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{ensure, Context, Result};
 use clap::Parser;
 
 /// capsule-pack 命令行参数。
@@ -30,6 +30,28 @@ fn main() -> Result<()> {
         .and_then(Path::parent)
         .context("game.json 路径须形如 <仓库根>/retro/game.json（至少两级）")?
         .to_path_buf();
+    // 校验与内嵌一致性断言（A003 #3）：build_package 用 args.game_json 加载的
+    // config 做校验、内嵌的却是 <repo_root>/retro/game.json——两者必须同一
+    // 文件，否则"校验 A 打包 B"的产物静默错配
+    let expected = repo_root.join("retro").join("game.json");
+    let actual = args
+        .game_json
+        .canonicalize()
+        .with_context(|| format!("定位 {}", args.game_json.display()))?;
+    let expected_canonical = expected.canonicalize().with_context(|| {
+        format!(
+            "仓库内缺少 {}（校验与内嵌必须同一文件——请把 game.json 放到该规范路径，\
+             或用 <仓库根>/retro/game.json 调用打包器）",
+            expected.display()
+        )
+    })?;
+    ensure!(
+        actual == expected_canonical,
+        "game.json 与内嵌路径不一致：校验用 {}，内嵌用 {}（须同一文件——请用 \
+         <仓库根>/retro/game.json 调用打包器）",
+        args.game_json.display(),
+        expected.display()
+    );
     let config = capsule_core::game_config::GameConfig::load(&args.game_json)
         .with_context(|| format!("加载 {}", args.game_json.display()))?;
     let dosbox_dir = match args.dosbox_dir {

@@ -300,7 +300,8 @@ impl PayloadReader {
             }
             let name = entry.name().to_string();
             let unix_mode = entry.unix_mode();
-            let rel = validate_entry(&name)?;
+            let rel = crate::validate_rel_path(&name)
+                .ok_or_else(|| PayloadError::UnsafeEntry(name.clone()))?;
             let target = dest.join(rel);
             if let Some(parent) = target.parent() {
                 std::fs::create_dir_all(parent).map_err(|source| PayloadError::Io {
@@ -385,17 +386,3 @@ fn restore_unix_mode(mode: Option<u32>, target: &Path) {
 /// Windows 平台无 unix 权限语义，no-op。
 #[cfg(not(unix))]
 fn restore_unix_mode(_mode: Option<u32>, _target: &Path) {}
-
-/// 校验条目相对路径：非空、不含反斜杠、组件全部为普通名（拒绝 `..` / 根 /
-/// 盘符等穿越形态）。与 save.rs 的 save 条目校验同语义（两种格式各自收口）。
-fn validate_entry(name: &str) -> Result<PathBuf, PayloadError> {
-    use std::path::Component;
-    if name.is_empty() || name.contains('\\') {
-        return Err(PayloadError::UnsafeEntry(name.to_string()));
-    }
-    let path = Path::new(name);
-    if !path.components().all(|c| matches!(c, Component::Normal(_))) {
-        return Err(PayloadError::UnsafeEntry(name.to_string()));
-    }
-    Ok(path.to_path_buf())
-}

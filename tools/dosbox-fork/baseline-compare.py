@@ -11,8 +11,11 @@ import json
 import sys
 from pathlib import Path
 
-TEMP = Path(r"E:/GameMission/CapsuleRetro/.temp")
-PROFILE = Path(r"E:/GameMission/CapsuleRetro/retro/memory_map.json")
+# 仓库根自脚本位置派生（本文件位于 <仓库根>/tools/dosbox-fork/ 下，上溯两级）
+# ——与 baseline-capture.sh 的字面量路径配套改为位置无关（A003 #2）
+_REPO = Path(__file__).resolve().parents[2]
+TEMP = _REPO / ".temp"
+PROFILE = _REPO / "retro" / "memory_map.json"
 
 
 def load(tag: str) -> bytes:

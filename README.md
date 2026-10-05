@@ -1,8 +1,8 @@
 # CapsuleRetro —— 老 DOS 游戏的现代包装系统
 
-[![Version](https://img.shields.io/badge/Version-0.1.0.21-blue.svg)](Cargo.toml)
+[![Version](https://img.shields.io/badge/Version-0.1.0.22-blue.svg)](Cargo.toml)
 [![Rust](https://img.shields.io/badge/Rust-1.96-orange.svg)](https://www.rust-lang.org)
-[![Phase](https://img.shields.io/badge/Phase-PL006%E2%80%93PL009%E5%AE%8C%E6%88%90-brightgreen.svg)](z.plan.md)
+[![Phase](https://img.shields.io/badge/Phase-PL006%E2%80%93PL011%E5%AE%8C%E6%88%90-brightgreen.svg)](z.plan.md)
 
 把任意 DOS 游戏打包成"看起来像移植的现代游戏"：玩家拿到 **三个文件**，双击即玩，无安装、无模拟器痕迹。当前以 Windows 为交付目标，macOS / Linux 为 0.2.0 目标。
 
@@ -23,9 +23,9 @@
 | 现代启动器   | 待机页原版 / hack 切换、攻略 Markdown 渲染、实时 HUD 状态条            |
 | 补丁应用     | hack 版 = 原版副本 + 运行时应用补丁，**原版游戏文件永不被修改**        |
 | 一条命令出包 | `capsule-pack` 读 game.json → 校验 → 资源内嵌 → dist 三文件            |
-| 伴生观察     | REST 原子读取模拟器内存，92 条目内存档案实时驱动 HUD 与诊断 CLI        |
+| 伴生观察     | REST 原子读取模拟器内存，109 条目内存档案实时驱动 HUD 与诊断 CLI       |
 
-> 当前状态：**PL001–PL005 与 FIX001/FIX002 已完成**（V0.1.0.8）——Windows 可玩可发布闭环达成：打包器产出 dist 三文件、干净机器双击即玩存档闭环、静默启动、两轮全量审计修复收口（39 条 + 快速重启竞态连带修复）。下一步 0.1.0 发布打磨立项待启；0.2.0 三端适配登记不动。方案与实测结论见 `z.plan.md` 附录，体验硬化阶梯见 `CapsuleRetro_plan.md` §10。
+> 当前状态：**PL001–PL011 全部完工 + FIX001/FIX002 两轮审计收口**（V0.1.0.22）——产品三文件闭环、静默启动、帧流直推、HUD（头像缩略 / HP 四色 / 位置五要素）、会话内金手指、地图与头像资产链（622 张地图 + 24 张头像）、攻略渲染均已 live 验收。**正在进行：PL012 游玩 UI 重构**（实验场阶段，见 `assets/design/PL012-game-ui-handoff.md`）。后续：PL012 定稿对接 Launcher → 发布工程立项（GitHub Actions / fork Release / 杀软实测）；0.2.0 三端适配登记不动。方案与实测结论见 `z.plan.md` 附录，体验硬化阶梯见 `CapsuleRetro_plan.md` §10。
 
 ## 技术栈
 
@@ -95,14 +95,19 @@ CapsuleRetro/
 │   │                        #   + src（App / GameCanvas 帧流画布 / HudBar）
 ├── capsule-pack/            # 打包器 CLI：校验 → 资源收集 → payload 拼装 → 三文件产物
 ├── assets/dosbox/           # 官方 v0.83.0 sidecar zip（未打补丁原版，入库）
+├── assets/design/           # UI 视觉稿库与 PL012 实验场（自包含 HTML + 背景候选图）
 ├── tools/dosbox-fork/       # DosboxCapsule 维护套件（PATCHES.md / rebuild.bat / FB1 基线）
-├── retro/                   # 根 = 适配层：game.json（v2）、xeen-guide.md（攻略）、
-│   │                        #   memory_map.json（92 条目内存档案）、zhuyin-keyboard.md、patches/
+├── tools/maptool/           # XEEN 地图资产管线（til / xeendata / render_* / city_stitch / CLI）
+├── retro/                   # 根 = 适配层：game.json（v2）、xeen-guide.md（攻略）、xeen 机制档案、
+│   │                        #   memory_map.json（109 条目内存档案）、patches/
+│   │                        #   face-map.md（面容）/ map-atlas.md（地图）/ artwork/（封面·头像·地图）
 │   └── XEEN/                # 纯原版游戏文件（字面意义只读）
 ├── .archived/               # mm4/mm5 原始素材（只读）
+├── .reference/              # 外部参考图（本地留存，gitignore）
+├── .xeen-extract/           # CC 素材工坊（gitignore）
 ├── AGENTS.md                # 项目规范（AI 协作必读）
 ├── CapsuleRetro_plan.md     # 总体规划（Phase 0-5、版本路线、体验硬化阶梯）
-├── z.plan.md                # 方案与审计归档（PL001–PL005 / A001–A002 / 豁免定案清单）
+├── z.plan.md                # 方案与审计归档（PL001–PL012 / A001–A002 / 豁免定案清单）
 ├── x.progress.md            # 任务清单
 ├── y.problems.md / w.study.md
 └── .agents/skills/          # 项目自建 skill（audit-project / audit-report / progress-task）

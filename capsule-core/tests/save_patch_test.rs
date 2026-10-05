@@ -600,3 +600,71 @@ fn 回写序列原子替换() {
     assert_eq!(read(&restore, "XEEN01.SAV"), b"round2", "后写胜出");
     assert!(!out.join("s.save.tmp").exists(), "回写后不应残留临时文件");
 }
+
+/// bzip2 补丁包 fixture（Python 标准库 zipfile 生成：manifest 条目 deflate、
+/// data.bin 条目 bzip2 = method 12，crate 未启用该 feature）。
+const BZIP2_PATCH_ZIP: &[u8] = include_bytes!("fixtures/bzip2-entry.zip");
+
+/// A003 #1（FIX003.1）验证：`save/` 下嵌套普通文件（save/sub/X.SAV）超出
+/// save_files 只认顶层文件名的契约——解包收得进、回写收不回，往返必丢，
+/// 必须报 UnsafeEntry 在启动瞬间显式暴露而非静默收包。
+#[test]
+fn 嵌套save条目报非法条目() {
+    let dir = temp_dir("fix003-nested");
+    make_zip(
+        &dir.join("s.save"),
+        &[
+            ("meta.json", br#"{"version":"1","hack":null,"settings":{}}"#),
+            ("save/XEEN01.SAV", b"top"),
+            ("save/sub/DEEP.SAV", b"deep"),
+        ],
+    );
+    let err = save::unpack(&dir.join("s.save"), &temp_dir("fix003-nested-work")).unwrap_err();
+    assert!(
+        matches!(err, save::SaveError::UnsafeEntry(_)),
+        "嵌套条目应判 UnsafeEntry，实际: {err:?}"
+    );
+}
+
+/// A003 #1（FIX003.1）回归锚：顶层存档 + 显式目录条目（FIX002.3 白名单）
+/// 解包行为不变——存档落位、目录条目不落盘。
+#[test]
+fn 顶层存档与目录条目正常解包() {
+    let dir = temp_dir("fix003-flat");
+    let zip_path = dir.join("s.save");
+    let file = std::fs::File::create(&zip_path).expect("创建 zip 文件");
+    let mut zw = ZipWriter::new(file);
+    zw.add_directory("save/", SimpleFileOptions::default())
+        .expect("add_directory");
+    zw.start_file("meta.json".to_string(), SimpleFileOptions::default())
+        .expect("start_file");
+    zw.write_all(br#"{"version":"1","hack":null,"settings":{}}"#)
+        .expect("写 meta");
+    zw.start_file("save/XEEN01.SAV".to_string(), SimpleFileOptions::default())
+        .expect("start_file");
+    zw.write_all(b"save1").expect("写存档");
+    zw.finish().expect("finish zip");
+
+    let work = temp_dir("fix003-flat-work");
+    save::unpack(&zip_path, &work).expect("解包应成功");
+    assert_eq!(read(&work, "XEEN01.SAV"), b"save1");
+    assert!(!work.join("save").exists(), "目录条目不应落盘");
+}
+
+/// A003 #4（FIX003.4）验证：source 条目存在但压缩方法不支持（bzip2，crate
+/// 仅启用 deflate feature）——按 Corrupted 报告而非 MissingSource（查到但
+/// 打不开 ≠ 查不到）。
+#[test]
+fn source条目压缩不支持报corrupted() {
+    let dir = temp_dir("fix003-bzip2");
+    let zip_path = dir.join("p.zip");
+    std::fs::write(&zip_path, BZIP2_PATCH_ZIP).expect("落盘 fixture");
+    let work = temp_dir("fix003-bzip2-work");
+    write(&work, "X.SAV", b"old"); // replace 目标在位，校验先于 source 读取
+
+    let err = patch::apply(&zip_path, &work).unwrap_err();
+    assert!(
+        matches!(err, patch::PatchError::Corrupted(_)),
+        "bzip2 条目应报 Corrupted 而非 MissingSource，实际: {err:?}"
+    );
+}

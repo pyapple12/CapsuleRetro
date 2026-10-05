@@ -53,6 +53,12 @@ pub struct BuildOutcome {
 pub fn build_package(inputs: &PackInputs) -> Result<BuildOutcome> {
     let config = &inputs.config;
     let game_json = inputs.repo_root.join("retro/game.json");
+    // 内嵌条目与被校验配置必须同一文件（A003 #3）：config 由调用方加载，
+    // 此处强制包内 game.json 落在规范路径上——缺失早报错，不拖到 zip 写入步
+    require_file(
+        &game_json,
+        "适配层配置（<仓库根>/retro/game.json，校验与内嵌必须同一文件）",
+    )?;
 
     // 打包前校验：缺一严格报错（错误策略主线）；launcher 先查存在与 payload
     // 状态，避免白拷贝 10MB 后才在拼装步报错

@@ -2,7 +2,8 @@
 //!
 //! `list` 打印容器资源清单（ID/名字/偏移/长度），`extract` 全量导出到指定
 //! 目录（默认 `.xeen-extract/<容器基名小写>/`；对照表未命中的资源按
-//! `XXXX.bin` 命名，XXXX 为十六进制 ID）。名字来自 capsule-core 内置对照表
+//! `XXXX.bin` 命名，XXXX 为十六进制 ID），`mazes` 解析 CUR 容器内全部迷宫
+//! 布局并输出汇总校验（PL010）。名字来自 capsule-core 内置对照表
 //! （来源与覆盖率见 cc_archive_names.csv 头注）。关联：解析逻辑在
 //! [`capsule_core::cc_archive`]，本 bin 只做 CLI 编排；错误经 String 透传
 //! 非零退出（与 xmonitor 同款严格抛错风格）。
@@ -18,7 +19,7 @@ use capsule_core::maze::{maze_file_name, MazeMap};
 #[derive(Parser)]
 #[command(
     name = "xeen-extractor",
-    about = "XEEN CC 资源容器提取器（list/extract）"
+    about = "XEEN CC 资源容器提取器（list/extract/mazes）"
 )]
 struct Cli {
     #[command(subcommand)]

@@ -516,7 +516,12 @@ fn spawn_exit_watcher(
         let ended = {
             let mut slot = match sessions.lock() {
                 Ok(slot) => slot,
-                Err(_) => return,
+                Err(_) => {
+                    // 毒锁意味着某处已 panic——降级为放弃收尾必须留痕，否则
+                    // 回写丢失/事件缺失无迹可循（A003 #11）
+                    logging::error("会话槽锁已毒化，退出收尾不再执行（回写/事件跳过）");
+                    return;
+                }
             };
             let is_same = slot.as_ref().is_some_and(|s| s.pid == pid && s.seq == seq);
             if is_same {
@@ -611,6 +616,16 @@ pub async fn launch_game(
             logging::error(&format!("竞态败者会话停止失败（Job 兜底杀树）: {err:#}"));
         }
         return Err("已有游戏会话在运行".into());
+    }
+    // 入槽前存活检查（A003 #10）：DOSBox 在 watcher 上岗与本入槽之间死亡的
+    // 毫秒窗口内，watcher 查到空槽会静默返回——死会话入槽后将永不广播
+    // session-ended，UI 卡运行态。显式报错让 UI 拿到明确指引。
+    if !session.is_alive() {
+        drop(slot);
+        if let Err(err) = session.stop() {
+            logging::error(&format!("死会话清理失败（Job 兜底杀树）: {err:#}"));
+        }
+        return Err("游戏进程启动后立即退出，请查看 dosbox.log".into());
     }
     *slot = Some(session);
     Ok(LaunchInfo { port, seq })

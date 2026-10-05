@@ -178,20 +178,37 @@ pub fn hash_name(name: &str) -> Option<u16> {
     Some(h)
 }
 
+/// 解析资源名对照表文本（`#` 注释行 + "0xID,名字"）；格式非法的非注释行
+/// 打印警告后跳过——坏行不阻断提取，但必须显式记录而非静默吞掉（A003 #5）。
+fn parse_names_table(text: &str) -> HashMap<u16, String> {
+    let mut names = HashMap::new();
+    for (n, line) in text.lines().enumerate() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let Some((id, name)) = line.split_once(',') else {
+            eprintln!(
+                "警告: cc_archive_names.csv 第 {} 行缺逗号，已跳过: {line}",
+                n + 1
+            );
+            continue;
+        };
+        let Ok(id) = u16::from_str_radix(id.trim().trim_start_matches("0x"), 16) else {
+            eprintln!(
+                "警告: cc_archive_names.csv 第 {} 行 ID 非十六进制，已跳过: {line}",
+                n + 1
+            );
+            continue;
+        };
+        names.insert(id, name.trim().to_string());
+    }
+    names
+}
+
 /// 内置资源名对照表（cc_archive_names.csv：`#` 注释行 + "0xID,名字"）。
 pub fn builtin_names() -> HashMap<u16, String> {
-    NAMES_CSV
-        .lines()
-        .filter_map(|line| {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with('#') {
-                return None;
-            }
-            let (id, name) = line.split_once(',')?;
-            let id = u16::from_str_radix(id.trim().trim_start_matches("0x"), 16).ok()?;
-            Some((id, name.trim().to_string()))
-        })
-        .collect()
+    parse_names_table(NAMES_CSV)
 }
 
 fn decrypt_toc(raw: &[u8]) -> Vec<u8> {
@@ -273,5 +290,17 @@ mod tests {
         let err = CcArchive::parse(vec![0u8], &HashMap::new(), Path::new("bad.cc"))
             .expect_err("过小容器应报错");
         assert!(matches!(err, CcError::Malformed { .. }), "{err}");
+    }
+
+    /// A003 #5（FIX003.5）验证：坏行（缺逗号 / ID 非 hex）被跳过且不吞好行
+    /// ——解析照常完成，坏行有 eprintln 警告（行为锚）。
+    #[test]
+    fn 名字表坏行跳过不吞好行() {
+        let table = parse_names_table(
+            "# 注释\n0x0010,GOOD.ICN\n缺逗号行\n0xZZZZ,BAD.ID\n\n0x0020,ALSO.GOOD\n",
+        );
+        assert_eq!(table.get(&0x0010).map(String::as_str), Some("GOOD.ICN"));
+        assert_eq!(table.get(&0x0020).map(String::as_str), Some("ALSO.GOOD"));
+        assert_eq!(table.len(), 2, "坏行不应产出条目");
     }
 }

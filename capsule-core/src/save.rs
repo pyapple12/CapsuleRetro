@@ -116,17 +116,7 @@ pub fn unpack(archive_path: &Path, work_dir: &Path) -> Result<SaveMeta, SaveErro
     let mut archive =
         ZipArchive::new(file).map_err(|e| SaveError::Corrupted(format!("zip 结构非法: {e}")))?;
 
-    let meta = {
-        let mut entry = archive
-            .by_name(META_ENTRY)
-            .map_err(|e| SaveError::Corrupted(format!("缺 {META_ENTRY}: {e}")))?;
-        let mut text = String::new();
-        entry
-            .read_to_string(&mut text)
-            .map_err(|e| SaveError::Corrupted(format!("{META_ENTRY} 读取失败: {e}")))?;
-        serde_json::from_str(&text)
-            .map_err(|e| SaveError::Corrupted(format!("meta 解析失败: {e}")))?
-    };
+    let meta = read_meta_from_archive(&mut archive)?;
 
     let mut written: Vec<PathBuf> = Vec::new();
     let result = (|| {
@@ -145,11 +135,16 @@ pub fn unpack(archive_path: &Path, work_dir: &Path) -> Result<SaveMeta, SaveErro
             }
             // save/ 前缀之外的普通文件按良性噪声忽略（预留 config/ 节、
             // __MACOSX 噪声；AGENTS.md 容错白名单登记）——穿越形态仍由
-            // validate_rel 严格拒绝
+            // validate_rel_path 严格拒绝
             let Some(rel) = name.strip_prefix(SAVE_PREFIX).filter(|r| !r.is_empty()) else {
                 continue;
             };
-            let target_rel = validate_rel(rel).map_err(|_| SaveError::UnsafeEntry(name.clone()))?;
+            // save/ 下嵌套子路径（如 save/sub/X.SAV）超出 save_files 只认
+            // 顶层文件名的契约：解包收得进、退出回写收不回，往返必丢——
+            // 严格拒绝（A003 #1），坏档在启动瞬间显式暴露
+            let target_rel = crate::validate_rel_path(rel)
+                .filter(|p| p.components().count() == 1)
+                .ok_or_else(|| SaveError::UnsafeEntry(name.clone()))?;
             let target = work_dir.join(target_rel);
             if let Some(parent) = target.parent() {
                 std::fs::create_dir_all(parent).map_err(|source| SaveError::Io {
@@ -258,16 +253,7 @@ pub fn read_meta(archive_path: &Path) -> Result<Option<SaveMeta>, SaveError> {
     })?;
     let mut archive =
         ZipArchive::new(file).map_err(|e| SaveError::Corrupted(format!("zip 结构非法: {e}")))?;
-    let mut entry = archive
-        .by_name(META_ENTRY)
-        .map_err(|e| SaveError::Corrupted(format!("缺 {META_ENTRY}: {e}")))?;
-    let mut text = String::new();
-    entry
-        .read_to_string(&mut text)
-        .map_err(|e| SaveError::Corrupted(format!("{META_ENTRY} 读取失败: {e}")))?;
-    serde_json::from_str(&text)
-        .map(Some)
-        .map_err(|e| SaveError::Corrupted(format!("meta 解析失败: {e}")))
+    read_meta_from_archive(&mut archive).map(Some)
 }
 
 /// 统计 save 档案内的存档数据文件数（`save/` 前缀条目，不含 meta）——UI
@@ -350,25 +336,33 @@ pub fn load_or_recover(
 }
 
 /// 损坏备份路径：原名追加 `.corrupt` 后缀。
+///
+/// # Errors
+/// 路径缺少文件名返回 [`SaveError::Io`]（InvalidInput）——输入形状非法并非
+/// 档案损坏，不借用 [`SaveError::Corrupted`] 的降级语义（A003 #9）。
 fn corrupt_backup_path(archive_path: &Path) -> Result<PathBuf, SaveError> {
-    let name = archive_path.file_name().ok_or_else(|| {
-        SaveError::Corrupted(format!("档案路径缺少文件名: {}", archive_path.display()))
+    let name = archive_path.file_name().ok_or_else(|| SaveError::Io {
+        path: archive_path.to_path_buf(),
+        source: std::io::Error::new(std::io::ErrorKind::InvalidInput, "档案路径缺少文件名"),
     })?;
     let mut os = name.to_os_string();
     os.push(".corrupt");
     Ok(archive_path.with_file_name(os))
 }
 
-/// 校验条目相对路径：非空、不含反斜杠、组件全部为普通名（拒绝 `..` / 根 /
-/// 盘符等路径穿越形态）。
-fn validate_rel(rel: &str) -> Result<PathBuf, SaveError> {
-    use std::path::Component;
-    if rel.is_empty() || rel.contains('\\') {
-        return Err(SaveError::UnsafeEntry(rel.to_string()));
-    }
-    let path = Path::new(rel);
-    if !path.components().all(|c| matches!(c, Component::Normal(_))) {
-        return Err(SaveError::UnsafeEntry(rel.to_string()));
-    }
-    Ok(path.to_path_buf())
+/// 从已打开的 save zip 读取并解析 meta.json（unpack 与 read_meta 共用单份，
+/// 错误文案随之统一——A003 #7）。
+///
+/// # Errors
+/// 缺 meta、读取失败或 JSON 解析失败返回 [`SaveError::Corrupted`]（调用方
+/// 可据此走降级）。
+fn read_meta_from_archive(archive: &mut ZipArchive<std::fs::File>) -> Result<SaveMeta, SaveError> {
+    let mut entry = archive
+        .by_name(META_ENTRY)
+        .map_err(|e| SaveError::Corrupted(format!("缺 {META_ENTRY}: {e}")))?;
+    let mut text = String::new();
+    entry
+        .read_to_string(&mut text)
+        .map_err(|e| SaveError::Corrupted(format!("{META_ENTRY} 读取失败: {e}")))?;
+    serde_json::from_str(&text).map_err(|e| SaveError::Corrupted(format!("meta 解析失败: {e}")))
 }

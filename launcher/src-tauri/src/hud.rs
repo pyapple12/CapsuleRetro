@@ -8,7 +8,7 @@
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
@@ -66,7 +66,9 @@ pub struct HudSnapshot {
     pub pos_y: i64,
     /// 所在地图编号（CUR 容器主图号；城镇连续空间保持进城锚点号——PL011）
     pub map_id: i64,
-    /// 当前侧标志（0x5A7CE；1=云端星云面 / 0=暗面，经用户 live 判收确认——PL011）
+    /// 当前侧标志（0x5A7CE；1=云端星云面 / 0=暗面，经用户 live 判收确认——PL011）。
+    /// 后端查区域名表的内部用途，不随 hud 事件序列化（前端消费派生字段——A003 #12）。
+    #[serde(skip_serializing)]
     pub side: i64,
     /// 所在地图名（区域名表查得；无名图/侧未知为 None）
     pub map_name: Option<String>,
@@ -132,6 +134,9 @@ impl Drop for HudPoller {
     }
 }
 
+/// HUD 轮询主循环：加载档案 → 过滤 WATCHED 条目 → 按间隔轮询快照；单次失败
+/// 跳过本轮累计计数，连续超 [`MAX_CONSECUTIVE_FAILURES`] 发 Stalled 并退出
+/// （AGENTS.md 容错白名单口径：显式暴露、不吞错）。
 fn poll_loop(
     port: u16,
     profile: PathBuf,
@@ -147,7 +152,7 @@ fn poll_loop(
             return;
         }
     };
-    // 只保留关注条目：21 个条目 / 500ms，避免 104 条目全量轮询的开销
+    // 只保留关注条目：26 个条目 / 500ms，避免 109 条目全量轮询的开销
     let entries: Vec<&Entry> = map
         .entries
         .iter()
@@ -316,7 +321,6 @@ fn parse_map_names(csv: &'static str) -> MapNameTable {
 
 /// 内嵌名表单例（编译期资产，解析失败属程序缺陷——与 cc_archive_names.csv 同类）。
 fn map_names() -> &'static MapNameTable {
-    use std::sync::OnceLock;
     static TABLE: OnceLock<MapNameTable> = OnceLock::new();
     TABLE.get_or_init(|| parse_map_names(include_str!("mapnames.csv")))
 }

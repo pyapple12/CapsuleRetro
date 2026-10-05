@@ -338,3 +338,16 @@ fn dosbox_resources收集与缺失告警() {
         "Resources 树应随包部署"
     );
 }
+
+/// A003 #3（FIX003.3）验证：repo_root 下缺 retro/game.json 时 build_package
+/// 早报错且消息含指引——内嵌条目源缺失不再拖到 zip 写入步才暴露。
+#[test]
+fn 缺规范gamejson报错含指引() {
+    let root = fixture_repo("nogamejson");
+    std::fs::remove_file(root.join("retro/game.json")).expect("移除规范 game.json");
+    let err = capsule_pack::build_package(&inputs(&root)).expect_err("应报错");
+    assert!(
+        err.to_string().contains("game.json"),
+        "错误消息应含 game.json 指引: {err}"
+    );
+}

@@ -7,10 +7,11 @@
 //! 报错）；`path` 为工作副本内相对路径，严格拒绝路径穿越（zip slip 家族）。
 
 use std::io::Read;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 use thiserror::Error;
+use zip::result::ZipError;
 use zip::ZipArchive;
 
 /// 补丁包内 manifest 条目名。
@@ -88,7 +89,8 @@ pub fn apply(patch_zip: &Path, work_dir: &Path) -> Result<usize, PatchError> {
 
     let mut applied = 0;
     for entry in &entries {
-        let target_rel = validate_rel(&entry.path)?;
+        let target_rel = crate::validate_rel_path(&entry.path)
+            .ok_or_else(|| PatchError::UnsafePath(entry.path.clone()))?;
         let target = work_dir.join(&target_rel);
         // 结构校验（action / 目标冲突）先于读 source，错误语义不混淆
         match entry.action.as_str() {
@@ -125,33 +127,25 @@ pub fn apply(patch_zip: &Path, work_dir: &Path) -> Result<usize, PatchError> {
 
 /// 读 zip 内指定条目字节；`Ok(None)` = 条目不存在（调用方报 MissingSource），
 /// 条目存在但读取/解压失败返回 [`PatchError::Corrupted`]——两种失败区分
-/// 报告，避免数据损坏被误判为缺失误导排查（FIX002.14）。by_name 阶段的
-/// 失败视为缺失：ZipArchive::new 已完成中心目录解析，此后按名查不到即
-/// 不存在，读取期错误由 read_to_end 以 Corrupted 呈现。
+/// 报告，避免数据损坏被误判为缺失误导排查（FIX002.14）。by_name 阶段仅
+/// FileNotFound 视为缺失：查到但打不开（加密/不支持压缩等）与查不到是两
+/// 种病，后者按 Corrupted 报告（A003 #4 收窄 FIX002.14 的 `Err(_)` 通配）。
 fn read_zip_file(
     archive: &mut ZipArchive<std::fs::File>,
     name: &str,
 ) -> Result<Option<Vec<u8>>, PatchError> {
     let mut entry = match archive.by_name(name) {
         Ok(entry) => entry,
-        Err(_) => return Ok(None),
+        Err(ZipError::FileNotFound) => return Ok(None),
+        Err(e) => {
+            return Err(PatchError::Corrupted(format!(
+                "补丁条目 {name} 打开失败: {e}"
+            )))
+        }
     };
     let mut bytes = Vec::new();
     entry
         .read_to_end(&mut bytes)
         .map_err(|e| PatchError::Corrupted(format!("补丁条目读取失败 {name}: {e}")))?;
     Ok(Some(bytes))
-}
-
-/// 校验 manifest path：非空、不含反斜杠、组件全部为普通名（拒绝 `..` / 根 /
-/// 盘符等路径穿越形态）。
-fn validate_rel(path: &str) -> Result<PathBuf, PatchError> {
-    if path.is_empty() || path.contains('\\') {
-        return Err(PatchError::UnsafePath(path.to_string()));
-    }
-    let rel = Path::new(path);
-    if !rel.components().all(|c| matches!(c, Component::Normal(_))) {
-        return Err(PatchError::UnsafePath(path.to_string()));
-    }
-    Ok(rel.to_path_buf())
 }

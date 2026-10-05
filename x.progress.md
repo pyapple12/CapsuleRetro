@@ -410,7 +410,51 @@
 
 ## 未完成
 
-### PL012: 游玩 UI 重构 [plan#PL012]（2026-09-13 预告登记·模糊档 0/2；仅立方向，方案留正式立项时定稿；消费 PL010 底图 + PL011 位置数据）
+### PL012: 游玩 UI 重构 [plan#PL012]（2026-09-13 立项登记；2026-09-15 起实验场阶段实施中；消费 PL010 底图 + PL011 位置数据）
 
-- [ ] PL012.1 立项细化讨论 —— 做法：过四个决策点（信息层级 / 小地图交互形态：固定角标 vs 悬停展开 vs 全图切换 / 攻略入口形态 / 连续热更 vs 整版）；输入 = PL010 PNG + PL011 四要素 + assets/design 五版稿库；验证：用户拍板设计方案与拆分
-- [ ] PL012.2 [占位] 设计落地与验收 —— 做法：待 .1 定稿后细分；方向三点：①会话态 UI 整体更好看（黑金典藏基调延续）②HUD 涵盖主要信息含小地图显示 ③留出攻略显示空间；验证：待 .1 定稿时明确
+> 实况（2026-09-16）：实验场单文件 HTML `assets/design/pl012-游玩界面实验场.html` 已迭代四轮——v1–v2 三栏布局与部件、v3 尺寸结构定稿（舞台 1850×1000）、v4 任务链系统、v4.5 头像比例与页脚；并追加左栏操作栏与浮窗（魔法/注音/说明/设置）、背景图按世界切换与毛玻璃滑杆、Uiverse 六组件接入、CRT 特效归属定案（前端侧，DOSBox shader 弃用）。对接要点与后端缺口见 `assets/design/PL012-game-ui-handoff.md`。
+> 后端缺口核对（2026-09-16 逐条对码）：六项中仅 ② 前提过期（`death1–6`/`unc1–6`/`weak1–6` 已登记 memory_map，白名单为"登记即放行"，无需放开）；①③④⑤⑥ 均未做。
+
+- [ ] PL012.1 立项细化讨论 —— 做法：过四个决策点（信息层级 / 小地图交互形态：固定角标 vs 悬停展开 vs 全图切换 / 攻略入口形态 / 连续热更 vs 整版）；输入 = PL010 PNG + PL011 四要素 + assets/design 五稿 + PL012 实验场；验证：用户拍板设计方案与拆分
+- [ ] PL012.2 实验场迭代收口 —— 做法：补完实验场未完成项——老板按钮（点击界面整体消失 + omarchy 伪装动画）、职业徽章（队伍槽职业图形化）、小地图中键拖拽联动（按住拖动全向平滑跟随 + 贴边停止）；验证：浏览器直开实验场逐项目测
+- [ ] PL012.3 后端缺口补齐 —— 做法：①等级 LV 寄存器（升级事件前后全量快照差分定位，入 memory_map + 白名单）②复活命令与按钮（清 death/unc/weak，白名单已开放无需改闸）③HP/MP 写入钳制 `min(当前+100, 200)`（launcher 侧钳制后调 write_memory）④中毒状态寄存器破解入档 ⑤状态头像套图（先勘探来源——51 个 `.ICN` 多为界面按钮，需确认是叠加图标还是独立套图，再走 xeen-extractor 提取）⑥任务链数据源（`retro/xeen-guide.md` 结构化 → npc/x/y/stages/world）；验证：③ 单测（钳制边界）+ live 写读回；①④⑤⑥ 各自 live 或对照证据
+- [ ] PL012.4 对接 Launcher —— 做法：按交接文档第二节施工——`#game-view` 内占位 img 换 GameCanvas 帧流画布（CRT 玻璃/扫描线图层 z-index 不动）、假数据常量换后端注入、换算公式 `image_px = (x × S_w, (15−y) × S_h)` 与城内连续坐标/世界前缀照定案、任务勾选状态改 json 或 sqlite；验证：live 会话全要素显示正确 + 用户目测
+- [ ] PL012.5 验收收尾 —— 做法：用户 live 判收 + 全量门禁（fmt/clippy/test/doc + prettier/vue-tsc/npm build）+ z.plan 附录 PL012 实测结论回写 + 本组勾结上移；验证：判收 + 门禁绿
+
+### FIX003: 第3轮审计修复 [audit#A003]
+
+> 来源：A003（2026-10-05 三路并行审计 + 回归复核）。零节结论：A002 36 条中 35 条在位，FIX002.7 虚假勾结重报为 FIX003.14；19 条参考级观察项维持参考级（z.plan 附录 A003 第二节）。条目编号与 A003 清单 # 一一对应。
+
+- [x] FIX003.1 [P2] save 嵌套条目往返静默丢失 —— 做法：save.rs unpack（:149-168）对 `save/` 前缀下深度 >1 的普通文件条目报 UnsafeEntry（组件计数 >1 即拒绝，对齐 save_files 只认顶层契约；目录条目与未知前缀良性忽略维持 FIX002.3 白名单不变）；验证：新增测试——含 `save/sub/X.SAV` 的 zip 解包报 UnsafeEntry、含 `save/XEEN01.SAV` 与目录条目的 zip 正常解包（2026-10-05 已验证：新测试过 + stash 回退对比确认修复前 FAIL 修复后 PASS + FIX002.3 回归锚过，见 .temp/fix003-verification.md）
+- [x] FIX003.2 [P2] maptool 仓库根机器绝对路径 —— 做法：til.py:14 `REPO_ROOT` 改为 `os.path.dirname` 链上溯三级自 `__file__` 派生；baseline-compare.py:14-15 TEMP/PROFILE 顺带同改（与 capture.sh 配套设计一并评估，如 capture.sh 传参则保持接收方兼容）；验证：换工作目录执行 `python tools/maptool/maptool.py list` 与 `python tools/dosbox-fork/baseline-compare.py --help` 正常（路径不再依赖克隆位置）（2026-10-05 已验证：双 cwd 跑 maptool inventory 输出一致 + baseline-compare 换 cwd 真实跑通基线判定 109 条目 GO，见 .temp/fix003-verification.md）
+- [x] FIX003.3 [P2] 打包校验配置与内嵌 game.json 错配 —— 做法：capsule-pack lib.rs build_package 入口（:55 附近）对 inputs.game_json 补 require_file 前置校验；main.rs（:27-32）repo_root 推导后断言 args.game_json 规范化路径 == repo_root/retro/game.json，不等即报错说明两文件用途；验证：新增测试——传入非规范路径 game_json 打包报错且消息含指引；正常 `retro/game.json` 打包不受影响（2026-10-05 已验证：新测试过 + CLI 冒烟双过——非规范路径报不一致带指引、规范路径放行走 launcher 校验，见 .temp/fix003-verification.md）
+- [x] FIX003.4 [P3] patch by_name 错误误分类 MissingSource —— 做法：patch.rs read_zip_file（:135-138）by_name 错误匹配 `ZipError::FileNotFound` 才返回 Ok(None)，其余错误映射 Corrupted（消息带条目名）；验证：新增测试——加密/不支持压缩条目报 Corrupted 而非 MissingSource（先验证 zip 8.x 在 by_name 阶段的实际错误类型，据此定断言）（2026-10-05 已验证：探针实锤 zip 8.6 的 bzip2 错误在 read 腿抛出、by_name 可达错误仅 FileNotFound——收窄为防御性；bzip2 fixture 测试过 + 缺 source 回归过，见 .temp/fix003-verification.md）
+- [x] FIX003.5 [P3] cc_archive 名字表 CSV 错行静默跳过 —— 做法：cc_archive.rs builtin_names（:182-195）filter_map 改 for + match：非注释行 split_once 或 hex 解析失败时 eprintln 警告（含行内容）后跳过；验证：新增测试——夹具 CSV 含坏行时解析成功且坏行警告出现（断言 warning 捕获或计数）（2026-10-05 已验证：提取 parse_names_table + unit test 坏行跳过不吞好行过；真实 CSV 1755 行零坏行不引入新警告、内置名字表锚点回归过）
+- [x] FIX003.6 [P3] validate_rel 三份重复收敛 —— 做法：capsule-core 公共位置（如 lib.rs 或新 util）提取 `fn validate_rel_path(path: &str) -> Result<PathBuf, ()>`，save.rs:364-374 / patch.rs:148-157 / payload.rs:391-401 三处改调用 + map_err 到各自错误变体，消除两处 fn 内 use；验证：cargo test --workspace 全绿 + grep 确认三处校验逻辑仅存一份（2026-10-05 已验证：lib.rs `pub(crate) fn validate_rel_path -> Option<PathBuf>` 单份，三处调用点各自 map_err；grep 断言 Component::Normal 仅 lib.rs:32 一份；三处既有穿越拒绝测试全过）
+- [x] FIX003.7 [P3] save meta 读取三处重复 —— 做法：save.rs 提取 `fn read_meta_from_archive(archive: &mut ZipArchive<File>) -> Result<SaveMeta, SaveError>`，unpack（:119-129）与 read_meta（:255-271）共用，错误文案统一；验证：cargo test -p capsule-core（save 相关用例全绿）（2026-10-05 已验证：提取函数双调用点收敛、文案统一，save 相关测试全绿）
+- [x] FIX003.8 [P3] xeen-extractor 文档缺 mazes —— 做法：xeen-extractor.rs:1-8 模块 //! 头注与 :21 clap about 补 "mazes" 子命令；验证：`cargo run -p capsule-core --bin xeen-extractor -- --help` 顶层描述含 mazes + cargo doc 无警告（2026-10-05 已验证：--help 显示 "list/extract/mazes" + cargo doc 无警告）
+- [x] FIX003.9 [P3] corrupt_backup_path 错误变体错位 —— 做法：save.rs:353-356 路径缺文件名改返回 `SaveError::Io`（`io::Error::new(InvalidInput, …)`），不再借用 Corrupted 降级语义；验证：cargo test -p capsule-core + grep 确认 Corrupted 仅用于档案损坏分类（2026-10-06 已验证：Corrupted 产生点收敛至真正的档案损坏五处、路径形状错误走 Io 严格上抛，见 .temp/fix003-verification.md）
+- [x] FIX003.10 [P3] 会话入槽前死亡窗口 —— 做法：commands.rs launch_game（:594-615）入槽前补 `if !session.is_alive() { session.stop() 落日志; return Err("游戏进程启动后立即退出，请查看 dosbox.log"); }`；验证：代码审查 + cargo test（如可模拟）；live 短命进程场景日志与错误消息正确（2026-10-06 已验证：入槽前 is_alive 拦截 + stop 落日志 + 指引消息；活进程路径零影响——检查为纯读；clippy/test 全绿）
+- [x] FIX003.11 [P3] 毒锁静默放弃 + 豁免清单失配维护 —— 做法：commands.rs exit-watcher（:517-520）`Err(_)` 分支补 logging::error 留痕后 return；z.plan §四 豁免清单 #6（expect 会话槽锁毒化）条目更新为现行语义（毒锁静默 return + 日志留痕）或删除；验证：代码审查确认日志路径在位 + 豁免清单与代码一致（2026-10-06 已验证：留痕 return 在位 + 豁免清单 #6 四列对齐现行语义，失配消除）
+- [x] FIX003.12 [P3] HudSnapshot.side TS 漂移 —— 做法：hud.rs:69-70 side 字段加 `#[serde(skip_serializing)]`（后端查表内部用途保留）；验证：cargo test -p launcher + 前端 HudBar.vue 接口注释与实际载荷一致（hud 事件 JSON 无 side）（2026-10-06 已验证：skip_serializing 在位、内部用途保留、VD 双通道对照不受影响，cargo test -p launcher 全绿）
+- [x] FIX003.13 [P3] wait_for_handle 死代码 —— 做法：删除 winproc.rs:180-182 wait_for_handle；验证：cargo build + clippy -D warnings + cargo test --workspace 全绿（2026-10-06 已验证：删除前确认 WAIT_TIMEOUT 另有 :139/:144 使用者 import 不失效；clippy/test 全绿）
+- [x] FIX003.14 [P3] fn 内 use 三处（FIX002.7 虚假勾结重报）—— 做法：launcher_hud_test.rs:74-75（direct_read）、:120-121（cpu_seconds）与 hud.rs:319（map_names 内 `use std::sync::OnceLock`）上移至各文件头部 use 区（标准库 → 第三方 → 本地分组）；验证：grep 确认三文件无 fn 内 use + clippy/test 全绿（2026-10-06 已验证：grep 零残留 + OnceLock 并入 std 组——FIX002.7 虚假勾结遗留账就此清零）
+- [x] FIX003.15 [P3] 缺 /// 文档注释三处 —— 做法：hud.rs:135 poll_loop、winproc.rs:212 cmdline_args_are_quoted、:224 cmdline_roundtrip_via_utf16 补 1-3 行中文 ///；验证：cargo doc --no-deps 无警告 + clippy 过（2026-10-06 已验证：三处补齐，doc 无警告 + clippy 过）
+- [x] FIX003.16 [P3] hud.rs 注释双数字过期 —— 做法：hud.rs:150 注释"21 个条目 / 104 条目"改"26 个条目 / 109 条目全量"（与 :22-26 WATCHED 与 memory_map.json 实况一致）；验证：代码审查注释与事实一致（2026-10-06 已验证：动手前实数核对——WATCHED 数组字面 26 项、memory_map.json entries=109，注释与两处事实一致）
+- [ ] FIX003.17 [P3] render_indoor 两种 None 混报 + 越界 IndexError —— 做法：frames_of（:89-95）区分"wall_kind ≥ 6 无 TERRAIN_TYPES"与"TIL 缺文件"两分支各自明确报错消息；:120 打印分支按成因分流并防 TERRAIN_TYPES[raw[826]] 越界（先判范围）；验证：构造 wall_kind 越界样例跑渲染 → 错误消息明确指因而非 traceback
+- [ ] FIX003.18 [P3] city 元数据重复组装与死返回值 —— 做法：city_stitch.py stitch_city 返回的 city_index（:92-106）改为 gen_index.py 消费（all 流程传递），或删除 city_stitch 组装保留 gen_index 侧；二选一消除双源；验证：`python tools/maptool/maptool.py all` 产物 index.json 的 city_maps 段与改前逐字段一致
+- [ ] FIX003.19 [P3] index.json 不感知渲染跳过 —— 做法：render_indoor/city_stitch 收集 skipped 集合并传入 gen_index（或 gen_index 生成时对 sides/city 逐条 png 存在性校验告警）；验证：临时移走一个 TIL 跑 all → index.json 不登记该图或输出告警（验证后还原）
+- [ ] FIX003.20 [P3] xeendata BFS/DFS 注释失真 —— 做法：xeendata.py:141-164 docstring "BFS" 改 "DFS（栈实现，遍历序不影响结果）"；验证：代码审查注释与实现一致
+- [ ] FIX003.21 [P3] blit 闭包跨文件重复 —— 做法：抽共享 blit 工厂（入参帧/宽高，返回写入函数）置于 til.py 或 xeendata.py 共享层，render_indoor.py:38-50 与 city_stitch.py:42-53 改调用；验证：`maptool.py all` 重渲产物与改前逐字节一致（或抽查若干图对照）
+- [ ] FIX003.22 [P3] decode_name 不可达分支 —— 做法：删除 til.py:93 `return raw.hex()` 死代码（latin-1 解码任意字节均成功）；验证：代码审查 + `maptool.py list` 输出不变
+- [ ] FIX003.23 [P3] til.py docstring 路径守卫过强 —— 做法：til.py:6 "所有文件读写经路径守卫"改"所有写操作经路径守卫"；验证：代码审查与实际覆盖一致
+- [ ] FIX003.24 [P3] CUR 容器重复解析 —— 做法：xeendata.py load_inventory（:113）与 read_maze（:36-38）收敛到共享缓存入口（统一走 _CUR_CACHE 或新 parse_cc_cached）；验证：`maptool.py mazes` 输出不变 + 重复解析消除（计数或性能对比）
+- [ ] FIX003.25 [P3] world_stitch 缺位警告后照产 —— 做法：world_stitch.py（:28-45）网格缺位改抛 ValueError（缺哪格指名道姓），移除"警告后继续"；如用户判定需容错则走 AGENTS.md 白名单登记三要素；验证：构造缺格网格跑 stitch → 显式报错不产图
+- [ ] FIX003.26 [P3] gen_index import 顺序 —— 做法：gen_index.py:12-18 `from pathlib import Path` 上移至标准库组（本地模块组之前）；验证：代码审查符合 AGENTS.md 组序约定
+- [ ] FIX003.27 [P3] WORLDS 硬编码第二来源 —— 做法：gen_index.py:29-34 WORLDS 清单与尺寸改为消费 world_stitch 产出元数据（与 FIX003.18 同一方案一并落地）；验证：`maptool.py all` 产物 index.json 的 worlds 段与改前一致
+- [ ] FIX003.28 [P3] index.json 日期破坏可重现 —— 做法：gen_index.py:41 移除 generated 当日日期字段（或改为数据指纹）；验证：连续两日重跑 all（或伪造系统时间）→ index.json 无 diff
+- [ ] FIX003.29 [P3] cmd_publish 裸 traceback —— 做法：maptool.py cmd_publish（:30-51）入口检查 OUT_DIR/cloud/dark 存在性，缺失时打印"先执行 all/singles"指引后 sys.exit(1)；验证：空目录跑 publish → 指引消息 + 退出码 1（非 traceback）
+- [ ] FIX003.30 [P3] 头像链路健壮性三连 —— 做法：①commands.rs get_faces_impl（:858-876）对非 charNN.png 命名模式的文件跳过 + WARN（杂物容错走 AGENTS.md 白名单登记三要素）；②HudBar.vue:97-99 get_faces 失败 console.warn 保留并登记白名单（场景=头像目录读取失败，降级=槽位号占位）；③HudBar.vue:121-127 Big5 空 catch 补 console.warn 并登记白名单（场景=解码器能力探测，降级=utf-8 回落）；验证：faces 目录放 Thumbs.db → 头像正常加载 + 日志 WARN；单测/live 头像链路不回归
+- [ ] FIX003.31 [P3] PackInputs.launcher_exe 注释反义 —— 做法：capsule-pack lib.rs:26 注释改"不应已含 payload（含者拒绝）"；验证：代码审查与 :59-68 实现一致
+- [ ] FIX003.32 [P3] 基线判定文档条目数漂移 —— 做法：baseline-compare.py:5 docstring 与 PATCHES.md:31、:39 三处"92 条目"改"109 条目"；验证：grep 三文件无 92 残留
+- [ ] FIX003.33 [P3] 验证收尾 —— 做法：全量门禁（cargo fmt --check + clippy -D warnings + cargo test --workspace + npm run build + cargo doc）+ maptool 回归（maptool.py all 产物与改前对照）+ x.progress 本组勾结上移 + z.plan 附录 A003 状态改 ✅；验证：门禁全绿 + 修复证据落 .temp

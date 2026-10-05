@@ -175,12 +175,6 @@ impl WinProcess {
     }
 }
 
-/// 在指定进程句柄上等待退出；返回是否在超时前退出（`u32::MAX` 即无限等待，
-/// 供无 std 句柄包装的监听线程使用）。
-pub fn wait_for_handle(handle: HANDLE, timeout_ms: u32) -> bool {
-    unsafe { WaitForSingleObject(handle, timeout_ms) != WAIT_TIMEOUT }
-}
-
 /// 监听线程专用：无限等待句柄触发（进程退出）后关闭句柄副本。
 /// 以 `SendHandle` 整体传参，避免调用点精确捕获裸 HANDLE 字段破坏 Send。
 pub fn wait_forever_and_close(handle: SendHandle) {
@@ -208,6 +202,7 @@ pub fn make_inheritable(handle: HANDLE) -> WinResult<()> {
 mod tests {
     use super::*;
 
+    /// 验证含空格的路径与参数在命令行中被引号包裹（Windows 空格语义）。
     #[test]
     fn cmdline_args_are_quoted() {
         // 含空格的 conf 路径（真实场景：C:\Users\<First Last>\AppData\...）
@@ -220,6 +215,7 @@ mod tests {
         );
     }
 
+    /// 验证非 BMP 字符（emoji）经 UTF-16 编码往返不丢失（旧 u16 截断实现的回归锚）。
     #[test]
     fn cmdline_roundtrip_via_utf16() {
         // 非 BMP 字符（emoji）经 encode_utf16 不丢信息；旧实现 c as u16 会截断

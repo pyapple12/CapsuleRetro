@@ -72,6 +72,9 @@ launcher/src-tauri/gen/
 ## 归档素材（本地留存，不入库）
 .archived/
 
+## 参考图（外部地图/主视觉素材，本地留存，不入库）
+.reference/
+
 ## dosbox：仅版本化 sidecar 压缩包，解压目录可由 zip 还原（派生产物）
 assets/dosbox/dosbox-staging/
 
