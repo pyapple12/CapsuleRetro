@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """城镇/区域多图拼合渲染：整城分层方程式（与官方整城图 1:1 定案，2026-09-14）。
 
-- 分量规划：xeendata.plan_components（户内主图四向邻接 BFS，成员 >= 2 的组）
+- 分量规划：xeendata.plan_components（户内主图四向邻接 DFS 连通分量，成员 >= 2 的组）
 - 资源上下文整组归锚点：TIL 环境集（wallKind）与 surfaceLUT 都取锚点图——
   ScummVM XeenMap 场景资源按 _mazeData[0] 加载（scummvm-map.cpp:954），
   塔层等 TOWN 成员随锚点环境集渲染（map-atlas.md 勘误第七/十三则）
@@ -15,16 +15,16 @@ import os
 
 from til import write_png
 from xeendata import OUT_DIR, SIDES, load_inventory, plan_components, read_maze
-from render_indoor import WALL_A, VOID, TW, TH, make_frames_loader
+from render_indoor import WALL_A, VOID, TW, TH, make_blit, make_frames_loader
 from render_outdoor import scale_x6
 
 
 def render_all(inventory=None):
-    """全部拼合分量渲染；返回 city_maps 元数据列表（gen_index 直接消费）。"""
+    """全部拼合分量渲染；无返回值——index.json 的 city 段由 gen_index 依同一
+    plan_components 纯函数重算（渲染与清单单一来源，A003 #18）。"""
     if inventory is None:
         inventory = load_inventory()
     os.makedirs(OUT_DIR, exist_ok=True)
-    city_index = []
     for side, prefix, pal_name in SIDES:
         frames_of = make_frames_loader(side, pal_name)
         for plan in plan_components(inventory[side]["primary_maps"]):
@@ -38,19 +38,7 @@ def render_all(inventory=None):
             W = plan["tiles"][0] * TW
             H = plan["tiles"][1] * TH
             layers = [bytearray(W * H * 4) for _ in range(4)]
-
-            def blit(buf, fi, px, py):
-                # 像素自带帧内绝对偏移，只按画布边界裁剪；透明像素不覆盖
-                if fi >= len(frames):
-                    return
-                _, _, pixels = frames[fi]
-                for (x, y), rgba in pixels.items():
-                    if not rgba[3]:
-                        continue
-                    xx, yy = px + x, py + y
-                    if 0 <= xx < W and 0 <= yy < H:
-                        i = (yy * W + xx) * 4
-                        buf[i: i + 4] = bytes(rgba)
+            blit = make_blit(frames, W, H)
 
             for mid in sorted(plan["placement"]):
                 gx, gy = plan["placement"][mid]
@@ -89,18 +77,4 @@ def render_all(inventory=None):
             write_png(os.path.join(OUT_DIR, base + ".png"), W, H, bytes(canvas))
             w6, h6, rgba6 = scale_x6(W, H, bytes(canvas))
             write_png(os.path.join(OUT_DIR, base + "-x6.png"), w6, h6, rgba6)
-            city_index.append(
-                {
-                    "side": side,
-                    "file": base + ".png",
-                    "file_x6": base + "-x6.png",
-                    "anchor": anchor,
-                    "members": {
-                        str(mid): {"x": x, "y": y}
-                        for mid, (x, y) in sorted(plan["placement"].items())
-                    },
-                    "size": [W, H],
-                }
-            )
             print(f"{side} 分量锚点 {anchor}: {len(plan['placement'])} 图 -> {base}.png ({W}x{H})")
-    return city_index

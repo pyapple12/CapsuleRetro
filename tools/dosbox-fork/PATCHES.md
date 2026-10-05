@@ -27,7 +27,7 @@ DosboxCapsule 承载 [dosbox-staging](https://github.com/dosbox-staging/dosbox-s
   对齐上游惯例），diff 最小化
 - **补丁必须可独立 rebase**：升级 = `main` rebase 到新 tag，逐提交重放、
   逐冲突解决；大杂烩提交是升级毒药，禁止
-- **每次升级后重跑基线判定**（FB1：92 条目内存档案与官方发布版零偏差），
+- **每次升级后重跑基线判定**（FB1：109 条目内存档案与官方发布版零偏差），
   基线不过不发版
 
 ## 升级配方（依样画葫芦）
@@ -36,7 +36,7 @@ DosboxCapsule 承载 [dosbox-staging](https://github.com/dosbox-staging/dosbox-s
 2. `git rebase --onto vX.Y.Z v0.83.0 main`（基线换轴，补丁逐个重放）
 3. 清洁重建：本目录 `rebuild.bat`（删 build 全新配置编译）
 4. 重跑基线判定：本目录 `baseline-capture.sh`（官方版/候选版各采两份 1MB
-   快照）+ `baseline-compare.py`（92 条目零偏差判定）
+   快照）+ `baseline-compare.py`（109 条目零偏差判定）
 5. 更新本文件补丁清单与基线 tag，结果登记 z.plan 实测结论
 
 ## 清洁重建

@@ -52,6 +52,11 @@ pub fn info(message: &str) {
     write_line(&format!("INFO {message}"));
 }
 
+/// 记录告警（容错白名单降级路径的留痕——发生但未阻断主流程）。
+pub fn warn(message: &str) {
+    write_line(&format!("WARN {message}"));
+}
+
 /// 记录错误（替代 release 下丢失的 eprintln! 关键诊断）。
 pub fn error(message: &str) {
     write_line(&format!("ERROR {message}"));

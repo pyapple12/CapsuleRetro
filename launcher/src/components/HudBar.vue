@@ -118,11 +118,12 @@ function identified(index: number): boolean {
   return occupied.value[index] && faceSrc(index) != null;
 }
 
-/** Big5 解码器（WebView2 原生支持；不支持的环境姓名回落空串）。 */
+/** Big5 解码器（WebView2 原生支持；不支持的环境姓名回落 utf-8 解码，容错白名单）。 */
 let big5: TextDecoder | null = null;
 try {
   big5 = new TextDecoder("big5");
-} catch {
+} catch (err) {
+  console.warn("Big5 解码器不可用（姓名回落 utf-8 解码）:", err);
   big5 = null;
 }
 

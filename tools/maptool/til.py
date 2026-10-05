@@ -3,7 +3,7 @@
 
 格式依据 Xeen Wiki（CC / 精灵文件格式）与 OpenXeen（WOXSpriteFile / WOXPallet）
 双源，解码逻辑与地图档案（retro/map-atlas.md）所用管线一致。
-EXTRACT = .xeen-extract 提取工作区（gitignore）；所有文件读写经路径守卫限制在该工作区内。
+EXTRACT = .xeen-extract 提取工作区（gitignore）；所有写操作经路径守卫限制在该工作区内。
 """
 
 import os

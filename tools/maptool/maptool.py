@@ -14,6 +14,7 @@
 import argparse
 import os
 import shutil
+import sys
 
 import city_stitch
 import gen_index
@@ -29,6 +30,13 @@ RETRO_MAPS = os.path.join(REPO_ROOT, "retro", "artwork", "maps")
 
 def cmd_publish():
     """发布：单图目录、城市拼合图、世界图与 index.json 复制入 retro（仅白名单）。"""
+    missing = [d for d in ("cloud", "dark") if not os.path.isdir(os.path.join(OUT_DIR, d))]
+    if missing:
+        print(
+            f"提取工作区尚未渲染（{OUT_DIR} 缺 {', '.join(missing)} 目录）——"
+            "先执行 all（或 singles/cities）再 publish"
+        )
+        sys.exit(1)
     copied = 0
     for sub in ("cloud", "dark"):
         src = os.path.join(OUT_DIR, sub)

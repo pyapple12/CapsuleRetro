@@ -31,11 +31,19 @@ OUT_DIR = os.path.join(EXTRACT, "png", "maps")
 _CUR_CACHE = {}
 
 
-def read_maze(side, mid):
-    """读单张迷宫原始数据（892 字节；容器按侧缓存）。"""
+def cur_container(side):
+    """按侧取 CUR 容器（inventory 与 read_maze 共用同一缓存入口，A003 #24）。
+
+    同一命令内同侧容器只解析一次；返回 (数据体, 条目表, xor 标记)。
+    """
     if side not in _CUR_CACHE:
         _CUR_CACHE[side] = parse_cc(CUR_PATHS[side], xor_data=False)
-    cur_data, cur_entries, cur_xor = _CUR_CACHE[side]
+    return _CUR_CACHE[side]
+
+
+def read_maze(side, mid):
+    """读单张迷宫原始数据（892 字节；容器按侧缓存）。"""
+    cur_data, cur_entries, cur_xor = cur_container(side)
     return read_res(cur_data, cur_entries, rot7_hash(maze_name(mid, "MAZE", "DAT")), cur_xor)
 
 
@@ -84,13 +92,13 @@ def maze_name(mid, stem, ext):
 
 
 def decode_name(raw):
-    """区域名解码：Big5 优先，失败回落 latin-1 保字节可见。"""
+    """区域名解码：Big5 优先，latin-1 单字节直映任意字节均成功，无需第三级保底。"""
     for codec in ("big5", "latin-1"):
         try:
             return raw.decode(codec).strip().strip("\x00").strip()
         except UnicodeDecodeError:
             continue
-    return raw.hex()
+    return None
 
 
 def load_inventory():
@@ -110,7 +118,7 @@ def load_inventory():
 
     inventory = {}
     for side, _prefix, _pal in SIDES:
-        cur_data, cur_entries, cur_xor = parse_cc(CUR_PATHS[side], xor_data=False)
+        cur_data, cur_entries, cur_xor = cur_container(side)
         maps = []
         variants = 0
         for mid in range(1, 1000):
@@ -139,10 +147,12 @@ def load_inventory():
 
 
 def plan_components(primary_maps):
-    """户内主图沿四向邻接 BFS 规划连通分量（成员数 >= 2 的组才有拼合价值）。
+    """户内主图沿四向邻接 DFS 规划连通分量（成员数 >= 2 的组才有拼合价值）。
 
-    返回 [{"anchor": 锚点图号, "placement": {图号: (列, 行)}, "tiles": (宽, 高)}]，
-    锚点 = 分量最小图号、位于 (0,0)；tiles 为图块数（×10×8 即像素尺寸）。
+    栈实现（list.pop）；连通分量划分与 placement 坐标只依赖父节点相对位置，
+    与遍历序无关。返回 [{"anchor": 锚点图号, "placement": {图号: (列, 行)},
+    "tiles": (宽, 高)}]，锚点 = 分量最小图号、位于 (0,0)；tiles 为图块数
+    （×10×8 即像素尺寸）。
     """
     primary = {m["file_id"]: m for m in primary_maps if not m["outdoors"]}
     plans = []

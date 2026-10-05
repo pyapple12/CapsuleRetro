@@ -27,16 +27,14 @@ VOID = 0x8888  # ScummVM INVALID_CELL：全 nibble=8 的实心格
 TW, TH = 10, 8
 
 
-def render_indoor(raw, frames, lut=None):
-    """户内单图渲染。lut = 16 字节 surfaceLUT 覆盖（城镇拼合传锚点 LUT），缺省用自身。"""
-    if lut is None:
-        lut = raw[798:814]
-    W = 16 * TW
-    H = 16 * TH
-    canvas = bytearray(W * H * 4)
+def make_blit(frames, width, height):
+    """帧贴图工厂：返回 blit(buf, fi, px, py)，单图与整城拼合共用同一绘制语义。
 
-    def blit(fi, px, py):
-        # 像素自带帧内绝对偏移，只按画布边界裁剪；透明像素不覆盖（与引擎绘制语义一致）
+    像素自带帧内绝对偏移，只按画布边界裁剪；透明像素不覆盖（与引擎绘制
+    语义一致）。A003 #21 收敛：绘制语义只此一份，改动不可两处漂移。
+    """
+
+    def blit(buf, fi, px, py):
         if fi >= len(frames):
             return
         _, _, pixels = frames[fi]
@@ -45,13 +43,25 @@ def render_indoor(raw, frames, lut=None):
                 continue
             xx = px + x
             yy = py + y
-            if 0 <= xx < W and 0 <= yy < H:
-                i = (yy * W + xx) * 4
-                canvas[i: i + 4] = bytes(rgba)
+            if 0 <= xx < width and 0 <= yy < height:
+                i = (yy * width + xx) * 4
+                buf[i: i + 4] = bytes(rgba)
+
+    return blit
+
+
+def render_indoor(raw, frames, lut=None):
+    """户内单图渲染。lut = 16 字节 surfaceLUT 覆盖（城镇拼合传锚点 LUT），缺省用自身。"""
+    if lut is None:
+        lut = raw[798:814]
+    W = 16 * TW
+    H = 16 * TH
+    canvas = bytearray(W * H * 4)
+    blit = make_blit(frames, W, H)
 
     # 遍 1：地面——全格 frame 0 铺满（空置格由遍 4 盖板最终覆盖）
     for t in range(256):
-        blit(0, (t % 16) * TW, (15 - t // 16) * TH)
+        blit(canvas, 0, (t % 16) * TW, (15 - t // 16) * TH)
     # 遍 2：地表点缀（surfaceId 非 0 即画，LUT=0 → 帧 36 水面；空置格跳过；+5,+5）
     for t in range(256):
         v = raw[t * 2] | (raw[t * 2 + 1] << 8)
@@ -59,7 +69,7 @@ def render_indoor(raw, frames, lut=None):
             continue
         surf = raw[512 + t] & 7
         if surf:
-            blit(lut[surf] + 36, (t % 16) * TW + TW // 2, (15 - t // 16) * TH + TH // 2 + 1)
+            blit(canvas, lut[surf] + 36, (t % 16) * TW + TW // 2, (15 - t // 16) * TH + TH // 2 + 1)
     # 遍 3：墙（西 = n3 → WALL_A；北 = n0 → WALL_A+1 奇数帧；空置格无墙条）
     for t in range(256):
         v = raw[t * 2] | (raw[t * 2 + 1] << 8)
@@ -69,14 +79,14 @@ def render_indoor(raw, frames, lut=None):
         px = (t % 16) * TW
         py = (15 - t // 16) * TH
         if n3 and n3 in WALL_A:
-            blit(WALL_A[n3], px, py)
+            blit(canvas, WALL_A[n3], px, py)
         if n0 and n0 in WALL_A:
-            blit(WALL_A[n0] + 1, px, py)
+            blit(canvas, WALL_A[n0] + 1, px, py)
     # 遍 4：空置实心格 frame 1 盖板——最后画，盖掉点缀/墙条的越界部分
     for t in range(256):
         v = raw[t * 2] | (raw[t * 2 + 1] << 8)
         if v == VOID:
-            blit(1, (t % 16) * TW, (15 - t // 16) * TH)
+            blit(canvas, 1, (t % 16) * TW, (15 - t // 16) * TH)
     return W, H, bytes(canvas)
 
 

@@ -22,7 +22,7 @@ def grid_of(name):
 
 
 def stitch(maps_by_id, frames, ids_by_cell):
-    """按 (列字母, 行数字) 键缝合世界图；缺位网格打印警告。"""
+    """按 (列字母, 行数字) 键缝合世界图；缺位网格显式报错，拒绝产出缺块图。"""
     tw = max(w for w, _, _ in frames)
     th = max(h for _, h, _ in frames)
     cols = sorted({letter for letter, _ in ids_by_cell})
@@ -30,7 +30,10 @@ def stitch(maps_by_id, frames, ids_by_cell):
     for letter in cols:
         for number in rows:
             if (letter, number) not in ids_by_cell:
-                print(f"    [警告] 网格缺位 {letter}{number}")
+                raise ValueError(
+                    f"world 网格缺位 {letter}{number}——区域名解析缺图，"
+                    "请核查区域名表与户外图覆盖后再缝合"
+                )
     W = len(cols) * 16 * tw
     H = len(rows) * 16 * th
     canvas = bytearray(W * H * 4)

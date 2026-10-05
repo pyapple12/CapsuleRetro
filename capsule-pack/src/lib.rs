@@ -22,7 +22,7 @@ pub struct PackInputs {
     pub repo_root: PathBuf,
     /// 适配层聚合配置（调用方已加载校验——同一份打包只读一次，FIX002.34）
     pub config: capsule_core::game_config::GameConfig,
-    /// launcher release exe（裸 launcher，不得已含 payload）
+    /// launcher release exe（裸 launcher——不应已含 payload，含者被拒绝）
     pub launcher_exe: PathBuf,
     /// dosbox 构建产物目录（内含 dosbox exe 与运行期 DLL）
     pub dosbox_dir: PathBuf,

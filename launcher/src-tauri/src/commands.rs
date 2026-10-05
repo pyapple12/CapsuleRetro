@@ -854,8 +854,9 @@ pub struct FaceImage {
 /// 读取队伍头像资产（faces_dir 内 charNN.png，一次性取图）。
 ///
 /// # Errors
-/// game.json 缺失/非法、faces_dir 已配置但目录缺失或文件名不合
-/// charNN.png 规范时返回错误消息；faces_dir 缺省返回空表（HUD 回落占位）。
+/// game.json 缺失/非法、faces_dir 已配置但目录缺失时返回错误消息；目录内
+/// 非 charNN.png 的杂物文件跳过并告警（容错白名单），faces_dir 缺省返回空表
+/// （HUD 回落占位）。
 #[tauri::command]
 pub async fn get_faces() -> Result<Vec<FaceImage>, String> {
     get_faces_impl().map_err(|e| format!("{e:#}"))
@@ -878,8 +879,11 @@ fn get_faces_impl() -> Result<Vec<FaceImage>> {
     let mut faces = Vec::new();
     for entry in entries {
         let name = entry.file_name().to_string_lossy().into_owned();
+        // 非 charNN.png 的杂物文件（Thumbs.db/.DS_Store 等）跳过并告警——杂物
+        // 非头像数据错误，不应废掉全部头像（AGENTS.md 容错白名单，A003 #30）
         let Some(id) = face_id_from_name(&name) else {
-            anyhow::bail!("头像目录存在不合规范的文件: {}", name);
+            logging::warn(&format!("头像目录存在非 charNN.png 文件，已跳过: {name}"));
+            continue;
         };
         let bytes = std::fs::read(entry.path())
             .with_context(|| format!("读取头像失败: {}", entry.path().display()))?;
