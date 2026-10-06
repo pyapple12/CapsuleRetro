@@ -1,6 +1,6 @@
 # CapsuleRetro —— 老 DOS 游戏的现代包装系统
 
-[![Version](https://img.shields.io/badge/Version-0.1.0.24-blue.svg)](Cargo.toml)
+[![Version](https://img.shields.io/badge/Version-0.1.0.25-blue.svg)](Cargo.toml)
 [![Rust](https://img.shields.io/badge/Rust-1.96-orange.svg)](https://www.rust-lang.org)
 [![Phase](https://img.shields.io/badge/Phase-PL006%E2%80%93PL011%E5%AE%8C%E6%88%90-brightgreen.svg)](z.plan.md)
 
@@ -25,7 +25,7 @@
 | 一条命令出包 | `capsule-pack` 读 game.json → 校验 → 资源内嵌 → dist 三文件            |
 | 伴生观察     | REST 原子读取模拟器内存，109 条目内存档案实时驱动 HUD 与诊断 CLI       |
 
-> 当前状态：**PL001–PL011 全部完工 + FIX001/FIX002 两轮审计收口**（V0.1.0.22）——产品三文件闭环、静默启动、帧流直推、HUD（头像缩略 / HP 四色 / 位置五要素）、会话内金手指、地图与头像资产链（622 张地图 + 24 张头像）、攻略渲染均已 live 验收。**正在进行：PL012 游玩 UI 重构**（实验场阶段，见 `assets/design/PL012-game-ui-handoff.md`）。后续：PL012 定稿对接 Launcher → 发布工程立项（GitHub Actions / fork Release / 杀软实测）；0.2.0 三端适配登记不动。方案与实测结论见 `z.plan.md` 附录，体验硬化阶梯见 `CapsuleRetro_plan.md` §10。
+> 当前状态：**PL001–PL011 全部完工 + FIX001/FIX002 两轮审计收口**（V0.1.0.22）——产品三文件闭环、静默启动、帧流直推、HUD（头像缩略 / HP 四色 / 位置五要素）、会话内金手指、地图与头像资产链（622 张地图 + 24 张头像）、攻略渲染均已 live 验收。**正在进行：PL012 实验场收口**（老板键 / 职业徽章 / 小地图拖拽）；**PL013 游玩 UI 重构**（实验场与 CRT 特效已实装，对接未开始，见 `assets/design/PL012-game-ui-handoff.md`）。后续：PL013 定稿对接 Launcher → 发布工程立项（GitHub Actions / fork Release / 杀软实测）；0.2.0 三端适配登记不动。方案与实测结论见 `z.plan.md` 附录，体验硬化阶梯见 `CapsuleRetro_plan.md` §10。
 
 ## 技术栈
 
@@ -107,7 +107,7 @@ CapsuleRetro/
 ├── .xeen-extract/           # CC 素材工坊（gitignore）
 ├── AGENTS.md                # 项目规范（AI 协作必读）
 ├── CapsuleRetro_plan.md     # 总体规划（Phase 0-5、版本路线、体验硬化阶梯）
-├── z.plan.md                # 方案与审计归档（PL001–PL012 / A001–A002 / 豁免定案清单）
+├── z.plan.md                # 方案与审计归档（PL001–PL013 / A001–A004 / 豁免定案清单）
 ├── x.progress.md            # 任务清单
 ├── y.problems.md / w.study.md
 └── .agents/skills/          # 项目自建 skill（audit-project / audit-report / progress-task）

@@ -368,7 +368,7 @@
 
 #### 阶段 A：盘点与解析
 
-- [x] PL010.1 地图资源盘点 —— 做法：三轮探针（.temp/pl010_probe*.py）定位迷宫几何真实存放处——**不在主 CC**（无 MAZE 名；AAZE\*.TXT = 事件文字 Big5、AAZE\*.HED = 事件头，OpenXeen 作者注佐证），XEEN.DAT 为 MZD 头运行时状态文件亦排除；最终依 OpenXeen `loadMaps()` 指认 **DARK.CUR / XEEN.CUR（CUR = current side 非光标）**，TOC 与 .CC 同款（rol2 + 滚动计数），数据区**不做 XOR**；哈希实现以 OpenXeen 测试断言 `AAZE0002.TXT = 0x7CA1` 独立校验；产出全量清单 `.temp/pl010-inventory.json`；验证：清单与 TOC 哈希逐一可对 + 结构锚点（DAT 偏移 768 的 u16 == 地图号）**主图 311/311 全过**（dark 183 + xeen 128），布局 892B 与 OpenXeen `loadMaze` 逐段吻合（flags2@780：bit15 户外 / bit14 黑暗）；区域名直解——DARK.CC 的 `DARKxxxx.TXT` 两侧统一覆盖（Big5 实解：A1 區域/湖濱城/大北塔第三層/天路 C4/龍雲），名字覆盖 244/311（✅ 2026-09-13：主图 311 + 变体文件 96（2xx/3xx 段 id 字段回指基图）；户外 dark 52 + xeen 24、黑暗 dark 39 + xeen 36；名字源确定 = DARKxxxx.TXT，PL010.6 EVT 探测降级为可选验证）
+- [x] PL010.1 地图资源盘点 —— 做法：三轮探针（.temp/pl010_probe\*.py）定位迷宫几何真实存放处——**不在主 CC**（无 MAZE 名；AAZE\*.TXT = 事件文字 Big5、AAZE\*.HED = 事件头，OpenXeen 作者注佐证），XEEN.DAT 为 MZD 头运行时状态文件亦排除；最终依 OpenXeen `loadMaps()` 指认 **DARK.CUR / XEEN.CUR（CUR = current side 非光标）**，TOC 与 .CC 同款（rol2 + 滚动计数），数据区**不做 XOR**；哈希实现以 OpenXeen 测试断言 `AAZE0002.TXT = 0x7CA1` 独立校验；产出全量清单 `.temp/pl010-inventory.json`；验证：清单与 TOC 哈希逐一可对 + 结构锚点（DAT 偏移 768 的 u16 == 地图号）**主图 311/311 全过**（dark 183 + xeen 128），布局 892B 与 OpenXeen `loadMaze` 逐段吻合（flags2@780：bit15 户外 / bit14 黑暗）；区域名直解——DARK.CC 的 `DARKxxxx.TXT` 两侧统一覆盖（Big5 实解：A1 區域/湖濱城/大北塔第三層/天路 C4/龍雲），名字覆盖 244/311（✅ 2026-09-13：主图 311 + 变体文件 96（2xx/3xx 段 id 字段回指基图）；户外 dark 52 + xeen 24、黑暗 dark 39 + xeen 36；名字源确定 = DARKxxxx.TXT，PL010.6 EVT 探测降级为可选验证）
 - [x] PL010.2 DAT 解析模块 —— 做法：capsule-core 新增 `maze.rs`（892B 布局严格解析：WallData 512B = 16×16 u16 四半字节 → CellFlag 256B → 内嵌地图号@768 → SurrMazes 北/东/南/西@770 → flags1@778（b14 可休息/b15 可存盘）→ flags2@780（b14 黑暗/b15 户外，.1 实测校正原立项的 778 偏移）→ 墙/地表 LUT@782/798）；`maze_file_name` 拼名规则（MAZE%04d / id≥100 MAZEX%03d）；cc_archive 增 `read_raw`（CUR 明文读取）+ `slice` 收敛越界检查；xeen-extractor 增 `mazes <cur>` 全量校验命令；验证：单测 5 条红→绿（合成夹具按 OpenXeen 布局常量独立构造 + 尺寸不符严格报错 + 变体双号 + 命名规则），`mazes` 全量跑两 CUR 零解析错误且与 .1 Python 盘点交叉全同（dark 247 = 主 183/变体 64、xeen 160 = 128/32；户外 52/24、黑暗 39/36），fmt/clippy -D warnings/test --workspace 19 套件全绿（✅ 2026-09-13）
 - [x] PL010.3 TIL 帧解码 —— 做法：TIL = 标准 MaMSprite（帧表 + 调色板索引），复用 PL008 `convert.py::decode_sprite`（PL008.5 已对实机验证）写 `.temp/pl010_til.py`：全 TIL 解帧 + 拼接图落 `.xeen-extract/png/til/`，并做**四层合成首验**（dark/xeen 各自 1 号图：surfaceLUT[n0] 恒画 + n1/n2/n3 各组 0 = 无叠加约定，数据 (0,0) 左下翻转）；验证：OUTDOOR.TIL 主体帧尺寸 10×8 与文档一致（dark 50 帧 / xeen 48 帧），合成图地形合理——暗面 A1 = 龟裂红土 + 岩脊 + 地点图标、云端 A1 = 沙地 + 斜贯山脉 + 城/塔标记 + 边缘空洞；过程中修正两处实现错误（瓦片偏移漏 ×16、零叠加组误画第 48 帧盖满全图）；逐张游戏内对照留 PL010.4 承接（✅ 2026-09-13：环境集 TIL 各 53 帧同格式解出，布局与 OpenXeen 注释一致：0-1 地板 / 2-33 墙 V·H / 34-35 柱 / 36-51 备用地板）
 
@@ -408,19 +408,6 @@
 
 > **✅ PL011 全组完成（2026-09-13）**：7/7 勾结。五要素 = 地图名/户外户内/编号/X,Y/朝向（用户定案追加朝向）。位置四连字节 0x5A7CA–0x000D + 侧标志 0x5A7CE（1=云端）；区域名双文件族 XEEN/DARKxxxx.TXT 按侧破解（勘误 PL010"共用表"结论）。城镇多图拼合渲染缺陷登记 y.problems#21。
 
-## 未完成
-
-### PL012: 游玩 UI 重构 [plan#PL012]（2026-09-13 立项登记；2026-09-15 起实验场阶段实施中；消费 PL010 底图 + PL011 位置数据）
-
-> 实况（2026-09-16）：实验场单文件 HTML `assets/design/pl012-游玩界面实验场.html` 已迭代四轮——v1–v2 三栏布局与部件、v3 尺寸结构定稿（舞台 1850×1000）、v4 任务链系统、v4.5 头像比例与页脚；并追加左栏操作栏与浮窗（魔法/注音/说明/设置）、背景图按世界切换与毛玻璃滑杆、Uiverse 六组件接入、CRT 特效归属定案（前端侧，DOSBox shader 弃用）。对接要点与后端缺口见 `assets/design/PL012-game-ui-handoff.md`。
-> 后端缺口核对（2026-09-16 逐条对码）：六项中仅 ② 前提过期（`death1–6`/`unc1–6`/`weak1–6` 已登记 memory_map，白名单为"登记即放行"，无需放开）；①③④⑤⑥ 均未做。
-
-- [ ] PL012.1 立项细化讨论 —— 做法：过四个决策点（信息层级 / 小地图交互形态：固定角标 vs 悬停展开 vs 全图切换 / 攻略入口形态 / 连续热更 vs 整版）；输入 = PL010 PNG + PL011 四要素 + assets/design 五稿 + PL012 实验场；验证：用户拍板设计方案与拆分
-- [ ] PL012.2 实验场迭代收口 —— 做法：补完实验场未完成项——老板按钮（点击界面整体消失 + omarchy 伪装动画）、职业徽章（队伍槽职业图形化）、小地图中键拖拽联动（按住拖动全向平滑跟随 + 贴边停止）；验证：浏览器直开实验场逐项目测
-- [ ] PL012.3 后端缺口补齐 —— 做法：①等级 LV 寄存器（升级事件前后全量快照差分定位，入 memory_map + 白名单）②复活命令与按钮（清 death/unc/weak，白名单已开放无需改闸）③HP/MP 写入钳制 `min(当前+100, 200)`（launcher 侧钳制后调 write_memory）④中毒状态寄存器破解入档 ⑤状态头像套图（先勘探来源——51 个 `.ICN` 多为界面按钮，需确认是叠加图标还是独立套图，再走 xeen-extractor 提取）⑥任务链数据源（`retro/xeen-guide.md` 结构化 → npc/x/y/stages/world）；验证：③ 单测（钳制边界）+ live 写读回；①④⑤⑥ 各自 live 或对照证据
-- [ ] PL012.4 对接 Launcher —— 做法：按交接文档第二节施工——`#game-view` 内占位 img 换 GameCanvas 帧流画布（CRT 玻璃/扫描线图层 z-index 不动）、假数据常量换后端注入、换算公式 `image_px = (x × S_w, (15−y) × S_h)` 与城内连续坐标/世界前缀照定案、任务勾选状态改 json 或 sqlite；验证：live 会话全要素显示正确 + 用户目测
-- [ ] PL012.5 验收收尾 —— 做法：用户 live 判收 + 全量门禁（fmt/clippy/test/doc + prettier/vue-tsc/npm build）+ z.plan 附录 PL012 实测结论回写 + 本组勾结上移；验证：判收 + 门禁绿
-
 ### FIX003: 第3轮审计修复 [audit#A003]（✅ 2026-10-06 收口，33/33——31 条修复 + #17 永久豁免 + #19 不修留档均经用户定案；门禁全绿 + maptool 全管线 hash 对照验证，证据见 `.temp/fix003-verification.md`）
 
 > 来源：A003（2026-10-05 三路并行审计 + 回归复核）。零节结论：A002 36 条中 35 条在位，FIX002.7 虚假勾结重报为 FIX003.14；19 条参考级观察项维持参考级（z.plan 附录 A003 第二节）。条目编号与 A003 清单 # 一一对应。
@@ -448,7 +435,7 @@
 - [x] FIX003.21 [P3] blit 闭包跨文件重复 —— 做法：抽共享 blit 工厂（入参帧/宽高，返回写入函数）置于 til.py 或 xeendata.py 共享层，render_indoor.py:38-50 与 city_stitch.py:42-53 改调用；验证：`maptool.py all` 重渲产物与改前逐字节一致（或抽查若干图对照）（2026-10-06 已修：make_blit(frames, W, H) 工厂置 render_indoor.py（city_stitch 既有 import 先例），统一签名 blit(buf, fi, px, py)；验证——706 个产物文件 sha256 与改前基线逐字节一致（唯一差异 index.json 的 generated 日期，与渲染无关））
 - [x] FIX003.22 [P3] decode_name 不可达分支 —— 做法：删除 til.py:93 `return raw.hex()` 死代码（latin-1 解码任意字节均成功）；验证：代码审查 + `maptool.py list` 输出不变（2026-10-06 已修（位置勘正：函数在 xeendata.py:86-95）：hex 改 return None 显式失败信号，docstring 同步说明 latin-1 单字节直映恒成功；重跑 all 产物一致）
 - [x] FIX003.23 [P3] til.py docstring 路径守卫过强 —— 做法：til.py:6 "所有文件读写经路径守卫"改"所有写操作经路径守卫"；验证：代码审查与实际覆盖一致（2026-10-06 已修：声明与 guarded() 实际写侧覆盖一致）
-- [x] FIX003.24 [P3] CUR 容器重复解析 —— 做法：xeendata.py load_inventory（:113）与 read_maze（:36-38）收敛到共享缓存入口（统一走 _CUR_CACHE 或新 parse_cc_cached）；验证：`maptool.py mazes` 输出不变 + 重复解析消除（计数或性能对比）（2026-10-06 已修：抽 cur_container(side) 共享缓存入口，load_inventory 与 read_maze 同源；monkey-patch 计数实证——load_inventory + 6 次 read_maze 场景 CUR 解析从改前 4 次降为 2 次（每侧 1 次）；重跑 all 产物一致）
+- [x] FIX003.24 [P3] CUR 容器重复解析 —— 做法：xeendata.py load_inventory（:113）与 read_maze（:36-38）收敛到共享缓存入口（统一走 \_CUR_CACHE 或新 parse_cc_cached）；验证：`maptool.py mazes` 输出不变 + 重复解析消除（计数或性能对比）（2026-10-06 已修：抽 cur_container(side) 共享缓存入口，load_inventory 与 read_maze 同源；monkey-patch 计数实证——load_inventory + 6 次 read_maze 场景 CUR 解析从改前 4 次降为 2 次（每侧 1 次）；重跑 all 产物一致）
 - [x] FIX003.25 [P3] world_stitch 缺位警告后照产 —— 做法：world_stitch.py（:28-45）网格缺位改抛 ValueError（缺哪格指名道姓），移除"警告后继续"；如用户判定需容错则走 AGENTS.md 白名单登记三要素；验证：构造缺格网格跑 stitch → 显式报错不产图（2026-10-06 已修：缺位抛 ValueError 指名缺格与核查指引；探针——构造缺 B2 的 4 格网格 → "world 网格缺位 B2——区域名解析缺图…"，不再产缺块图）
 - [x] FIX003.26 [P3] gen_index import 顺序 —— 做法：gen_index.py:12-18 `from pathlib import Path` 上移至标准库组（本地模块组之前）；验证：代码审查符合 AGENTS.md 组序约定（2026-10-06 已修：pathlib 入标准库组并顺带移除失效的 datetime import）
 - [x] FIX003.27 [P3] WORLDS 硬编码第二来源 —— 做法：gen_index.py:29-34 WORLDS 清单与尺寸改为消费 world_stitch 产出元数据（与 FIX003.18 同一方案一并落地）；验证：`maptool.py all` 产物 index.json 的 worlds 段与改前一致（2026-10-06 已修（方案更 KISS）：WORLDS 只留 file/label/grid，size 改由标准库 struct 解析产物 png IHDR 实读——比元数据传递少一层命令耦合；验证：all 重跑后 index.json 3999 字段与仓库版唯一差异为 generated 移除，worlds 段含 size 逐字段一致）
@@ -463,7 +450,7 @@
 
 > 来源：A004（2026-10-06 三路并行审计 + 回归复核，主增量 = FIX003 修复质量复核）。零节结论：FIX003 33 条处置 32 条在位零回归，#32 漏网 README 一处、#6/#14 修复自带 fn 内 use 残点；#10 死亡窗口修复强于原建议（持锁直达入槽）；#4"需验证"由 bzip2 夹具闭环。17 条参考级观察项维持参考级（z.plan 附录 A004 第二节）。条目编号与 A004 清单 # 一一对应。
 
-- [x] FIX004.1 [P2] pack 零命中静默空档覆盖旧 save —— 做法：用户定案**方案 B（彻底）**：capsule-core save.rs pack（:186）返回值改 `Result<Option<usize>>`（None = 零命中）；paths.rs writeback 零命中分流——旧 save 存在 → 拒绝替换报新变体 `LifecycleError::ZeroHitReject`（旧档字节原样），旧 save 不存在（首次游玩）→ 放行写入空档（合法初始态）；launcher writeback_save 无需改（错误链自然携带 ZeroHitReject 消息、saved=false 走既有失败文案）；验证：新增测试 `零命中回写按旧档存在性分流`（" *.SAV" 恒不命中：有旧档 → ZeroHitReject 且旧档字节不变；无旧档 → 放行且空档可解包仅含 meta）+ 既有 pack/writeback 测试断言适配 Some 包装（2026-10-06 已验证：22/22 过；TDD 过程抓到并修正放行分支漏 replace_atomically 的实现疏漏——探针先 FAIL 后 PASS）
+- [x] FIX004.1 [P2] pack 零命中静默空档覆盖旧 save —— 做法：用户定案**方案 B（彻底）**：capsule-core save.rs pack（:186）返回值改 `Result<Option<usize>>`（None = 零命中）；paths.rs writeback 零命中分流——旧 save 存在 → 拒绝替换报新变体 `LifecycleError::ZeroHitReject`（旧档字节原样），旧 save 不存在（首次游玩）→ 放行写入空档（合法初始态）；launcher writeback_save 无需改（错误链自然携带 ZeroHitReject 消息、saved=false 走既有失败文案）；验证：新增测试 `零命中回写按旧档存在性分流`（" \*.SAV" 恒不命中：有旧档 → ZeroHitReject 且旧档字节不变；无旧档 → 放行且空档可解包仅含 meta）+ 既有 pack/writeback 测试断言适配 Some 包装（2026-10-06 已验证：22/22 过；TDD 过程抓到并修正放行分支漏 replace_atomically 的实现疏漏——探针先 FAIL 后 PASS）
 - [x] FIX004.2 [P3] payload.rs:71 注释反义同源漏网 —— 做法：append_payload 参数注释"不得已含 payload"改"不应已含 payload，含者被拒绝"（与 capsule-pack lib.rs:26 一致）；验证：代码审查与 :78-80 AlreadyPacked 拒绝逻辑一致（2026-10-06 已修：两处措辞对齐）
 - [x] FIX004.3 [P3] lib.rs 收敛函数自带 fn 内 use —— 做法：capsule-core lib.rs:27 `use std::path::Component` 上移文件头（新建 std use 组）；验证：grep 文件无 fn 内 use + clippy/test 全绿（2026-10-06 已修：grep 断言零残留）
 - [x] FIX004.4 [P3] rest.rs:295 注释 92→109 —— 做法：测试样例注释"92 条登记条目"改"109 条"；验证：grep capsule-core 无"92 条"残留（对照 memory_map.json 实数）（2026-10-06 已修：**全仓口径清扫**——rest.rs + README.md:83（FIX004.9 漏网处顺带）一并清零；grep 断言代码与对外文档无"92 条"残留，历史档案（z.plan/x.progress/w.study）按定案保留）
@@ -477,3 +464,30 @@
 - [x] FIX004.12 [P3] decode_name 死分支替换而非删除 —— 做法：xeendata.py:94-101 删 `return None` 死行，简化为 big5 try + latin-1 直返（latin-1 解码恒成功）；验证：代码审查 + `maptool.py inventory` 输出不变（2026-10-06 已修：循环结构删除，big5 try + latin-1 直返两行式；探针——big5 中文解码与 latin-1 高位字节保底输出均不变）
 - [x] FIX004.13 [P3] ensure_safe_rel 第四份同语义实现（跨 crate 决策）—— 做法：二选一：①capsule-core validate_rel_path 升 pub（含反斜杠拒绝语义），capsule-pack lib.rs ensure_safe_rel（:241-255）改调用 + map_err，use 上移；②维持两份但对齐反斜杠语义 + use 上移（packer 侧补 `contains('\\')` 拒绝——game.json 现值全正斜杠已核安全）；**修复前需用户定夺方案**；验证：pack_test 既有 zip slip 用例回归 + 新增反斜杠拒绝用例（若①则 grep 确认 packer 无重复校验体）（2026-10-06 已修（用户定案**方案①**）：validate_rel_path 升 pub、ensure_safe_rel 改调用（fn 内 use 随校验体消失）、错误文案补反斜杠说明；新增 `game_dir反斜杠拒绝` 用例过 + 既有 `game_dir越界拒绝` 回归过 + grep 确认 packer 无 Component::Normal 校验体残留——全仓 zip slip 写侧闸门真正单份）
 - [x] FIX004.14 [P3] 验证收尾 —— 做法：全量门禁（cargo fmt --check + clippy -D warnings + cargo test --workspace + npm run build + cargo doc）+ maptool 回归（all 产物 hash 对照）+ x.progress 本组勾结上移 + z.plan 附录 A004 状态改 ✅；验证：门禁全绿 + 修复证据落 .temp/fix004-verification.md（2026-10-06 已验证：fmt/clippy/doc + cargo test --workspace 19 套全绿（capsule-pack 新增反斜杠用例、launcher lib 13 项、capsule-core 22 项）+ npm run build 过 + maptool all 706 产物 hash 对照（仅 index.json 因 FIX004.28 移除日期与 FIX003 基线不同、零单侧差异）+ 双探针（缺 F 列 ValueError、decode_name 行为不变）；A004 状态已改 ✅）
+
+## 未完成
+
+### PL012: 老板键——CSS omarchy 真机演示 [plan#PL012]（2026-10-06 立项，待实施；单独功能任务组，方案见 z.plan 附录 PL012）
+
+> 用户定案三要素：参考图 `assets/design/omarchy.png`（2560×1707 官方截图）像素级对色还原、触发热键 **Ctrl+F10**（切入/切出同一热键，点击桌面亦可退出）、代码窗口放真项目 Rust 源码。实施载体 = 实验场全屏 overlay；机制可原样平移 Launcher（Tauri WebView 同款 JS 热键）。职业徽章与小地图拖拽已移入 PL013.5/.6（2026-10-06）。
+
+- [ ] PL012.1 参考图取色与规格提取 —— 做法：以脚本（写 `.temp/`）对 omarchy.png 取色——壁纸底/强调、waybar 底、窗口底、活动边框 accent、文字主/次五组色；量布局规格——waybar 高度、工作区区块形状、窗口间隙 px、窗口圆角、标题栏高、三窗平铺比例与朝向，产出「色板 + 规格表」；验证：色板与参考图对应区块并排目测、规格表对照截图二次实测无出入
+- [ ] PL012.2 全屏 overlay 骨架与 Ctrl+F10 切换 —— 做法：实验场插入 `#boss-screen` 全屏 overlay（position:fixed、z 最高、display:none ↔ block、**无 transition 即时切**）；window keydown 监听 Ctrl+F10（preventDefault 拦截浏览器默认）切换显隐，overlay 桌面空白处点击同样退出；验证：Ctrl+F10 双向即时切换零残留、点击退出生效、游戏会话运行中切换亦正常、console 零报错
+- [ ] PL012.3 壁纸与 waybar 顶栏 —— 做法：壁纸 = 按提取色构建的深色 CSS 渐变（不用图片素材防露馅）；waybar 按参考图布局：左侧工作区编号块 1–9（当前高亮）、中央 JS Date 真实时钟（HH:MM:SS，setInterval 1s 走字）、右侧托盘图标（网络/音量/电池，unicode + CSS 绘制）；验证：时钟每秒真实走字、waybar 布局与配色对照参考图目测
+- [ ] PL012.4 Hyprland 平铺窗口框架 —— 做法：窗口容器按提取规格（窗口底色、边框、圆角、间隙）三窗平铺摆放、活动窗口亮 accent 边框（模拟焦点常驻）；验证：平铺布局对照参考图目测（间隙/圆角/边框厚度）
+- [ ] PL012.5 fastfetch 系统信息窗 —— 做法：pre 等宽 ASCII logo（Arch 模板）+ 信息行（OS: Arch Linux x86_64 / WM: Hyprland / Theme: omarchy / Shell / CPU / GPU / Memory；CPU 与 Memory 可由 JS navigator 读真值填入增加真实感）；验证：等宽对齐目测 + 内容真实感目测
+- [ ] PL012.6 编辑器窗口（真项目源码）—— 做法：nvim 风格状态栏（模式/文件名/行:列）+ 行号栏 + 正文 = launcher/src-tauri/src/commands.rs 真实片段（30–60 行硬编码入 HTML，span 手工语法着色：关键字/类型/字符串/注释/函数）；验证：代码与仓库源码抽查一致（确为真代码）+ 着色目测
+- [ ] PL012.7 cargo build 日志滚动流 —— 做法：日志行（Compiling CapsuleRetro… / Finished release 等真实 crate 名序列）JS 定时器逐行追加、尾部光标块闪烁、容器自动滚底；DOM 节点数封顶循环重放防膨胀；验证：连续目测 1 分钟以上流式动画不卡顿 + 光标闪烁目测
+- [ ] PL012.8 收口定稿 —— 做法：用户对全部效果目测判收（Ctrl+F10 切换 / 时钟 / 动画 / 源码窗）+ 交接文档第六节老板按钮项打勾 + z.plan 附录 PL012 状态改 ✅ + 本组勾结上移；验证：用户判收 + 文档同步
+
+### PL013: 游玩 UI 重构 [plan#PL013]（2026-09-13 立项登记；2026-09-15 起实验场阶段实施中；消费 PL010 底图 + PL011 位置数据。2026-10-06 改号：原 PL012，其号让位给实验场收口三件 = 现 PL012）
+
+> 实况（2026-09-16）：实验场单文件 HTML `assets/design/pl012-游玩界面实验场.html` 已迭代四轮——v1–v2 三栏布局与部件、v3 尺寸结构定稿（舞台 1850×1000）、v4 任务链系统、v4.5 头像比例与页脚；并追加左栏操作栏与浮窗（魔法/注音/说明/设置）、背景图按世界切换与毛玻璃滑杆、Uiverse 六组件接入、CRT 特效归属定案（前端侧，DOSBox shader 弃用）。对接要点与后端缺口见 `assets/design/PL012-game-ui-handoff.md`。
+> 后端缺口核对（2026-09-16 逐条对码）：六项中仅 ② 前提过期（`death1–6`/`unc1–6`/`weak1–6` 已登记 memory_map，白名单为"登记即放行"，无需放开）；①③④⑤⑥ 均未做。
+
+- [ ] PL013.1 立项细化讨论 —— 做法：过四个决策点（信息层级 / 小地图交互形态：固定角标 vs 悬停展开 vs 全图切换 / 攻略入口形态 / 连续热更 vs 整版）；输入 = PL010 PNG + PL011 四要素 + assets/design 五稿 + 实验场；验证：用户拍板设计方案与拆分
+- [ ] PL013.2 后端缺口补齐 —— 做法：①等级 LV 寄存器（升级事件前后全量快照差分定位，入 memory_map + 白名单）②复活命令与按钮（清 death/unc/weak，白名单已开放无需改闸）③HP/MP 写入钳制 `min(当前+100, 200)`（launcher 侧钳制后调 write_memory）④中毒状态寄存器破解入档 ⑤状态头像套图（先勘探来源——51 个 `.ICN` 多为界面按钮，需确认是叠加图标还是独立套图，再走 xeen-extractor 提取）⑥任务链数据源（`retro/xeen-guide.md` 结构化 → npc/x/y/stages/world）；验证：③ 单测（钳制边界）+ live 写读回；①④⑤⑥ 各自 live 或对照证据
+- [ ] PL013.3 对接 Launcher —— 做法：按交接文档第二节施工——`#game-view` 内占位 img 换 GameCanvas 帧流画布（CRT 玻璃/扫描线图层 z-index 不动）、假数据常量换后端注入、换算公式 `image_px = (x × S_w, (15−y) × S_h)` 与城内连续坐标/世界前缀照定案、任务勾选状态改 json 或 sqlite；验证：live 会话全要素显示正确 + 用户目测
+- [ ] PL013.4 验收收尾 —— 做法：用户 live 判收 + 全量门禁（fmt/clippy/test/doc + prettier/vue-tsc/npm build）+ z.plan 附录 PL013 实测结论回写 + 本组勾结上移；验证：判收 + 门禁绿
+- [ ] PL013.5 职业徽章（2026-10-06 自 PL012 移入）—— 做法：队伍槽职业纯文字改图形徽章（图形 + 底色），职业集合以 XEEN 六职业为准；验证：浏览器目测六槽位徽章显示
+- [ ] PL013.6 小地图拖拽（2026-10-06 自 PL012 移入）—— 做法：中键按住拖动时队伍位置图标随地图整体全向平滑联动（替换现行仅南向 200ms 步进）+ 地图与取景框贴边后该向停止（钳制已有，补拖拽联动与平滑插值）；验证：实机操作目测四向拖拽与贴边

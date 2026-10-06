@@ -542,12 +542,121 @@
         background: repeating-linear-gradient(
           0deg,
           rgba(0, 0, 0, 0.28) 0 1px,
-          transparent 1px 3px
+          transparent 1px var(--fx-scan-p, 3px)
         );
         mix-blend-mode: multiply;
       }
       body.scanlines #scanlines {
         display: block;
+      }
+
+      /* ===== CRT 新效果层（.temp/crt-playground.html 调参后实装）：
+             bloom z2 垫在 loading(z3) 之下防开机透出，其余 z4 与扫描线同层、
+             按 DOM 序叠放；状态真源 = body class + CSS 变量，默认全关 ===== */
+      #fx-bloom {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        display: none;
+        pointer-events: none;
+      }
+      #fx-bloom img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+        image-rendering: pixelated;
+        filter: blur(10px) brightness(1.35) saturate(1.25);
+        mix-blend-mode: screen;
+        opacity: var(--fx-bloom-o, 0.35);
+      }
+      body.bloom-on #fx-bloom {
+        display: block;
+      }
+      #fx-noise {
+        position: absolute;
+        inset: 0;
+        z-index: 4;
+        display: none;
+        pointer-events: none;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='180' height='180' filter='url(%23n)'/></svg>");
+        background-size: 180px 180px;
+        mix-blend-mode: overlay;
+        opacity: var(--fx-noise-a, 0.1);
+      }
+      body.noise-on #fx-noise {
+        display: block;
+        animation: fx-noise-shift 0.5s steps(4) infinite;
+      }
+      @keyframes fx-noise-shift {
+        to {
+          background-position: 180px 90px;
+        }
+      }
+      #fx-mask {
+        position: absolute;
+        inset: 0;
+        z-index: 4;
+        display: none;
+        pointer-events: none;
+        background: repeating-linear-gradient(
+          90deg,
+          rgba(255, 60, 60, 0.14) 0 calc(var(--fx-mask-p, 4px) / 3),
+          rgba(60, 255, 60, 0.14) calc(var(--fx-mask-p, 4px) / 3)
+            calc(var(--fx-mask-p, 4px) * 2 / 3),
+          rgba(80, 80, 255, 0.14) calc(var(--fx-mask-p, 4px) * 2 / 3)
+            var(--fx-mask-p, 4px)
+        );
+        mix-blend-mode: multiply;
+      }
+      body.mask-on #fx-mask {
+        display: block;
+      }
+      #fx-vig {
+        position: absolute;
+        inset: 0;
+        z-index: 4;
+        display: none;
+        pointer-events: none;
+        background: radial-gradient(
+          ellipse at center,
+          transparent 55%,
+          rgba(0, 0, 0, var(--fx-vig-a, 0.4)) 100%
+        );
+      }
+      body.vig-on #fx-vig {
+        display: block;
+      }
+      #fx-flicker {
+        position: absolute;
+        inset: 0;
+        z-index: 4;
+        display: none;
+        pointer-events: none;
+        background: #000;
+        opacity: 0;
+      }
+      body.flicker-on #fx-flicker {
+        display: block;
+        animation: fx-flicker 0.42s steps(1) infinite;
+      }
+      @keyframes fx-flicker {
+        0%,
+        100% {
+          opacity: 0;
+        }
+        30% {
+          opacity: calc(var(--fx-flicker-a, 0.05) * 0.4);
+        }
+        60% {
+          opacity: var(--fx-flicker-a, 0.05);
+        }
+        80% {
+          opacity: calc(var(--fx-flicker-a, 0.05) * 0.15);
+        }
+      }
+      body.chroma-on #game-view img {
+        filter: url(#fx-chroma);
       }
       #game-view {
         position: absolute;
@@ -2081,6 +2190,24 @@
         font-size: 14px;
         color: #8a7f68;
       }
+      /* CRT 效果滑杆：与开关同一行，关断时灰显 */
+      .set-row .fx-range {
+        flex: 1;
+        margin-left: auto;
+        accent-color: #c9a86a;
+        cursor: pointer;
+      }
+      .set-row .fx-range:disabled {
+        opacity: 0.3;
+        cursor: default;
+      }
+      .set-row .fx-val {
+        width: 52px;
+        text-align: right;
+        font-size: 14px;
+        color: #9a8f78;
+        font-variant-numeric: tabular-nums;
+      }
       /* ===== 背景图选择：三图互斥（Nawsome · empty-snail-69 街机开关，MIT）===== */
       .set-block {
         border: 1px solid #35302a;
@@ -2443,6 +2570,35 @@
     </style>
   </head>
   <body class="scanlines">
+    <!-- 色偏通道分离滤镜：R 右移 / B 左移，dx 由基本设置滑杆驱动 -->
+    <svg width="0" height="0" style="position: absolute">
+      <defs>
+        <filter id="fx-chroma" x="-5%" y="-5%" width="110%" height="110%">
+          <feColorMatrix
+            in="SourceGraphic"
+            type="matrix"
+            values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0"
+            result="r"
+          />
+          <feColorMatrix
+            in="SourceGraphic"
+            type="matrix"
+            values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0"
+            result="g"
+          />
+          <feColorMatrix
+            in="SourceGraphic"
+            type="matrix"
+            values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0"
+            result="b"
+          />
+          <feOffset id="fx-chroma-r" in="r" dx="1" dy="0" result="r2" />
+          <feOffset id="fx-chroma-b" in="b" dx="-1" dy="0" result="b2" />
+          <feBlend in="r2" in2="g" mode="screen" result="rg" />
+          <feBlend in="rg" in2="b2" mode="screen" />
+        </filter>
+      </defs>
+    </svg>
     <div id="bg-scene"></div>
     <div id="stage">
       <!-- ================= 左：日历 + 资源 + 队伍 ================= -->
@@ -2555,7 +2711,14 @@
               </div>
               <div class="glitch" data-glitch="LOADING">LOADING</div>
             </div>
+            <div id="fx-bloom" class="fx-layer">
+              <img src="./pl012-gameview-sample.png" alt="" />
+            </div>
+            <div id="fx-noise"></div>
             <div id="scanlines"></div>
+            <div id="fx-mask"></div>
+            <div id="fx-vig"></div>
+            <div id="fx-flicker"></div>
             <div id="screen-glass"></div>
           </div>
           <div id="bezel-bar">
@@ -2771,6 +2934,16 @@
                 ><span class="lab">扫描线</span></span
               >
               <span class="set-desc">叠加显像管扫描线纹理</span>
+              <input
+                type="range"
+                class="fx-range"
+                id="range-scanp"
+                min="2"
+                max="6"
+                step="0.5"
+                value="3"
+              />
+              <span class="fx-val" id="val-scanp">3px</span>
             </div>
             <div class="set-row">
               <span class="switch" id="set-curve"
@@ -2780,6 +2953,120 @@
                 ><span class="lab">弧面反光</span></span
               >
               <span class="set-desc">玻璃弧面高光与暗角</span>
+            </div>
+            <div class="set-row">
+              <span class="switch" id="set-vig"
+                ><span class="track"
+                  ><span class="left">off</span
+                  ><span class="right">on</span></span
+                ><span class="lab">暗角</span></span
+              >
+              <input
+                type="range"
+                class="fx-range"
+                id="range-vig"
+                min="0"
+                max="100"
+                step="1"
+                value="45"
+                disabled
+              />
+              <span class="fx-val" id="val-vig">45</span>
+            </div>
+            <div class="set-row">
+              <span class="switch" id="set-mask"
+                ><span class="track"
+                  ><span class="left">off</span
+                  ><span class="right">on</span></span
+                ><span class="lab">荫罩</span></span
+              >
+              <input
+                type="range"
+                class="fx-range"
+                id="range-mask"
+                min="2"
+                max="8"
+                step="0.5"
+                value="4"
+                disabled
+              />
+              <span class="fx-val" id="val-mask">4px</span>
+            </div>
+            <div class="set-row">
+              <span class="switch" id="set-noise"
+                ><span class="track"
+                  ><span class="left">off</span
+                  ><span class="right">on</span></span
+                ><span class="lab">噪点</span></span
+              >
+              <input
+                type="range"
+                class="fx-range"
+                id="range-noise"
+                min="0"
+                max="100"
+                step="1"
+                value="18"
+                disabled
+              />
+              <span class="fx-val" id="val-noise">18</span>
+            </div>
+            <div class="set-row">
+              <span class="switch" id="set-flicker"
+                ><span class="track"
+                  ><span class="left">off</span
+                  ><span class="right">on</span></span
+                ><span class="lab">闪烁</span></span
+              >
+              <input
+                type="range"
+                class="fx-range"
+                id="range-flicker"
+                min="0"
+                max="100"
+                step="1"
+                value="35"
+                disabled
+              />
+              <span class="fx-val" id="val-flicker">35</span>
+            </div>
+            <div class="set-row">
+              <span class="switch" id="set-chroma"
+                ><span class="track"
+                  ><span class="left">off</span
+                  ><span class="right">on</span></span
+                ><span class="lab">色偏</span></span
+              >
+              <input
+                type="range"
+                class="fx-range"
+                id="range-chroma"
+                min="0"
+                max="6"
+                step="0.5"
+                value="1"
+                disabled
+              />
+              <span class="fx-val" id="val-chroma">1px</span>
+            </div>
+            <div class="set-row">
+              <span class="switch" id="set-bloom"
+                ><span class="track"
+                  ><span class="left">off</span
+                  ><span class="right">on</span></span
+                ><span class="lab">泛光</span></span
+              >
+              <input
+                type="range"
+                class="fx-range"
+                id="range-bloom"
+                min="0"
+                max="100"
+                step="1"
+                value="35"
+                disabled
+              />
+              <span class="fx-val" id="val-bloom">35</span>
             </div>
             <div class="set-block">
               <div class="set-block-title">
@@ -3725,6 +4012,102 @@
         const el = document.getElementById("loading-screen");
         el.classList.add("show");
         setTimeout(() => el.classList.remove("show"), 2000);
+      }
+
+      /* ================= CRT 新效果：开关 + 滑杆（状态真源 = body class + CSS 变量，默认全关） ================= */
+      const FXS = {
+        vig: {
+          cls: "vig-on",
+          range: "range-vig",
+          val: "val-vig",
+          cssVar: "--fx-vig-a",
+          map: (v) => (v / 100) * 0.9,
+          fmt: (v) => v,
+        },
+        mask: {
+          cls: "mask-on",
+          range: "range-mask",
+          val: "val-mask",
+          cssVar: "--fx-mask-p",
+          map: (v) => v + "px",
+          fmt: (v) => v + "px",
+        },
+        noise: {
+          cls: "noise-on",
+          range: "range-noise",
+          val: "val-noise",
+          cssVar: "--fx-noise-a",
+          map: (v) => (v / 100) * 0.55,
+          fmt: (v) => v,
+        },
+        flicker: {
+          cls: "flicker-on",
+          range: "range-flicker",
+          val: "val-flicker",
+          cssVar: "--fx-flicker-a",
+          map: (v) => (v / 100) * 0.15,
+          fmt: (v) => v,
+        },
+        chroma: {
+          cls: "chroma-on",
+          range: "range-chroma",
+          val: "val-chroma",
+          map: (v) => {
+            document.getElementById("fx-chroma-r").setAttribute("dx", v);
+            document.getElementById("fx-chroma-b").setAttribute("dx", -v);
+          },
+          fmt: (v) => v + "px",
+        },
+        bloom: {
+          cls: "bloom-on",
+          range: "range-bloom",
+          val: "val-bloom",
+          cssVar: "--fx-bloom-o",
+          map: (v) => v / 100,
+          fmt: (v) => v,
+        },
+      };
+      for (const [key, fx] of Object.entries(FXS)) {
+        const sw = document.getElementById("set-" + key);
+        const range = document.getElementById(fx.range);
+        const sync = () => {
+          range.disabled = !sw.classList.contains("on");
+        };
+        sw.onclick = () => {
+          const on = !sw.classList.contains("on");
+          sw.classList.toggle("on", on);
+          document.body.classList.toggle(fx.cls, on);
+          sync();
+        };
+        range.oninput = () => {
+          const v = Number(range.value);
+          if (fx.cssVar) document.body.style.setProperty(fx.cssVar, fx.map(v));
+          else fx.map(v);
+          document.getElementById(fx.val).textContent = fx.fmt(v);
+        };
+        /* 初始：开关全关；滑杆预置试验台标准档数值，开即见标准强度 */
+        if (fx.cssVar)
+          document.body.style.setProperty(
+            fx.cssVar,
+            fx.map(Number(range.value)),
+          );
+        else fx.map(Number(range.value));
+        document.getElementById(fx.val).textContent = fx.fmt(
+          Number(range.value),
+        );
+        sync();
+      }
+      /* 扫描线间距滑杆（参数化，默认 3px 与原观感一致） */
+      {
+        const rangeScanp = document.getElementById("range-scanp");
+        const valScanp = document.getElementById("val-scanp");
+        rangeScanp.oninput = () => {
+          document.body.style.setProperty(
+            "--fx-scan-p",
+            rangeScanp.value + "px",
+          );
+          valScanp.textContent = rangeScanp.value + "px";
+        };
       }
 
       /* ================= 浮窗：魔法书 / 注音表 / 使用说明 / 基本设置 ================= */

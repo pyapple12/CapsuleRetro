@@ -1,4 +1,6 @@
-# PL012 · 游玩界面实验场 交接文档
+# PL013 · 游玩界面实验场 交接文档
+
+（文档文件名沿用 PL012-game-ui-handoff.md；所属任务组 2026-10-06 改号为 PL013 游玩 UI 重构，其号让位给实验场收口三件 = PL012。）
 
 - 产物：`assets/design/pl012-游玩界面实验场.html`（自包含单文件，浏览器直开）
 - 素材：`assets/design/pl012-gameview-sample.png`（CRT 屏内实机画面占位）
@@ -9,7 +11,7 @@
 
 ## 一、实验过程简述
 
-PL012 目标 = 重构游戏运行时 UI：中央为 CRT 显示器包裹的游戏画面，左侧日历 + 队伍面板，右侧地图 + 任务面板。全程以单文件 HTML 实验场迭代（静态假数据，浏览器直开），用户逐轮目测提意见、当日收敛，共四轮大版本：
+PL013 目标 = 重构游戏运行时 UI：中央为 CRT 显示器包裹的游戏画面，左侧日历 + 队伍面板，右侧地图 + 任务面板。全程以单文件 HTML 实验场迭代（静态假数据，浏览器直开），用户逐轮目测提意见、当日收敛，共四轮大版本：
 
 1. **v1–v2 布局与部件**：三栏骨架（左信息 / 中 CRT / 右地图+攻略）；CRT 塑料壳 + 电源灯 + 旋钮 + 品牌；下方控制条三开关（电源 / 扫描线 / 弧面反光）；队伍 6 槽（真头像 + HP 四色 + MP 恒蓝 + 空槽占位）；日历（魔年 + 第 N 天/100 + 十天一周 + ☀️/🌙 昼夜）；资源卡（金币 / 宝石 / 食物≈天数）；任务卡（链清单 + 最近事件）。
 2. **v3 尺寸与结构定稿**：舞台固定 1850×1000；面板高 1000；屏幕改直角；字号整体放大 25% 后回调为 +10%（累计 ≈ ×1.375）；滑杆替换按钮；图钉移到人名前。
@@ -79,7 +81,8 @@ PL012 目标 = 重构游戏运行时 UI：中央为 CRT 显示器包裹的游戏
 
 1. **左栏底部操作栏**（✅ 已实装 2026-09-15）：队伍卡下方新增一行高操作栏——三个文字按钮 **魔法 / 注音 / 说明**，最右一个**设置齿轮**；点击任意按钮弹出**浮窗**（尺寸恰好盖住 CRT 显示器，JS 实时取 `#monitor` 盒定位），点击浮窗外任意位置关闭；齿轮打开的是**基本设置**浮窗（电源 / 扫描线 / 弧面反光与控制条镜像联动，状态真源 = body class；「背景跟随世界」为待实装占位）。注音数据与 `retro/zhuyin-keyboard.md` 同源；说明浮窗收录第五节归档文案。
 2. **背景图按世界切换**（✅ 已完成 2026-09-16）：新增房间背景图层 `#bg-scene`（fixed、inset -40px 抵消模糊边缘、cover + 暗色晕影压字）。三幅候选：MM4-Clouds（星云界）/ MM5-Darkside（暗黑界）/ xeed16x9（XEEN 主视觉，三图均置于 assets/design）。基本设置浮窗内三图缩略一排 + 图下街机开关（[Nawsome · empty-snail-69](https://uiverse.io/Nawsome/empty-snail-69)，改类名 `.arc-switch` 避让翻牌开关，zoom 0.4）互斥可选、可全关；全关 = 跟随世界（xeen → MM4，dark → MM5，applyMap 时自动切换）。毛玻璃模糊滑杆 0–20px（默认 6px）实时可调。
-3. **CRT 特效调研**（✅ 调研完成 2026-09-16，归属定案：**前端侧，DOSBox 侧弃用**）。定案依据——读 fork 源码证实：帧流捕获点在 `opengl_renderer.cpp EndFrame()` 的 `CapsuleFrame::Capture(last_framebuf)`，即 DOS 输入帧缓冲（着色前、原始分辨率），而 DOSBox Staging 的 `[render] glshader` CRT shader 只作用于自身 OpenGL 窗口的最终绘制——**shader 对帧流完全无效**，且与模拟器静默后台化冲突，弃用。前端侧可选效果：暗角 vignette（radial-gradient 叠层）、RGB 荫罩（repeating-linear-gradient 三色竖条）、噪点（SVG feTurbulence 动画）、闪烁（亮度关键帧）、色偏（hue-rotate / 分层混合）、光晕 bloom 近似（画布副本 blur + screen 混合）；真 bloom / 桶形畸变需 WebGL 单 pass（参考 [crt-fx](https://github.com/stefanlegg/crt-fx)、[crt-royale](https://docs.libretro.com/shader/crt_royale/)），列为后续升级路径。升级路径授权核实（2026-09-16）：**crt-fx = MIT，可直接嵌入**帧流画布（WebGL 纹理逐帧渲染），为首选库；crt-royale = **GPL-2.0+**，闭源发行产品不可搬用其代码（仅作视觉调参参考），且其 libretro 桌面 GLSL 多 pass 管线与浏览器 WebGL 不直接兼容。新增效果待逐项实装后由用户目测定稿。调研来源：[DOSBox Staging Shaders 手册](https://www.dosbox-staging.org/0.83/manual/graphics/rendering/shaders/)、[dosbox-shaders 仓库](https://github.com/dosbox-staging/dosbox-shaders)。
+3. **CRT 特效调研与实装**（✅ 调研完成 2026-09-16，归属定案：**前端侧，DOSBox 侧弃用**；✅ **实装完成 2026-10-06——六效果进实验场基本设置，默认全关，待用户目测定稿默认值**）。定案依据——读 fork 源码证实：帧流捕获点在 `opengl_renderer.cpp EndFrame()` 的 `CapsuleFrame::Capture(last_framebuf)`，即 DOS 输入帧缓冲（着色前、原始分辨率），而 DOSBox Staging 的 `[render] glshader` CRT shader 只作用于自身 OpenGL 窗口的最终绘制——**shader 对帧流完全无效**，且与模拟器静默后台化冲突，弃用（DOSBox 侧 glshader 实机对照验证按用户决定放弃，源码定案维持）。前端侧可选效果：暗角 vignette（radial-gradient 叠层）、RGB 荫罩（repeating-linear-gradient 三色竖条）、噪点（SVG feTurbulence 动画）、闪烁（亮度关键帧）、色偏（hue-rotate / 分层混合）、光晕 bloom 近似（画布副本 blur + screen 混合）；真 bloom / 桶形畸变需 WebGL 单 pass（参考 [crt-fx](https://github.com/stefanlegg/crt-fx)、[crt-royale](https://docs.libretro.com/shader/crt_royale/)），列为后续升级路径。升级路径授权核实（2026-09-16）：**crt-fx = MIT，可直接嵌入**帧流画布（WebGL 纹理逐帧渲染），为首选库；crt-royale = **GPL-2.0+**，闭源发行产品不可搬用其代码（仅作视觉调参参考），且其 libretro 桌面 GLSL 多 pass 管线与浏览器 WebGL 不直接兼容。调研来源：[DOSBox Staging Shaders 手册](https://www.dosbox-staging.org/0.83/manual/graphics/rendering/shaders/)、[dosbox-shaders 仓库](https://github.com/dosbox-staging/dosbox-shaders)。
+   **实装记录（2026-10-06）**：调参试验台 `.temp/crt-playground.html`（四预设 + 按住对比，gitignore 不入库）目测调参后，六效果 + 扫描线间距参数化已实装进实验场「基本设置」浮窗——每行一行内 = 翻牌开关 + 效果名 + 滑杆 + 数值；**默认全关**，滑杆预填试验台标准档（暗角 45 / 荫罩 4px / 噪点 18 / 闪烁 35 / 色偏 1px / 泛光 35，扫描线间距默认 3px），开即见标准强度。状态真源 = body class（`vig-on` / `mask-on` / `noise-on` / `flicker-on` / `chroma-on` / `bloom-on`）+ CSS 变量（`--fx-vig-a` / `--fx-mask-p` / `--fx-noise-a` / `--fx-flicker-a` / `--fx-bloom-o` / `--fx-scan-p`）；层 z 序：泛光 z2（垫 loading z3 之下防开机透出模糊画面）、其余 z4 与扫描线同层按 DOM 序、玻璃 z5 最顶；色偏 = SVG 通道分离滤镜（`feOffset` dx 由滑杆驱动，R 右移 / B 左移）。**待办**：用户目测定稿各项默认值后回填本节并设为实验场默认。
 4. **老板按钮（Boss Key）**：点击后整个界面消失，播放 **omarchy 正在 vibe coding** 的模拟动画（伪装画面）。
 5. **UI 套件调研**（✅ 已完成 2026-09-16）：选定 [uiverse-io/galaxy](https://github.com/uiverse-io/galaxy)（12.1k star，**MIT**）为组件来源，纯 CSS 组件按"摘取 + 换肤"引入，Tailwind 版排除（不为此加依赖），组件头部注释登记来源与改色。已落位六个组件：**① Toggle-switches**（[r7chardgh · dry-rabbit-69](https://uiverse.io/r7chardgh/dry-rabbit-69)）——电源/扫描线/弧面反光与设置浮窗镜像，改色仅文字 off 红 / on 绿；**② Tooltip**（[TanimMahbub · white-fly-43](https://uiverse.io/TanimMahbub/white-fly-43) 改款，黑金配色）——全局 JS 单例 `#js-tip` 挂舞台内随 fitScale 缩放，mouseover 委托、换目标强制重播滑入，气泡距目标 7px、箭头嵌 3px 且经 `--ax/--ay` 指向目标中心、左右按所在框钳制，动效 = 滑入淡入 + 箭头 45°→0° 转正（A 方案）；铺满操作栏四按钮、六个演示按钮与任务链图钉（图钉文案随置顶切换 📌 置顶该链 / 📍 取消置顶）；**③ Checkbox**（[Gautammsharma · massive-rabbit-40](https://uiverse.io/Gautammsharma/massive-rabbit-40)）——任务勾选，打勾绿 #8fc46f，仍走 `.checked` class 与 data-stage 委托点击；**④ Button**（[vinodjangid07 · pink-cheetah-68](https://uiverse.io/vinodjangid07/pink-cheetah-68)）——操作栏三按钮与全部演示按钮，金渐变流光 + 按压缩放，暗色内芯以 z-index:-1 的 ::before 实现（按钮 isolation: isolate）；**⑤ Button 齿轮款**（[TroyRandall · tall-wolverine-43](https://uiverse.io/TroyRandall/tall-wolverine-43)，缩至 32×32）——基本设置，自带滑出式气泡（悬停按钮与气泡同转金渐变）；**⑥ Toggle switch 任务范围**（[santhosh_2608 · itchy-stingray-87](https://uiverse.io/santhosh_2608/itchy-stingray-87)，整体验缩至 0.5）——文字 MAP（当前地图）/ WORLD（同世界全部），checkbox 原生 checked 驱动 `state.view`；**⑦ Loaders 组合**（[BlackisPlay · sweet-frog-67](https://uiverse.io/BlackisPlay/sweet-frog-67) 吃豆人幽灵 + [f754699 · witty-duck-39](https://uiverse.io/f754699/witty-duck-39) LOADING 故障字）——CRT 启动 loading，`#loading-screen` 置于 `#screen-wrap` 内（z-index 3，盖过帧流、垫在扫描线/玻璃下），flex 居中，`.show` 不淡入防闪帧，电源开机触发 2 秒。候选留档：个人卡片式 tooltip（[vikas7754 · evil-mule-52](https://uiverse.io/vikas7754/evil-mule-52)）作队伍成员 hover 角色卡。
 6. **职业徽章**：队伍槽的职业现为纯文字，改为徽章式样（图形 + 底色）提升观感。
@@ -87,4 +90,4 @@ PL012 目标 = 重构游戏运行时 UI：中央为 CRT 显示器包裹的游戏
 
 ---
 
-_交接完毕。实验场继续作为 PL012 的评审媒介使用：改样式 → 刷新目测 → 定稿后按本文档对接 Launcher。_
+_交接完毕。实验场继续作为 PL013 的评审媒介使用：改样式 → 刷新目测 → 定稿后按本文档对接 Launcher。_
