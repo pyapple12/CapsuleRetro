@@ -1432,13 +1432,15 @@
       }
       #facing {
         position: absolute;
-        left: 50%;
-        top: 50%;
+        left: 0;
+        top: 0;
         width: 30px;
         height: 30px;
-        transform: translate(-50%, -50%);
         z-index: 3;
         pointer-events: none;
+        /* 位置由 renderPos 按玩家格坐标设定（在地图层内，随地图一体平移）；
+            transition 与 map-world 同步——走路时箭头与地图一起平滑滑动 */
+        transition: transform 0.16s ease-out;
       }
       #facing .ring {
         position: absolute;
@@ -3307,10 +3309,10 @@
                 alt=""
               />
               <div class="grid-overlay"></div>
-            </div>
-            <div id="facing">
-              <span class="ring"></span
-              ><span class="arrow" id="ui-arrow"></span>
+              <div id="facing">
+                <span class="ring"></span
+                ><span class="arrow" id="ui-arrow"></span>
+              </div>
             </div>
           </div>
           <div id="map-meta">
@@ -3443,7 +3445,7 @@
             <ul class="help-sec">
               <li>移动：W / A / S / D 或方向键；转向：Q（左）/ E（右）</li>
               <li>切换地图：数字键 1 – 3</li>
-              <li>小地图上按住中键：朝向持续前进，贴边自动停下</li>
+              <li>小地图上按住中键拖动：地图全向平滑联动，贴边停止</li>
             </ul>
             <h4>任 务</h4>
             <ul class="help-sec">
@@ -4155,6 +4157,7 @@
       const VIEW = 9;
       const TILE_W = 30,
         TILE_H = 24;
+      const TEST_OFFSET_X = -5; /* 实测定格：地图整体左移 5px 对齐箭头（renderPos 与拖拽归一共用） */
       const FACE_NAME = { n: "北", e: "东", s: "南", w: "西" };
       const FACE_ROT = { n: 0, e: 90, s: 180, w: 270 };
       const FACE_VEC = { n: [0, -1], e: [1, 0], s: [0, 1], w: [-1, 0] };
@@ -4272,6 +4275,7 @@
       const mapImg = document.getElementById("map-img");
       const mapWorld = document.getElementById("map-world");
       const arrow = document.getElementById("ui-arrow");
+      const facing = document.getElementById("facing");
 
       function applyMap() {
         const m = MAPS[state.map];
@@ -4286,6 +4290,8 @@
         mapImg.style.height = m.cells[1] * TILE_H + "px";
         mapWorld.style.width = m.cells[0] * TILE_W + "px";
         mapWorld.style.height = m.cells[1] * TILE_H + "px";
+        /* 切图 = 换了一张地图，查看偏移作废（新图重新居中到玩家） */
+        dragOffset = { x: 0, y: 0, x0: 0, y0: 0 };
         renderPos();
       }
       function renderPos() {
@@ -4294,15 +4300,26 @@
           vh = VIEW * TILE_H;
         const iw = m.cells[0] * TILE_W,
           ih = m.cells[1] * TILE_H;
-        const TEST_OFFSET_X = -5; /* 实测定格：地图整体左移 5px 对齐箭头 */
+        /* translate = 玩家居中定位 + 查看偏移 + 对齐微调，三者之和整体钳制——
+            任意方向拖到地图边缘即停，永远不会拖出边界露黑底 */
         const tx =
-          Math.max(vw - iw, Math.min(0, vw / 2 - (state.x + 0.5) * TILE_W)) +
-          TEST_OFFSET_X;
+          Math.max(
+            vw - iw,
+            Math.min(
+              0,
+              vw / 2 - (state.x + 0.5) * TILE_W + dragOffset.x + TEST_OFFSET_X,
+            ),
+          );
         const ty = Math.max(
           vh - ih,
-          Math.min(0, vh / 2 - (state.y + 0.5) * TILE_H),
+          Math.min(0, vh / 2 - (state.y + 0.5) * TILE_H + dragOffset.y),
         );
         mapWorld.style.transform = `translate(${tx}px, ${ty}px)`;
+        /* 箭头画在地图层内玩家所在格的中心：拖拽时随地图一体平移（可出画），
+            走路时坐标变 → 箭头在地图上挪到新格子；translate(-50%,-50%) 自居中 */
+        facing.style.transform = `translate(${(state.x + 0.5) * TILE_W}px, ${
+          (state.y + 0.5) * TILE_H
+        }px) translate(-50%, -50%)`;
         arrow.style.transform = `rotate(${FACE_ROT[state.facing]}deg)`;
         document.getElementById("ui-pos").textContent =
           `${state.x}, ${state.y}`;
@@ -4321,6 +4338,8 @@
         else if (dy > 0) state.facing = "s";
         else if (dx < 0) state.facing = "w";
         else if (dx > 0) state.facing = "e";
+        /* 玩家动了 = 查看偏移作废，视图重新居中到玩家（拖拽偏移是看图行为，不跟走路） */
+        dragOffset = { x: 0, y: 0, x0: 0, y0: 0 };
         renderPos();
       }
       function turn(dir) {
@@ -4547,28 +4566,44 @@
         }
       });
 
-      /* ================= 中键按住 = 朝向持续移动 ================= */
-      let autoTimer = null;
-      function startAuto() {
-        if (autoTimer) return;
-        autoTimer = setInterval(() => {
-          const [dx, dy] = FACE_VEC[state.facing];
-          move(dx, dy);
-        }, 200);
-      }
-      function stopAuto() {
-        clearInterval(autoTimer);
-        autoTimer = null;
-      }
+      /* ================= 中键拖拽 = 拖动地图查看，箭头画在地图上随图联动（PL015） =================
+         箭头（#facing）在地图层内按玩家格坐标绘制，是地图的一部分——拖拽时随地图
+         一体平移（可拖出窗口外），玩家坐标不读新值箭头就不在地图上产生位移；
+         state 全程不参与拖拽；松手保留查看位置；走路/切图时偏移清零重新居中；
+         钳制对偏移后整体生效，拖到地图边缘即停 */
+      let dragStartPx = null; /* 拖拽起点像素 { x, y } */
+      let dragOffset = { x: 0, y: 0, x0: 0, y0: 0 }; /* 地图平移偏移（像素），x/y 当前、x0/y0 松手时落基线 */
       const mm = document.getElementById("minimap");
       mm.addEventListener("mousedown", (e) => {
-        if (e.button === 1) {
+        if (e.button === 1 && dragStartPx === null) {
           e.preventDefault();
-          startAuto();
+          dragStartPx = { x: e.clientX, y: e.clientY };
+          mapWorld.style.transition = "none"; /* 拖拽中关过渡防发黏 */
         }
       });
-      addEventListener("mouseup", stopAuto);
-      mm.addEventListener("mouseleave", stopAuto);
+      addEventListener("mousemove", (e) => {
+        if (dragStartPx === null) return;
+        dragOffset.x = dragOffset.x0 + (e.clientX - dragStartPx.x);
+        dragOffset.y = dragOffset.y0 + (e.clientY - dragStartPx.y);
+        renderPos();
+      });
+      addEventListener("mouseup", (e) => {
+        if (e.button !== 1 || dragStartPx === null) return;
+        dragStartPx = null;
+        /* 偏移归一到合法区间（钳制后的有效值）：拖过头的那段不计入基线，
+            下一段拖拽不会出现"先拉回死区再动"的黏滞（含对齐微调，口径同 renderPos） */
+        const m = MAPS[state.map];
+        const vw = VIEW * TILE_W,
+          vh = VIEW * TILE_H;
+        const baseX =
+          vw / 2 - (state.x + 0.5) * TILE_W + TEST_OFFSET_X;
+        const baseY = vh / 2 - (state.y + 0.5) * TILE_H;
+        dragOffset.x = Math.max(vw - m.cells[0] * TILE_W, Math.min(0, baseX + dragOffset.x)) - baseX;
+        dragOffset.y = Math.max(vh - m.cells[1] * TILE_H, Math.min(0, baseY + dragOffset.y)) - baseY;
+        dragOffset.x0 = dragOffset.x;
+        dragOffset.y0 = dragOffset.y;
+        mapWorld.style.transition = "transform 0.12s ease-out";
+      });
 
       /* ================= 键盘：移动/转向/切图 ================= */
       addEventListener("keydown", (e) => {
