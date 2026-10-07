@@ -2,7 +2,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <title>PL012 游玩界面实验场 v4</title>
+    <title>游玩界面实验场 v4</title>
     <style>
       /* ============ 房间与舞台（1080P · 1820 宽） ============ */
       * {
@@ -1434,11 +1434,12 @@
         position: absolute;
         left: 0;
         top: 0;
-        width: 30px;
-        height: 30px;
+        width: 24px;
+        height: 24px;
         z-index: 3;
         pointer-events: none;
         /* 位置由 renderPos 按玩家格坐标设定（在地图层内，随地图一体平移）；
+            24×24 恰为格子纵向满高、横向居中留边（格 30×24 原生 10×8×3）；
             transition 与 map-world 同步——走路时箭头与地图一起平滑滑动 */
         transition: transform 0.16s ease-out;
       }
@@ -3212,7 +3213,7 @@
         <div id="monitor">
           <div id="screen-wrap">
             <div id="game-view">
-              <img src="./pl012-gameview-sample.png" alt="游戏实机画面" />
+              <img src="./gameview-sample.png" alt="游戏实机画面" />
             </div>
             <!-- ================= 启动 loading：幽灵在上 + 故障字在下，屏内居中 ================= -->
             <div id="loading-screen">
@@ -3257,7 +3258,7 @@
               <div class="glitch" data-glitch="LOADING">LOADING</div>
             </div>
             <div id="fx-bloom" class="fx-layer">
-              <img src="./pl012-gameview-sample.png" alt="" />
+              <img src="./gameview-sample.png" alt="" />
             </div>
             <div id="fx-noise"></div>
             <div id="scanlines"></div>
@@ -4315,10 +4316,11 @@
           Math.min(0, vh / 2 - (state.y + 0.5) * TILE_H + dragOffset.y),
         );
         mapWorld.style.transform = `translate(${tx}px, ${ty}px)`;
-        /* 箭头画在地图层内玩家所在格的中心：拖拽时随地图一体平移（可出画），
-            走路时坐标变 → 箭头在地图上挪到新格子；translate(-50%,-50%) 自居中 */
-        facing.style.transform = `translate(${(state.x + 0.5) * TILE_W}px, ${
-          (state.y + 0.5) * TILE_H
+        /* 箭头画在地图层内、锚定玩家格的右下角交叉点（格心 + 半格右/下）：
+            拖拽时随地图一体平移（可出画），走路时坐标变 → 箭头挪到新交叉点；
+            translate(-50%,-50%) 自居中 */
+        facing.style.transform = `translate(${(state.x + 1.0) * TILE_W}px, ${
+          (state.y + 1.0) * TILE_H
         }px) translate(-50%, -50%)`;
         arrow.style.transform = `rotate(${FACE_ROT[state.facing]}deg)`;
         document.getElementById("ui-pos").textContent =

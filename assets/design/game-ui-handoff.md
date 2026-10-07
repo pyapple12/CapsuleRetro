@@ -1,9 +1,9 @@
 # PL016 · 游玩界面实验场 交接文档
 
-（文档文件名沿用 PL012-game-ui-handoff.md；所属任务组改号史：2026-10-06 改号 PL013，2026-10-07 让位金框按钮动效顺延 PL014、职业徽章拆出独立立项 PL014，2026-10-08 让位小地图拖拽改号 PL015、本组顺延为 PL016 游玩 UI 重构。）
+（文档原名 PL012-game-ui-handoff.md，2026-10-08 更名 game-ui-handoff.md 去任务号前缀；所属任务组改号史：2026-10-06 改号 PL013，2026-10-07 让位金框按钮动效顺延 PL014、职业徽章拆出独立立项 PL014，2026-10-08 让位小地图拖拽改号 PL015、本组顺延为 PL016 游玩 UI 重构。）
 
-- 产物：`assets/design/pl012-游玩界面实验场.html`（自包含单文件，浏览器直开）
-- 素材：`assets/design/pl012-gameview-sample.png`（CRT 屏内实机画面占位）
+- 产物：`assets/design/游玩界面实验场.html`（自包含单文件，浏览器直开）
+- 素材：`assets/design/gameview-sample.png`（CRT 屏内实机画面占位）
 - 设计基准：1920×1080（内容 1850×1000，上下左右对称留白）
 - 规则档案：`retro/map-atlas.md`（渲染/坐标/历法依据）· `retro/memory_map.json`（内存寄存器）
 
@@ -65,7 +65,7 @@ PL016 目标 = 重构游戏运行时 UI：中央为 CRT 显示器包裹的游戏
 | 小地图               | `retro/artwork/maps/*-city.png / cloudNNN.png`    | index.json `city_maps`（城内连续坐标换算）          |
 | 坐标 / 朝向          | `state.x/y/facing`                                | 寄存器 `pos_x/pos_y/dir`（HUD 五要素同源）          |
 | 任务链               | `CHAINS[]`（npc/x/y/title/info/seq/world）        | 攻略 MD 结构化（待做）                              |
-| CRT 屏画面           | `pl012-gameview-sample.png` 占位                  | GameCanvas 帧流                                     |
+| CRT 屏画面           | `gameview-sample.png` 占位                        | GameCanvas 帧流                                     |
 
 ## 五、已移除文案归档（按分类）
 
