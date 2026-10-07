@@ -465,20 +465,20 @@
 - [x] FIX004.13 [P3] ensure_safe_rel 第四份同语义实现（跨 crate 决策）—— 做法：二选一：①capsule-core validate_rel_path 升 pub（含反斜杠拒绝语义），capsule-pack lib.rs ensure_safe_rel（:241-255）改调用 + map_err，use 上移；②维持两份但对齐反斜杠语义 + use 上移（packer 侧补 `contains('\\')` 拒绝——game.json 现值全正斜杠已核安全）；**修复前需用户定夺方案**；验证：pack_test 既有 zip slip 用例回归 + 新增反斜杠拒绝用例（若①则 grep 确认 packer 无重复校验体）（2026-10-06 已修（用户定案**方案①**）：validate_rel_path 升 pub、ensure_safe_rel 改调用（fn 内 use 随校验体消失）、错误文案补反斜杠说明；新增 `game_dir反斜杠拒绝` 用例过 + 既有 `game_dir越界拒绝` 回归过 + grep 确认 packer 无 Component::Normal 校验体残留——全仓 zip slip 写侧闸门真正单份）
 - [x] FIX004.14 [P3] 验证收尾 —— 做法：全量门禁（cargo fmt --check + clippy -D warnings + cargo test --workspace + npm run build + cargo doc）+ maptool 回归（all 产物 hash 对照）+ x.progress 本组勾结上移 + z.plan 附录 A004 状态改 ✅；验证：门禁全绿 + 修复证据落 .temp/fix004-verification.md（2026-10-06 已验证：fmt/clippy/doc + cargo test --workspace 19 套全绿（capsule-pack 新增反斜杠用例、launcher lib 13 项、capsule-core 22 项）+ npm run build 过 + maptool all 706 产物 hash 对照（仅 index.json 因 FIX004.28 移除日期与 FIX003 基线不同、零单侧差异）+ 双探针（缺 F 列 ValueError、decode_name 行为不变）；A004 状态已改 ✅）
 
-## 未完成
-
-### PL012: 老板键——CSS omarchy 真机演示 [plan#PL012]（2026-10-06 立项，待实施；单独功能任务组，方案见 z.plan 附录 PL012）
+### PL012: 老板键——CSS omarchy 真机演示 [plan#PL012]（✅ 2026-10-07 收口，8/8；两轮探针取色规格 + 实验场全链路实装 + 浏览器自查零报错 + 用户判收；色板/规格表见 `.temp/pl012-spec.md`，机制待 Launcher 对接期平移）
 
 > 用户定案三要素：参考图 `assets/design/omarchy.png`（2560×1707 官方截图）像素级对色还原、触发热键 **Ctrl+F10**（切入/切出同一热键，点击桌面亦可退出）、代码窗口放真项目 Rust 源码。实施载体 = 实验场全屏 overlay；机制可原样平移 Launcher（Tauri WebView 同款 JS 热键）。职业徽章与小地图拖拽已移入 PL013.5/.6（2026-10-06）。
 
-- [ ] PL012.1 参考图取色与规格提取 —— 做法：以脚本（写 `.temp/`）对 omarchy.png 取色——壁纸底/强调、waybar 底、窗口底、活动边框 accent、文字主/次五组色；量布局规格——waybar 高度、工作区区块形状、窗口间隙 px、窗口圆角、标题栏高、三窗平铺比例与朝向，产出「色板 + 规格表」；验证：色板与参考图对应区块并排目测、规格表对照截图二次实测无出入
-- [ ] PL012.2 全屏 overlay 骨架与 Ctrl+F10 切换 —— 做法：实验场插入 `#boss-screen` 全屏 overlay（position:fixed、z 最高、display:none ↔ block、**无 transition 即时切**）；window keydown 监听 Ctrl+F10（preventDefault 拦截浏览器默认）切换显隐，overlay 桌面空白处点击同样退出；验证：Ctrl+F10 双向即时切换零残留、点击退出生效、游戏会话运行中切换亦正常、console 零报错
-- [ ] PL012.3 壁纸与 waybar 顶栏 —— 做法：壁纸 = 按提取色构建的深色 CSS 渐变（不用图片素材防露馅）；waybar 按参考图布局：左侧工作区编号块 1–9（当前高亮）、中央 JS Date 真实时钟（HH:MM:SS，setInterval 1s 走字）、右侧托盘图标（网络/音量/电池，unicode + CSS 绘制）；验证：时钟每秒真实走字、waybar 布局与配色对照参考图目测
-- [ ] PL012.4 Hyprland 平铺窗口框架 —— 做法：窗口容器按提取规格（窗口底色、边框、圆角、间隙）三窗平铺摆放、活动窗口亮 accent 边框（模拟焦点常驻）；验证：平铺布局对照参考图目测（间隙/圆角/边框厚度）
-- [ ] PL012.5 fastfetch 系统信息窗 —— 做法：pre 等宽 ASCII logo（Arch 模板）+ 信息行（OS: Arch Linux x86_64 / WM: Hyprland / Theme: omarchy / Shell / CPU / GPU / Memory；CPU 与 Memory 可由 JS navigator 读真值填入增加真实感）；验证：等宽对齐目测 + 内容真实感目测
-- [ ] PL012.6 编辑器窗口（真项目源码）—— 做法：nvim 风格状态栏（模式/文件名/行:列）+ 行号栏 + 正文 = launcher/src-tauri/src/commands.rs 真实片段（30–60 行硬编码入 HTML，span 手工语法着色：关键字/类型/字符串/注释/函数）；验证：代码与仓库源码抽查一致（确为真代码）+ 着色目测
-- [ ] PL012.7 cargo build 日志滚动流 —— 做法：日志行（Compiling CapsuleRetro… / Finished release 等真实 crate 名序列）JS 定时器逐行追加、尾部光标块闪烁、容器自动滚底；DOM 节点数封顶循环重放防膨胀；验证：连续目测 1 分钟以上流式动画不卡顿 + 光标闪烁目测
-- [ ] PL012.8 收口定稿 —— 做法：用户对全部效果目测判收（Ctrl+F10 切换 / 时钟 / 动画 / 源码窗）+ 交接文档第六节老板按钮项打勾 + z.plan 附录 PL012 状态改 ✅ + 本组勾结上移；验证：用户判收 + 文档同步
+- [x] PL012.1 参考图取色与规格提取 ——（2026-10-07 ✓）探针两轮（`.temp/pl012-color-probe*.py`）+ 8x 放大裁片目测：色板九色（壁纸基 #181824＝waybar 底、窗口底 #232638、活动边框 #c1caee、非活动边框 #3e3e44、文字主 #c8cef4、次 #8289a2、琥珀 #d6c191、光柱 #daacec、水印 #3b3a53）+ 规格表（三窗 50/50 平铺 1255/804/805/1626、缝 16-17px、边框 3px、圆角≈0、无标题栏、waybar 高≈48 且与壁纸同色）；核算等式全对上，交付 `.temp/pl012-spec.md`；验证：扫描线剖面二次实测与规格表无出入 ✓
+- [x] PL012.2 全屏 overlay 骨架与 Ctrl+F10 切换 ——（2026-10-07 ✓）`#boss-screen` fixed inset 0 z 9999、body.boss-on display 翻转零过渡；Ctrl+F10 preventDefault 切入/切出；点击壁纸/栅格缝退出、窗口与顶栏内点击不退出；验证：合成热键双向切换 display none↔block 零残留（切出后舞台完整可见）、壁纸点击退出 ✓、窗内/顶栏点击不退 ✓、一轮完整交互 error+unhandledrejection 收集器零报错 ✓；同日按用户要求在操作栏追加「老板」按钮（说明旁、金框同款样式，点击 = 热键同款切换逻辑；浏览器点击切入/点桌面切出验证 ✓）
+- [x] PL012.3 壁纸与 waybar 顶栏 ——（2026-10-07 ✓）壁纸纯 CSS：基色渐变＋水印软斑＋三颗烟圈＋中央光柱 #daacec（恰落左右窗缝）；waybar 与壁纸同色：左圆角方块图标＋工作区 1–9（1 高亮）、中央真时钟（英文星期＋HH:MM:SS setInterval 1s）、右托盘 ᛒ/WiFi/音量/CPU/表盘/电池+闪电（unicode+CSS 绘制）；验证：时钟读数 16:06:24→16:06:25 真实走字 ✓、布局配色对照参考图目测一致 ✓
+- [x] PL012.4 Hyprland 平铺窗口框架 ——（2026-10-07 ✓）grid 两列 1fr、左列两行 1fr、右窗 row span 2，缝 10px/边框 2px/圆角 2px（规格折算）；编辑器窗标 active 呼应参考图活动位；验证：全屏截图与参考图对照——三窗比例、间隙、边框厚度、活动窗亮框一致 ✓
+- [x] PL012.5 fastfetch 系统信息窗 ——（2026-10-07 ✓）pre 等宽 Arch ASCII logo（蓝）+ 15 行信息（OS/Kernel/Uptime/Packages/Shell/WM/Theme/Terminal/CPU/GPU/Memory+双行调色板）；真值注入：CPU 线程数 navigator.hardwareConcurrency、内存 navigator.deviceMemory、uptime 由 performance.timeOrigin 起算；验证：logo 与信息列等宽对齐目测 ✓、真值读数正确 ✓
+- [x] PL012.6 编辑器窗口（真项目源码）——（2026-10-07 ✓）nvim 状态栏（NORMAL 蓝 pill/文件名/utf-8·lf/652,1/Rust）+ 行号栏 652–681 + 正文 = `launcher/src-tauri/src/commands.rs` 652–681 行 `stop_game` 函数整 30 行（七类 span 着色：关键字/函数/类型/字符串/注释/宏/类型）；验证：逐行对照仓库源码一致 ✓、着色目测 ✓
+- [x] PL012.7 cargo build 日志滚动流 ——（2026-10-07 ✓）真实 crate 序列（serde/serde_json/thiserror/anyhow/zip/clap/tauri/wry/tao + 本仓三 crate 带仓库路径，路径依赖形态与 cargo 实际输出一致）逐行追加（260–680ms 随机间隔）、尾部光标块 steps 闪烁、自动滚底、DOM 封顶 220 行；验证：16:05:41→16:06:24 跨 43s 连续运行经一轮 Finished 后清空重放至 15 行不卡顿 ✓、光标闪烁目测 ✓
+- [x] PL012.8 收口定稿 ——（2026-10-07 ✓）用户目测判收（确认按键与效果并授权收口）+ 交接文档第六节第 4 项老板按钮打勾 + z.plan 附录 PL012 状态改 ✅ + 本组勾结上移已完成区；验证：三处文档同步一致 ✓
+
+## 未完成
 
 ### PL013: 游玩 UI 重构 [plan#PL013]（2026-09-13 立项登记；2026-09-15 起实验场阶段实施中；消费 PL010 底图 + PL011 位置数据。2026-10-06 改号：原 PL012，其号让位给实验场收口三件 = 现 PL012）
 

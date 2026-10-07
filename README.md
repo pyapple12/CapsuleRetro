@@ -1,6 +1,6 @@
 # CapsuleRetro —— 老 DOS 游戏的现代包装系统
 
-[![Version](https://img.shields.io/badge/Version-0.1.0.25-blue.svg)](Cargo.toml)
+[![Version](https://img.shields.io/badge/Version-0.1.0.26-blue.svg)](Cargo.toml)
 [![Rust](https://img.shields.io/badge/Rust-1.96-orange.svg)](https://www.rust-lang.org)
 [![Phase](https://img.shields.io/badge/Phase-PL006%E2%80%93PL011%E5%AE%8C%E6%88%90-brightgreen.svg)](z.plan.md)
 

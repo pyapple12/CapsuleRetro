@@ -2567,6 +2567,379 @@
           opacity: 1;
         }
       }
+
+      /* ============ PL012 老板键：omarchy 桌面 CSS 复刻（色板/规格见 .temp/pl012-spec.md） ============ */
+      /* 灵魂是"即时切"：零过渡零动画，display 翻转即进出场，Ctrl+F10 触发 */
+      #boss-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: none;
+        background: #181824;
+        color: #c8cef4;
+        font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+        cursor: default;
+        user-select: none;
+      }
+      body.boss-on #boss-screen {
+        display: block;
+      }
+      /* 壁纸层：基色渐变 + 水印软斑 + 烟圈，纯 CSS 不用图片素材（防露馅） */
+      #boss-wall {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(1300px 900px at 52% 45%, #1d1c2c, #181824 78%);
+        overflow: hidden;
+      }
+      #boss-wall::before {
+        /* 托托罗水印体：中央一团更亮些的软斑（参考 #3b3a53） */
+        content: "";
+        position: absolute;
+        left: 48%;
+        top: 36%;
+        width: 920px;
+        height: 740px;
+        transform: translateX(-50%);
+        background: radial-gradient(
+          50% 50% at 50% 50%,
+          rgba(59, 58, 83, 0.55),
+          rgba(59, 58, 83, 0) 72%
+        );
+      }
+      #boss-wall::after {
+        /* 烟圈三颗：参考图左中部的气泡位置 */
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(circle 30px at 39% 37%, rgba(59, 58, 83, 0.9) 97%, transparent),
+          radial-gradient(circle 18px at 42% 41%, rgba(59, 58, 83, 0.75) 97%, transparent),
+          radial-gradient(circle 44px at 36.5% 43%, rgba(59, 58, 83, 0.55) 97%, transparent);
+      }
+      #boss-strip {
+        /* 壁纸光柱：参考图中央紫条 #daacec，恰好落进左右窗缝隙 */
+        position: absolute;
+        left: 50%;
+        top: 21%;
+        width: 110px;
+        height: 32%;
+        transform: translateX(-50%);
+        background: linear-gradient(
+          180deg,
+          rgba(218, 172, 236, 0) 0%,
+          #daacec 16%,
+          #c9a0e2 86%,
+          rgba(218, 172, 236, 0) 100%
+        );
+        box-shadow: 0 0 42px 10px rgba(110, 82, 128, 0.55);
+        opacity: 0.92;
+      }
+      /* waybar：与壁纸同色悬浮（参考图 bar 底即壁纸色，无分界） */
+      #boss-bar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        font-size: 13px;
+        color: #c7cbe8;
+      }
+      .bar-appicon {
+        width: 16px;
+        height: 16px;
+        margin-left: 12px;
+        background: #c7cbe8;
+        border-radius: 4px;
+      }
+      .bar-ws {
+        margin-left: 10px;
+        color: #6a6f8e;
+      }
+      .bar-ws.on {
+        color: #eef1fb;
+        font-weight: 700;
+      }
+      .bar-clock {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        color: #c8cef4;
+        font-weight: 600;
+        letter-spacing: 0.4px;
+      }
+      .bar-tray {
+        margin-left: auto;
+        margin-right: 14px;
+        display: flex;
+        align-items: center;
+        gap: 17px;
+      }
+      .bar-tray > * {
+        flex: none;
+      }
+      .ico-bt {
+        font-size: 14px;
+        line-height: 1;
+      }
+      .ico-wifi {
+        width: 15px;
+        height: 11px;
+        background: #c7cbe8;
+        clip-path: polygon(50% 100%, 0 16%, 100% 16%);
+      }
+      .ico-vol {
+        width: 15px;
+        height: 12px;
+        background: #c7cbe8;
+        clip-path: polygon(0 34%, 26% 34%, 62% 4%, 62% 96%, 26% 66%, 0 66%);
+      }
+      .ico-cpu {
+        width: 12px;
+        height: 12px;
+        border: 2px solid #c7cbe8;
+        border-radius: 2px;
+        position: relative;
+      }
+      .ico-cpu::after {
+        content: "";
+        position: absolute;
+        inset: 2px;
+        background: #c7cbe8;
+      }
+      .ico-gauge {
+        width: 13px;
+        height: 13px;
+        border: 2px solid #c7cbe8;
+        border-radius: 50%;
+        position: relative;
+      }
+      .ico-gauge::after {
+        content: "";
+        position: absolute;
+        left: 45%;
+        top: 45%;
+        width: 4px;
+        height: 2px;
+        background: #c7cbe8;
+        transform-origin: 0 50%;
+        transform: rotate(-42deg);
+      }
+      .ico-bat {
+        width: 19px;
+        height: 11px;
+        border: 2px solid #c7cbe8;
+        border-radius: 3px;
+        position: relative;
+        margin-right: 6px;
+      }
+      .ico-bat::before {
+        content: "";
+        position: absolute;
+        inset: 1px 5px 1px 1px;
+        background: #c7cbe8;
+      }
+      .ico-bat::after {
+        content: "";
+        position: absolute;
+        right: -5px;
+        top: 1px;
+        width: 3px;
+        height: 5px;
+        background: #c7cbe8;
+        border-radius: 0 1px 1px 0;
+      }
+      .ico-bolt {
+        width: 7px;
+        height: 13px;
+        margin-left: -17px; /* 叠到电池右侧（充电符号） */
+        background: #c7cbe8;
+        clip-path: polygon(62% 0, 18% 56%, 46% 56%, 38% 100%, 84% 42%, 55% 42%);
+      }
+      /* 三窗平铺：左右 50/50，左列上下 50/50，右窗通高（实测 1255/804/805/1626） */
+      #boss-grid {
+        position: absolute;
+        left: 10px;
+        right: 10px;
+        top: 40px;
+        bottom: 10px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 1fr;
+        gap: 10px;
+      }
+      .boss-win {
+        background: #232638;
+        border: 2px solid #3e3e44;
+        border-radius: 2px;
+        overflow: hidden;
+        min-height: 0;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      .boss-win.active {
+        border-color: #c1caee;
+      }
+      #boss-fastfetch {
+        grid-column: 1;
+        grid-row: 1;
+      }
+      #boss-editor {
+        grid-column: 1;
+        grid-row: 2;
+      }
+      #boss-log {
+        grid-column: 2;
+        grid-row: 1 / 3;
+      }
+      /* 终端正文基底：等宽 + pre 折行禁用 */
+      .boss-term {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+        padding: 14px 20px;
+        font-size: 13px;
+        line-height: 1.5;
+        white-space: pre;
+        text-align: left;
+      }
+      /* fastfetch：logo 蓝 + 标签蓝 + 值白 */
+      #ff-body .ff-logo {
+        color: #6aa8d8;
+      }
+      #ff-body .ff-user {
+        color: #83b6e0;
+        font-weight: 700;
+      }
+      #ff-body .ff-host {
+        color: #9ece6a;
+        font-weight: 700;
+      }
+      #ff-body .ff-lab {
+        color: #83b6e0;
+        font-weight: 700;
+      }
+      #ff-body .ff-dim {
+        color: #8289a2;
+      }
+      /* 编辑器：行号栏 + 代码着色 + nvim 状态栏 */
+      #boss-editor .ed-body {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        overflow: hidden;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .ed-gutter {
+        flex: none;
+        width: 56px;
+        padding: 14px 14px 0 0;
+        text-align: right;
+        color: #565d78;
+        background: rgba(24, 24, 36, 0.45);
+        white-space: pre;
+        user-select: none;
+      }
+      .ed-code {
+        flex: 1;
+        padding: 14px 16px 0;
+        white-space: pre;
+        color: #a9b1d6;
+      }
+      .ed-code .k {
+        color: #bb9af7;
+      } /* 关键字 */
+      .ed-code .f {
+        color: #7aa2f7;
+      } /* 函数/方法 */
+      .ed-code .t {
+        color: #2ac3de;
+      } /* 类型 */
+      .ed-code .s {
+        color: #9ece6a;
+      } /* 字符串 */
+      .ed-code .c {
+        color: #5d678f;
+        font-style: italic;
+      } /* 注释 */
+      .ed-code .m {
+        color: #e0af68;
+      } /* 宏/属性 */
+      .ed-status {
+        flex: none;
+        height: 26px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 12px;
+        font-size: 12px;
+        background: #1b1d2c;
+        border-top: 1px solid #2c2f44;
+        color: #8289a2;
+      }
+      .ed-mode {
+        background: #3968a8;
+        color: #eef1fb;
+        font-weight: 700;
+        padding: 2px 9px;
+        border-radius: 3px;
+      }
+      .ed-file {
+        color: #c1caee;
+      }
+      .ed-status .sp {
+        flex: 1;
+      }
+      /* cargo 日志流 */
+      .log-head {
+        flex: none;
+        padding: 12px 20px 0;
+        font-size: 13px;
+      }
+      .log-head .p {
+        color: #9ece6a;
+      }
+      .log-flow {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+        padding: 8px 20px 12px;
+        font-size: 13px;
+        line-height: 1.5;
+        white-space: pre;
+      }
+      .log-line {
+        width: fit-content;
+      }
+      .log-flow .lv {
+        color: #9ece6a;
+      } /* Compiling/Finished 动词 */
+      .log-flow .lc {
+        color: #c8cef4;
+      } /* crate 名 */
+      .log-flow .lvv {
+        color: #8289a2;
+      } /* 版本等次要 */
+      .log-flow .lp {
+        color: #565d78;
+      } /* 路径括号 */
+      .log-cur {
+        display: inline-block;
+        width: 8px;
+        color: #c8cef4;
+        animation: boss-blink 1.06s steps(2, start) infinite;
+      }
+      @keyframes boss-blink {
+        0% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0;
+        }
+      }
     </style>
   </head>
   <body class="scanlines">
@@ -2656,6 +3029,9 @@
             注音
           </button>
           <button data-modal="help" data-tip="操作与玩法说明">说明</button>
+          <button id="btn-boss" data-tip="启动老板界面（= Ctrl+F10）">
+            老板
+          </button>
           <button id="btn-settings" data-modal="settings" data-tip="基本设置">
             <span class="gear-icon">⚙&#xFE0E;</span>
           </button>
@@ -3103,6 +3479,9 @@
                   <label for="v6" id="l6"></label>
                 </div>
                 <span class="set-block-note">互斥：全关 = 跟随世界</span>
+                <span class="set-block-note"
+                  >老板键：Ctrl+F10 切换 omarchy 桌面（点击桌面空白退出）</span
+                >
               </div>
               <div class="bg-picker">
                 <div class="bg-opt">
@@ -3147,6 +3526,60 @@
               </div>
             </div>
           </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ PL012 老板键：omarchy 桌面复刻（Ctrl+F10 即时切换；色板/规格见 .temp/pl012-spec.md） ============ -->
+    <div id="boss-screen">
+      <div id="boss-wall">
+        <div id="boss-strip"></div>
+      </div>
+      <div id="boss-bar">
+        <span class="bar-appicon"></span>
+        <span class="bar-ws on">1</span>
+        <span class="bar-ws">2</span>
+        <span class="bar-ws">3</span>
+        <span class="bar-ws">4</span>
+        <span class="bar-ws">5</span>
+        <span class="bar-ws">6</span>
+        <span class="bar-ws">7</span>
+        <span class="bar-ws">8</span>
+        <span class="bar-ws">9</span>
+        <div class="bar-clock" id="boss-clock">Wednesday 00:00:00</div>
+        <div class="bar-tray">
+          <span class="ico-bt">ᛒ</span>
+          <span class="ico-wifi"></span>
+          <span class="ico-vol"></span>
+          <span class="ico-cpu"></span>
+          <span class="ico-gauge"></span>
+          <span class="ico-bat"></span><span class="ico-bolt"></span>
+        </div>
+      </div>
+      <div id="boss-grid">
+        <!-- 左上：fastfetch 系统信息（CPU 线程/内存/uptime 由 JS 读真值） -->
+        <div class="boss-win" id="boss-fastfetch">
+          <pre class="boss-term" id="ff-body"></pre>
+        </div>
+        <!-- 左下：nvim 编辑器（活动窗亮边框呼应参考图），正文 = commands.rs 652-681 真源码 -->
+        <div class="boss-win active" id="boss-editor">
+          <div class="ed-body">
+            <div class="ed-gutter" id="ed-gutter"></div>
+            <pre class="ed-code" id="ed-code"></pre>
+          </div>
+          <div class="ed-status">
+            <span class="ed-mode">NORMAL</span>
+            <span class="ed-file">launcher/src-tauri/src/commands.rs</span>
+            <span>utf-8 · lf</span>
+            <span class="sp"></span>
+            <span>652,1</span>
+            <span>Rust</span>
+          </div>
+        </div>
+        <!-- 右：cargo build 日志滚动流（通高，对应参考图 btop 位） -->
+        <div class="boss-win" id="boss-log">
+          <div class="log-head"><span class="p">$</span> cargo build --release</div>
+          <div class="log-flow" id="boss-log-flow"></div>
         </div>
       </div>
     </div>
@@ -4320,6 +4753,229 @@
       refreshSwitchUI();
       applyMap();
       updateOverflow();
+
+      /* ================= PL012 老板键：Ctrl+F10 即时切换 omarchy 桌面 ================= */
+      const bossScreen = document.getElementById("boss-screen");
+      /* Ctrl+F10 切入/切出同一热键；preventDefault 拦截 F10 浏览器默认行为 */
+      window.addEventListener("keydown", (e) => {
+        if (e.ctrlKey && !e.altKey && !e.shiftKey && e.key === "F10") {
+          e.preventDefault();
+          document.body.classList.toggle("boss-on");
+          if (document.body.classList.contains("boss-on")) ensureLogStarted();
+        }
+      });
+      /* 点击桌面空白（壁纸/光柱/栅格缝）退出；窗口与顶栏内点击不退出 */
+      bossScreen.addEventListener("click", (e) => {
+        if (e.target.closest(".boss-win") || e.target.closest("#boss-bar"))
+          return;
+        document.body.classList.remove("boss-on");
+      });
+      /* 操作栏「老板」按钮：与 Ctrl+F10 同一切换逻辑 */
+      document.getElementById("btn-boss").addEventListener("click", () => {
+        document.body.classList.toggle("boss-on");
+        if (document.body.classList.contains("boss-on")) ensureLogStarted();
+      });
+
+      /* ---- waybar 真实时钟：英文星期 + HH:MM:SS，每秒走字 ---- */
+      const bossClock = document.getElementById("boss-clock");
+      const bossPad = (n) => String(n).padStart(2, "0");
+      function tickBossClock() {
+        const d = new Date();
+        const wd = d.toLocaleDateString("en-US", { weekday: "long" });
+        bossClock.textContent = `${wd} ${bossPad(d.getHours())}:${bossPad(
+          d.getMinutes(),
+        )}:${bossPad(d.getSeconds())}`;
+      }
+      tickBossClock();
+      setInterval(tickBossClock, 1000);
+
+      /* ---- fastfetch 系统信息窗：logo 蓝色 Arch ASCII + 信息行（真值注入） ---- */
+      const FF_LOGO = [
+        "                 -`",
+        "                .o+`",
+        "               `ooo/",
+        "              `+oooo:",
+        "             `+oooooo:",
+        "             -+oooooo+:",
+        "           `/:-:++oooo+:",
+        "          `/++++/+++++++:",
+        "         `/++++++++++++++:",
+        "        `/+++ooooooooooooo/`",
+        "       ./ooossssoossssssso+`",
+        "      .oossssso-````/ossssss+`",
+        "     -osssssso.      :sssssssso.",
+        "    :osssssss/        osssssssso.",
+        "   /ossssssss/          ossssso+.",
+        "  `ossssssss/            osssso+++",
+        " /ossssssss/               ossso++",
+        "  `/ossssso+/:-        -:/+osssso+-",
+        " `+sso+:-`                 `.-/+oso:",
+        "`++:.                          `-/+/",
+        ".-`                                 `/",
+      ];
+      const FF_INFO = [
+        '<span class="ff-user">yiyi</span><span class="ff-dim">@</span><span class="ff-host">omarchy</span>',
+        '<span class="ff-dim">-----------------</span>',
+        '<span class="ff-lab">OS</span>: Arch Linux x86_64 <span class="ff-dim">(6.12.7-arch1-1)</span>',
+        '<span class="ff-lab">Kernel</span>: 6.12.7-arch1-1',
+        '<span class="ff-lab">Uptime</span>: <span id="ff-up">0 mins</span>',
+        '<span class="ff-lab">Packages</span>: 1173 <span class="ff-dim">(pacman)</span>',
+        '<span class="ff-lab">Shell</span>: fish 4.0.2',
+        '<span class="ff-lab">WM</span>: Hyprland <span class="ff-dim">(Wayland)</span>',
+        '<span class="ff-lab">Theme</span>: omarchy-dark',
+        '<span class="ff-lab">Terminal</span>: ghostty 1.1',
+        '<span class="ff-lab">CPU</span>: AMD Ryzen AI 9 HX 370 (<span id="ff-cores">16</span>) @ 5.0 GHz',
+        '<span class="ff-lab">GPU</span>: AMD Radeon 890M Graphics',
+        '<span class="ff-lab">Memory</span>: 3.18 GiB / <span id="ff-mem">32 GiB</span> <span class="ff-dim">(10%)</span>',
+        '<span style="color:#494d64">███</span><span style="color:#e78284">███</span><span style="color:#a6d189">███</span><span style="color:#e5c890">███</span><span style="color:#8caaee">███</span><span style="color:#f4b8e4">███</span><span style="color:#85c1dc">███</span><span style="color:#eef1fb">███</span>',
+        '<span style="color:#626880">███</span><span style="color:#ea999c">███</span><span style="color:#b5ca8b">███</span><span style="color:#eebe9d">███</span><span style="color:#93c0ea">███</span><span style="color:#f2c4e6">███</span><span style="color:#a6d8e8">███</span><span style="color:#f2f4fb">███</span>',
+      ];
+      (function initFastfetch() {
+        const rows = [];
+        for (let i = 0; i < Math.max(FF_LOGO.length, FF_INFO.length + 3); i++) {
+          const logo = (i < FF_LOGO.length ? FF_LOGO[i] : "").padEnd(36, " ");
+          const info = i >= 3 && i - 3 < FF_INFO.length ? FF_INFO[i - 3] : "";
+          rows.push(`<span class="ff-logo">${logo}</span>${info}`);
+        }
+        document.getElementById("ff-body").innerHTML = rows.join("\n");
+        /* CPU 线程数 / 内存 / uptime：navigator 与 performance 读真值 */
+        document.getElementById("ff-cores").textContent =
+          navigator.hardwareConcurrency || 16;
+        document.getElementById("ff-mem").textContent = navigator.deviceMemory
+          ? `${navigator.deviceMemory} GiB`
+          : "32 GiB";
+        const up = Math.max(
+          0,
+          Math.floor((Date.now() - performance.timeOrigin) / 1000),
+        );
+        const upH = Math.floor(up / 3600);
+        const upM = Math.floor((up % 3600) / 60);
+        document.getElementById("ff-up").textContent =
+          upH > 0 ? `${upH} hours, ${upM} mins` : `${upM} mins`;
+      })();
+
+      /* ---- 编辑器窗：正文 = launcher/src-tauri/src/commands.rs 652-681 真源码 ---- */
+      const ED_CODE = [
+        `<span class="c">/// 停止游戏（UI 命令）。无会话是幂等成功（Ok），与会话清理完成语义一致。</span>`,
+        `<span class="c">/// 正常停止路径回写 save（与 exit-watcher 崩溃路径共用幂等的 writeback_save）。</span>`,
+        `<span class="m">#[tauri::command]</span>`,
+        `<span class="k">pub async fn</span> <span class="f">stop_game</span>(`,
+        `    app: <span class="t">tauri::AppHandle</span>,`,
+        `    state: <span class="t">tauri::State</span>&lt;'_, <span class="t">SessionState</span>&gt;,`,
+        `) -&gt; <span class="t">Result</span>&lt;<span class="t">String</span>, <span class="t">String</span>&gt; {`,
+        `    <span class="k">let</span> <span class="k">mut</span> slot = state.inner.<span class="f">lock</span>().<span class="f">map_err</span>(|e| e.<span class="f">to_string</span>())?;`,
+        `    <span class="c">// 锁边界注记（FIX002.22）：持锁跨越 wait_exit（≤5s）+ zip 回写——期间</span>`,
+        `    <span class="c">// launch 首查 / 注入被阻塞；停止是终态操作且要求独占会话，有界可接受</span>`,
+        `    <span class="k">match</span> slot.<span class="f">as_mut</span>() {`,
+        `        <span class="t">Some</span>(session) =&gt; {`,
+        `            session.<span class="f">stop</span>().<span class="f">map_err</span>(|e| e.<span class="f">to_string</span>())?;`,
+        `            <span class="k">let</span> message = <span class="k">match</span> <span class="f">writeback_save</span>(session) {`,
+        `                <span class="t">Ok</span>(()) =&gt; <span class="s">"游戏已停止，save 已回写"</span>.<span class="f">to_string</span>(),`,
+        `                <span class="t">Err</span>(err) =&gt; {`,
+        `                    <span class="c">// 回写失败显式呈现给用户（旧 save 完整，可重试会话再回写）</span>`,
+        `                    logging::<span class="f">error</span>(&amp;<span class="f">format!</span>(<span class="s">"正常停止回写失败: {err:#}"</span>));`,
+        `                    <span class="f">format!</span>(<span class="s">"游戏已停止，但 save 回写失败: {err:#}"</span>)`,
+        `                }`,
+        `            };`,
+        `            *slot = <span class="t">None</span>;`,
+        `            <span class="k">if let</span> <span class="t">Err</span>(err) = app.<span class="f">emit</span>(<span class="s">"hud-clear"</span>, ()) {`,
+        `                logging::<span class="f">error</span>(&amp;<span class="f">format!</span>(<span class="s">"hud-clear 事件发送失败: {err}"</span>));`,
+        `            }`,
+        `            <span class="t">Ok</span>(message)`,
+        `        }`,
+        `        <span class="t">None</span> =&gt; <span class="t">Ok</span>(<span class="s">"没有运行中的游戏会话"</span>.<span class="f">into</span>()),`,
+        `    }`,
+        `}`,
+      ];
+      (function initEditor() {
+        const nums = [];
+        for (let i = 0; i < ED_CODE.length; i++) nums.push(String(652 + i));
+        document.getElementById("ed-gutter").textContent = nums.join("\n");
+        document.getElementById("ed-code").innerHTML = ED_CODE.join("\n");
+      })();
+
+      /* ---- cargo build 日志流：真实 crate 序列逐行追加，封顶防膨胀，终了重放 ---- */
+      const logFlow = document.getElementById("boss-log-flow");
+      const LOG_REPO = "(E:\\GameMission\\CapsuleRetro)";
+      const LOG_DEPS = [
+        ["serde", "1.0.219"],
+        ["serde_json", "1.0.140"],
+        ["thiserror", "2.0.12"],
+        ["anyhow", "1.0.97"],
+        ["zip", "2.6.1"],
+        ["clap", "4.5.32"],
+        ["tauri", "2.5.1"],
+        ["wry", "0.51.1"],
+        ["tao", "0.33.0"],
+      ];
+      const cursorLine = document.createElement("div");
+      cursorLine.className = "log-line";
+      cursorLine.innerHTML = '<span class="log-cur">▊</span>';
+      function pushLogLine(html) {
+        const div = document.createElement("div");
+        div.className = "log-line";
+        div.innerHTML = html;
+        logFlow.insertBefore(div, cursorLine);
+        /* DOM 封顶：超过 220 行摘最老行，长跑不膨胀 */
+        while (logFlow.children.length > 220)
+          logFlow.removeChild(logFlow.firstChild);
+        logFlow.scrollTop = logFlow.scrollHeight;
+      }
+      function runCargoLog() {
+        logFlow.innerHTML = "";
+        logFlow.appendChild(cursorLine);
+        const seq = LOG_DEPS.map(([n, v]) => ({ n, v, our: false }));
+        seq.push(
+          { n: "capsule-core", v: "0.1.0", our: true },
+          { n: "launcher", v: "0.1.0", our: true },
+          { n: "capsule-pack", v: "0.1.0", our: true },
+          { fin: (6 + Math.random() * 7).toFixed(2) },
+        );
+        let i = 0;
+        (function step() {
+          if (i >= seq.length) {
+            setTimeout(runCargoLog, 3200); /* 一轮终了：停 3.2s 清空重放 */
+            return;
+          }
+          const it = seq[i];
+          if (it.fin) {
+            pushLogLine("");
+            pushLogLine(
+              '    <span class="lv">Finished</span> <span class="lvv">`release` profile [optimized] target(s) in ' +
+                it.fin +
+                "s</span>",
+            );
+          } else if (it.our) {
+            pushLogLine(
+              '   <span class="lv">Compiling</span> <span class="lc">' +
+                it.n +
+                '</span> <span class="lvv">v' +
+                it.v +
+                '</span> <span class="lp">' +
+                LOG_REPO +
+                "\\" +
+                it.n +
+                ")</span>",
+            );
+          } else {
+            pushLogLine(
+              '   <span class="lv">Compiling</span> <span class="lc">' +
+                it.n +
+                '</span> <span class="lvv">v' +
+                it.v +
+                "</span>",
+            );
+          }
+          i += 1;
+          setTimeout(step, 260 + Math.random() * 420);
+        })();
+      }
+      let logStarted = false;
+      function ensureLogStarted() {
+        if (logStarted) return;
+        logStarted = true;
+        runCargoLog();
+      }
     </script>
   </body>
 </html>
