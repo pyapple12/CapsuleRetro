@@ -182,10 +182,14 @@
         cursor: pointer;
       }
 
-      /* ===== 金色流光按钮：Uiverse.io by vinodjangid07（pink-cheetah-68，MIT）· 除基本设置齿轮外 ===== */
+      /* ===== 金色流光按钮：Uiverse.io by vinodjangid07（pink-cheetah-68，MIT）· 除基本设置齿轮外
+         PL013 动效顺滑化改款：流光渐变整体迁至 ::after（250% 宽、z -2 压暗芯之下），
+         hover 以 transform: translateX(-60%) 逐像素等价复刻原 background-position left→right
+         （-60% × 250% = -150% 按钮宽，环边流动视觉不变），transition 仅挂 transform 走合成器线程；
+         按压双曲线——基态 0.25s 弹簧过冲回弹、:active 0.08s 快收，0.95 收 0.96 减文字重渲染差异 ===== */
       #action-bar button:not(#btn-settings),
       .cheats button {
-        position: relative; /* ::before 内芯的定位基准必须是按钮自身 */
+        position: relative; /* ::before 暗芯 / ::after 流光带 / svg 标签的定位基准必须是按钮自身 */
         color: #ffd277;
         border: none;
         border-radius: 10px;
@@ -199,11 +203,34 @@
           #77530a
         );
         background-size: 250%;
-        background-position: left;
-        transition-duration: 1s;
+        background-position: left; /* 静态兜底底色（left 位），动画本体在 ::after */
+        transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
         overflow: hidden;
-        /* 暗色内芯 z-index:-1 压在渐变上、垫在文字下，需要按钮自成层 */
+        /* 暗色内芯/流光带为负 z-index 子伪元素，需要按钮自成层 */
         isolation: isolate;
+      }
+      #action-bar button:not(#btn-settings)::after,
+      .cheats button::after {
+        /* 流光带本体：与原 background-size: 250% 等宽同款渐变；
+           z -2 压暗芯（-1）之下，露出部分即原版环边流光 */
+        content: "";
+        position: absolute;
+        z-index: -2;
+        top: 0;
+        left: 0;
+        width: 250%;
+        height: 100%;
+        background: linear-gradient(
+          to right,
+          #77530a,
+          #ffd277,
+          #77530a,
+          #77530a,
+          #ffd277,
+          #77530a
+        );
+        transform: translateX(0); /* = 原 background-position: left */
+        transition: transform 1s ease; /* 时序与原版一致；仅 transform → 合成器线程零重绘 */
       }
       #action-bar button:not(#btn-settings)::before,
       .cheats button::before {
@@ -218,13 +245,35 @@
         border-radius: 8px;
         background-color: rgba(0, 0, 0, 0.842);
       }
-      #action-bar button:not(#btn-settings):hover,
-      .cheats button:hover {
-        background-position: right;
+      #action-bar button:not(#btn-settings):hover::after,
+      .cheats button:hover::after {
+        transform: translateX(-60%); /* = 原 background-position: right */
       }
       #action-bar button:not(#btn-settings):active,
       .cheats button:active {
-        transform: scale(0.95);
+        /* 快收：按下即缩（松手回弹走基态弹簧曲线） */
+        transition: transform 0.08s ease-out;
+        transform: scale(0.96);
+      }
+      /* ===== PL013.4 文字 SVG 化：可见标签 = SVG text（灰度 AA 恒定、矢量缩放，
+         对 transform 动画/合成层升降免疫）；lbl-ghost 垫片 = visibility:hidden 的
+         原文本，保留按钮按文字自适应宽高的能力，不参与渲染与无障碍树 ===== */
+      #action-bar button .lbl-ghost,
+      .cheats button .lbl-ghost {
+        visibility: hidden;
+      }
+      #action-bar button .lbl,
+      .cheats button .lbl {
+        position: absolute; /* 覆盖按钮整体（含 padding 区），文字几何居中 */
+        inset: 0;
+        display: block;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+      }
+      #action-bar button .lbl text,
+      .cheats button .lbl text {
+        fill: currentColor; /* SVG 文字不吃 color 继承，显式走按钮金色 */
       }
 
       /* ============ 左：队伍六槽 ============ */
@@ -3005,32 +3054,94 @@
             <span class="val dim" id="ui-food-days">≈ 8 天</span>
           </div>
           <div class="cheats">
-            <button id="cheat-gold" data-tip="金币 +10000">+10000 金币</button>
-            <button id="cheat-gems" data-tip="宝石 +10000">+10000 宝石</button>
+            <button id="cheat-gold" data-tip="金币 +10000" aria-label="金币 +10000">
+              <span class="lbl-ghost" aria-hidden="true">+10000 金币</span>
+              <svg class="lbl"
+                ><text x="50%" y="50%" text-anchor="middle" dominant-baseline="central"
+                  >+10000 金币</text
+                ></svg
+              >
+            </button>
+            <button id="cheat-gems" data-tip="宝石 +10000" aria-label="宝石 +10000">
+              <span class="lbl-ghost" aria-hidden="true">+10000 宝石</span>
+              <svg class="lbl"
+                ><text x="50%" y="50%" text-anchor="middle" dominant-baseline="central"
+                  >+10000 宝石</text
+                ></svg
+              >
+            </button>
           </div>
         </div>
         <div class="card" style="flex: 1">
           <h3>队 伍</h3>
           <div id="party"></div>
           <div class="cheats">
-            <button id="cheat-hp" data-tip="全队 HP +100（200 封顶）">
-              +100 HP
+            <button id="cheat-hp" data-tip="全队 HP +100（200 封顶）" aria-label="全队 HP +100">
+              <span class="lbl-ghost" aria-hidden="true">+100 HP</span>
+              <svg class="lbl"
+                ><text x="50%" y="50%" text-anchor="middle" dominant-baseline="central"
+                  >+100 HP</text
+                ></svg
+              >
             </button>
-            <button id="cheat-mp" data-tip="全队 MP +100（200 封顶）">
-              +100 MP
+            <button id="cheat-mp" data-tip="全队 MP +100（200 封顶）" aria-label="全队 MP +100">
+              <span class="lbl-ghost" aria-hidden="true">+100 MP</span>
+              <svg class="lbl"
+                ><text x="50%" y="50%" text-anchor="middle" dominant-baseline="central"
+                  >+100 MP</text
+                ></svg
+              >
             </button>
-            <button id="btn-dmg">受伤 −30</button>
-            <button id="btn-reset">重置</button>
+            <button id="btn-dmg" aria-label="受伤减 30">
+              <span class="lbl-ghost" aria-hidden="true">受伤 −30</span>
+              <svg class="lbl"
+                ><text x="50%" y="50%" text-anchor="middle" dominant-baseline="central"
+                  >受伤 −30</text
+                ></svg
+              >
+            </button>
+            <button id="btn-reset" aria-label="重置">
+              <span class="lbl-ghost" aria-hidden="true">重置</span>
+              <svg class="lbl"
+                ><text x="50%" y="50%" text-anchor="middle" dominant-baseline="central"
+                  >重置</text
+                ></svg
+              >
+            </button>
           </div>
         </div>
         <div id="action-bar">
-          <button data-modal="spell" data-tip="法术列表与 MP 消耗">魔法</button>
-          <button data-modal="zhuyin" data-tip="游戏内注音打字对照">
-            注音
+          <button data-modal="spell" data-tip="法术列表与 MP 消耗" aria-label="魔法">
+            <span class="lbl-ghost" aria-hidden="true">魔法</span>
+            <svg class="lbl"
+              ><text x="50%" y="50%" text-anchor="middle" dominant-baseline="central"
+                >魔法</text
+              ></svg
+            >
           </button>
-          <button data-modal="help" data-tip="操作与玩法说明">说明</button>
-          <button id="btn-boss" data-tip="启动老板界面（= Ctrl+F10）">
-            老板
+          <button data-modal="zhuyin" data-tip="游戏内注音打字对照" aria-label="注音">
+            <span class="lbl-ghost" aria-hidden="true">注音</span>
+            <svg class="lbl"
+              ><text x="50%" y="50%" text-anchor="middle" dominant-baseline="central"
+                >注音</text
+              ></svg
+            >
+          </button>
+          <button data-modal="help" data-tip="操作与玩法说明" aria-label="说明">
+            <span class="lbl-ghost" aria-hidden="true">说明</span>
+            <svg class="lbl"
+              ><text x="50%" y="50%" text-anchor="middle" dominant-baseline="central"
+                >说明</text
+              ></svg
+            >
+          </button>
+          <button id="btn-boss" data-tip="启动老板界面（= Ctrl+F10）" aria-label="老板">
+            <span class="lbl-ghost" aria-hidden="true">老板</span>
+            <svg class="lbl"
+              ><text x="50%" y="50%" text-anchor="middle" dominant-baseline="central"
+                >老板</text
+              ></svg
+            >
           </button>
           <button id="btn-settings" data-modal="settings" data-tip="基本设置">
             <span class="gear-icon">⚙&#xFE0E;</span>
