@@ -329,9 +329,65 @@
       .slot .nm .who {
         white-space: pre;
       }
-      .slot .nm .cls {
-        font-size: 14px;
-        color: #8a7f68;
+      /* ===== PL014 职业与人种徽章：胶囊几何照抄 .status-tag（999px 圆角 + 1px 彩边 + 亮字），
+         人种统一中性灰金不参与颜色编码，职业按五组配色（色值见 z.plan 附录 PL014）。
+         文字 SVG 化（PL013 同款）：可见标签 = svg.lbl 双向几何居中（text-anchor + dominant-baseline，
+         无 HTML 行盒/字体度量参与，字体字号变化不偏移）；dy=-1 为雅黑 CJK 墨迹视觉修正
+         （墨迹重心实测偏下 +1.15px，2026-10-08 像素统计）；lbl-ghost 隐形垫片保留胶囊自适应宽 ===== */
+      .slot .nm .race-tag,
+      .slot .nm .cls-tag {
+        position: relative; /* svg.lbl 绝对定位基准 */
+        display: inline-block;
+        font-size: 12px;
+        padding: 1px 6px;
+        border-radius: 999px;
+        border: 1px solid;
+        white-space: nowrap;
+        flex: none;
+      }
+      .slot .nm .race-tag .lbl-ghost,
+      .slot .nm .cls-tag .lbl-ghost {
+        visibility: hidden; /* 垫片：撑宽度不渲染、不进无障碍树 */
+      }
+      .slot .nm .race-tag .lbl,
+      .slot .nm .cls-tag .lbl {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+      }
+      .slot .nm .race-tag .lbl text,
+      .slot .nm .cls-tag .lbl text {
+        fill: currentColor; /* SVG 文字不吃 color 继承，显式走胶囊字色 */
+      }
+      .slot .nm .race-tag {
+        margin-left: auto; /* 第一枚吃原 .cls 的推右位，[人种][职业] 并排居行尾 */
+        color: #a89a80;
+        border-color: #6a6152;
+      }
+      .slot .nm .race-tag + .cls-tag {
+        margin-left: 5px; /* 两枚间距，不挤不散 */
+      }
+      .slot .nm .cls-tag.gold {
+        color: #e8d9a8;
+        border-color: #b09a5e;
+      }
+      .slot .nm .cls-tag.green {
+        color: #8fc46f;
+        border-color: #5da03f;
+      }
+      .slot .nm .cls-tag.blue {
+        color: #8fb3d8;
+        border-color: #4a7aa8;
+      }
+      .slot .nm .cls-tag.purple {
+        color: #c5a8e8;
+        border-color: #8a68b0;
+      }
+      .slot .nm .cls-tag.red {
+        color: #e89185;
+        border-color: #b3554a;
       }
       .slot .nm .lv {
         color: #b09a5e;
@@ -3697,10 +3753,12 @@
 
     <script>
       /* ================= 假数据（寄存器语义对齐） ================= */
+      /* PL014.1 职业按 retro/xeen-guide.md 人物篇 10 职业原名；race 取种族说明五种 */
       const PARTY = [
         {
           name: "艾德里安",
-          cls: "骑士",
+          race: "人类",
+          cls: "武士",
           lv: 1,
           hp: 87,
           mhp: 96,
@@ -3710,6 +3768,7 @@
         },
         {
           name: "丝莉尔",
+          race: "精灵",
           cls: "游侠",
           lv: 1,
           hp: 34,
@@ -3720,7 +3779,8 @@
         },
         {
           name: "老墨",
-          cls: "法师",
+          race: "地精",
+          cls: "巫师",
           lv: 1,
           hp: 8,
           mhp: 41,
@@ -3730,7 +3790,8 @@
         },
         {
           name: "铁牛",
-          cls: "矮人",
+          race: "矮人",
+          cls: "盗贼",
           lv: 1,
           hp: -9,
           mhp: 88,
@@ -3740,6 +3801,7 @@
         },
         {
           name: "莉雅",
+          race: "半兽人",
           cls: "牧师",
           lv: 1,
           hp: 52,
@@ -3750,6 +3812,21 @@
         },
         null /* 空槽占位 */,
       ];
+      /* PL014.1 职业→徽章色映射：10 职业全配无回退（五组色见 z.plan 附录 PL014） */
+      const CLS_COLORS = {
+        野蛮人: "gold",
+        武士: "gold",
+        游侠: "green",
+        弓箭手: "green",
+        流浪汉: "green",
+        德鲁伊教徒: "green",
+        牧师: "blue",
+        巫师: "purple",
+        盗贼: "red",
+        忍者: "red",
+      };
+      /* PL014.1 人种徽章中性色（不参与颜色编码，五种人种同一色） */
+      const RACE_TAG = { color: "#a89a80", border: "#6a6152" };
       const CALENDAR = { year: 573, day: 37, minutes: 9 * 60 + 40 }; // 一年 100 天，十天一周
       const RES = { gold: 12480, gems: 376, food: 42 }; // 可维持天数 = ⌊food ÷ 在编人数⌋
 
@@ -4112,7 +4189,7 @@
           d.innerHTML = `
         ${avatar}
         <div class="info">
-          <div class="nm"><span class="who">${p.name}   LV.${p.lv}</span><span class="cls">${p.cls}</span></div>
+          <div class="nm"><span class="who">${p.name}   LV.${p.lv}</span><span class="race-tag"><span class="lbl-ghost" aria-hidden="true">${p.race}</span><svg class="lbl" aria-hidden="true"><text x="50%" y="50%" dy="-1" text-anchor="middle" dominant-baseline="central">${p.race}</text></svg></span><span class="cls-tag ${CLS_COLORS[p.cls]}"><span class="lbl-ghost" aria-hidden="true">${p.cls}</span><svg class="lbl" aria-hidden="true"><text x="50%" y="50%" dy="-1" text-anchor="middle" dominant-baseline="central">${p.cls}</text></svg></span></div>
           <div class="stat ${hpClass(p.hp, p.mhp)}"><span class="lab">HP</span>
             <span class="bar"><i style="width: ${Math.max(0, Math.min(100, (p.hp / p.mhp) * 100))}%"></i></span>
             <span class="val">${p.hp} / ${p.mhp}</span></div>
