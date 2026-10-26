@@ -141,7 +141,7 @@ function nameOf(index: number): string {
 
 /**
  * HP 着色（PL009.2 定案：按当前 HP / 会话内基线 的比例取色）。
- * ≥60% 绿、20%–60% 黄、<20% 红、负值蓝；基线 ≤0 时交由回落色。
+ * ≥60% 绿、20%–60% 黄、<20% 红、负值蓝。
  */
 function hpColor(hp: number, base: number): string {
   if (hp < 0) return "var(--hp-neg, #61afef)";

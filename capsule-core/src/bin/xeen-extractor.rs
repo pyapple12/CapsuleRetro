@@ -33,7 +33,7 @@ enum Cmd {
         /// CC 容器路径
         cc: PathBuf,
     },
-    /// 全量导出容器资源
+    /// 全量导出容器资源（面向 XOR 混淆的 .CC 容器；明文 .CUR 请用 mazes）
     Extract {
         /// CC 容器路径
         cc: PathBuf,
@@ -87,6 +87,18 @@ fn list(cc: &Path) -> Result<(), String> {
 /// 全量导出容器资源；输出目录缺省回落 `<容器基名小写>/`。
 fn extract(cc: &Path, out: Option<&Path>) -> Result<(), String> {
     let arch = CcArchive::load(cc).map_err(|e| format!("加载 {} 失败: {e}", cc.display()))?;
+    // FIX005.8：CUR 容器数据区为明文（见 mazes 子命令），extract 恒走 XOR
+    // 0x35 还原——对 CUR 误用会静默成功产出全错字节，在此显式警告（保留
+    // 取证用途不硬拒绝）
+    if cc
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("cur"))
+    {
+        eprintln!(
+            "警告: {} 为明文 CUR 容器，extract（XOR 0x35）将产出乱码字节——CUR 请用 mazes 子命令",
+            cc.display()
+        );
+    }
     let stem = cc
         .file_stem()
         .ok_or_else(|| "容器路径缺文件名".to_string())?

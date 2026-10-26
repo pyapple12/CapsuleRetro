@@ -119,13 +119,17 @@ pub fn unpack(archive_path: &Path, work_dir: &Path) -> Result<SaveMeta, SaveErro
     let meta = read_meta_from_archive(&mut archive)?;
 
     let mut written: Vec<PathBuf> = Vec::new();
+    // FIX005.7：save 外普通文件被白名单跳过时聚合计数收尾告警——损坏降级有
+    // ERROR 留痕，此处此前零留痕，"存档没回来"类问题无诊断线索
+    let mut skipped: Vec<String> = Vec::new();
     let result = (|| {
         for index in 0..archive.len() {
             let mut entry = archive
                 .by_index(index)
                 .map_err(|e| SaveError::Corrupted(format!("条目 {index} 读取失败: {e}")))?;
             // 显式目录条目仅承载结构（资源管理器/7-Zip 重打包必产生），文件
-            // 写入时 create_dir_all 已按需建目录——跳过而非报错（FIX002.3）
+            // 写入时 create_dir_all 已按需建目录——跳过而非报错（FIX002.3），
+            // 结构性条目不进告警防噪声
             if entry.is_dir() {
                 continue;
             }
@@ -135,8 +139,9 @@ pub fn unpack(archive_path: &Path, work_dir: &Path) -> Result<SaveMeta, SaveErro
             }
             // save/ 前缀之外的普通文件按良性噪声忽略（预留 config/ 节、
             // __MACOSX 噪声；AGENTS.md 容错白名单登记）——穿越形态仍由
-            // validate_rel_path 严格拒绝
+            // validate_rel_path 严格拒绝；跳过聚合计数收尾告警（FIX005.7）
             let Some(rel) = name.strip_prefix(SAVE_PREFIX).filter(|r| !r.is_empty()) else {
+                skipped.push(name);
                 continue;
             };
             // save/ 下嵌套子路径（如 save/sub/X.SAV）超出 save_files 只认
@@ -174,6 +179,18 @@ pub fn unpack(archive_path: &Path, work_dir: &Path) -> Result<SaveMeta, SaveErro
         }
     }
     result?;
+    if !skipped.is_empty() {
+        eprintln!(
+            "警告: 忽略 save 外条目 {} 个: {}",
+            skipped.len(),
+            skipped
+                .iter()
+                .take(3)
+                .cloned()
+                .collect::<Vec<_>>()
+                .join("、")
+        );
+    }
     Ok(meta)
 }
 
@@ -198,14 +215,32 @@ pub fn pack(
             "{patterns:?} 含空白条目"
         )));
     }
+    // 目录项迭代/file_type 错误一律严格上抛（FIX005.6，与模块"其余错误严格
+    // 上抛"口径一致；原 A002 条件豁免的静默跳过随本修复闭环）——静默落选会
+    // 让单个存档无声缺席且回写后不可恢复
     let names: Vec<String> = std::fs::read_dir(work_dir)
         .map_err(|source| SaveError::Io {
             path: work_dir.to_path_buf(),
             source,
         })?
-        .filter_map(|entry| entry.ok())
-        .filter(|entry| entry.file_type().map(|t| t.is_file()).unwrap_or(false))
-        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            let entry = entry.map_err(|source| SaveError::Io {
+                path: work_dir.to_path_buf(),
+                source,
+            })?;
+            let is_file =
+                entry
+                    .file_type()
+                    .map(|t| t.is_file())
+                    .map_err(|source| SaveError::Io {
+                        path: entry.path(),
+                        source,
+                    })?;
+            Ok(is_file.then(|| entry.file_name().to_string_lossy().into_owned()))
+        })
+        .collect::<Result<Vec<_>, SaveError>>()?
+        .into_iter()
+        .flatten()
         .filter(|name| patterns.iter().any(|p| match_pattern(name, p)))
         .collect();
 

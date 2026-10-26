@@ -47,6 +47,9 @@ pub enum GameConfigError {
     /// paths.game_dir 为空（原版释放源缺失配置，FIX002.15 专用变体）。
     #[error("paths.game_dir 为空（game.json: {0}）")]
     InvalidGameDir(String),
+    /// dosbox.exe_path 为空（DOSBox 二进制来源缺失配置，FIX005.5 对齐 game_dir 口径）。
+    #[error("dosbox.exe_path 为空（game.json: {0}）")]
+    InvalidExePath(String),
     /// patches 定义非法（id 为空、重复或 patch 路径为空）。
     #[error("非法 patches 定义: {0}")]
     InvalidPatches(String),
@@ -171,6 +174,16 @@ impl GameConfig {
         }
         if self.paths.game_dir.as_os_str().is_empty() {
             return Err(GameConfigError::InvalidGameDir(self.name.clone()));
+        }
+        if self.dosbox.exe_path.as_os_str().is_empty() {
+            return Err(GameConfigError::InvalidExePath(self.name.clone()));
+        }
+        if self.paths.save_files.is_empty() {
+            // 空清单语义 = 永不持久化任何存档——延迟到整局游玩后回写才
+            // 暴露为 InvalidPattern 为时已晚，加载期显式拒绝（FIX005.5）
+            return Err(GameConfigError::InvalidSaveFiles(
+                "清单为空（永不持久化任何存档）".to_string(),
+            ));
         }
         if let Some(bad) = self
             .paths

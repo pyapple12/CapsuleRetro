@@ -13,8 +13,9 @@ use anyhow::{anyhow, Context, Result};
 use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
 
-/// readme 模板（编译期内嵌；占位符 `{{GAME_NAME}}` / `{{VERSION}}`）。
-pub const README_TEMPLATE: &str = include_str!("../readme-template.md");
+/// readme 模板（编译期内嵌；占位符 `{{GAME_NAME}}` / `{{VERSION}}`；唯一
+/// 消费方在本 crate 内，FIX005.21 收敛可见性）。
+pub(crate) const README_TEMPLATE: &str = include_str!("../readme-template.md");
 
 /// 打包输入（路径与配置全部解析完毕，库函数不做 CLI 语义推导）。
 pub struct PackInputs {

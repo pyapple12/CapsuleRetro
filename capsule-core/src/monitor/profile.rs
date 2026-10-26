@@ -19,15 +19,9 @@ pub enum ProfileError {
     /// 档案文件读取失败（不存在/无权限等）。
     #[error("档案文件读取失败: {0}")]
     Io(#[from] std::io::Error),
-    /// entries 中出现了未知的 value_type 字符串。
-    #[error("未知 value_type: {0}")]
-    UnknownValueType(String),
     /// 待解码字节流的长度与 value_type 的宽度不一致。
     #[error("字节宽度不匹配: 期望 {expected} 字节，实际 {actual} 字节")]
     WidthMismatch { expected: usize, actual: usize },
-    /// segment/offset 字段既不是数字也不是合法的十六进制字符串。
-    #[error("地址字段非法: {0}")]
-    InvalidAddress(String),
     /// 条目 len 与 value_type 宽度不一致或为 0（加载期校验）。
     #[error("条目 {name} 的 len 非法: {len}（value_type 宽度 {width}，须相等且非 0）")]
     InvalidLen {

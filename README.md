@@ -1,8 +1,8 @@
 # CapsuleRetro —— 老 DOS 游戏的现代包装系统
 
-[![Version](https://img.shields.io/badge/Version-0.1.0.30-blue.svg)](Cargo.toml)
+[![Version](https://img.shields.io/badge/Version-0.1.0.31-blue.svg)](Cargo.toml)
 [![Rust](https://img.shields.io/badge/Rust-1.96-orange.svg)](https://www.rust-lang.org)
-[![Phase](https://img.shields.io/badge/Phase-PL006%E2%80%93PL011%E5%AE%8C%E6%88%90-brightgreen.svg)](z.plan.md)
+[![Phase](https://img.shields.io/badge/Phase-PL016%E2%80%93PL017%E8%BF%9B%E8%A1%8C%E4%B8%AD-brightgreen.svg)](z.plan.md)
 
 把任意 DOS 游戏打包成"看起来像移植的现代游戏"：玩家拿到 **三个文件**，双击即玩，无安装、无模拟器痕迹。当前以 Windows 为交付目标，macOS / Linux 为 0.2.0 目标。
 
@@ -25,7 +25,7 @@
 | 一条命令出包 | `capsule-pack` 读 game.json → 校验 → 资源内嵌 → dist 三文件            |
 | 伴生观察     | REST 原子读取模拟器内存，109 条目内存档案实时驱动 HUD 与诊断 CLI       |
 
-> 当前状态：**PL001–PL011 全部完工 + FIX001/FIX002 两轮审计收口**（V0.1.0.22）——产品三文件闭环、静默启动、帧流直推、HUD（头像缩略 / HP 四色 / 位置五要素）、会话内金手指、地图与头像资产链（622 张地图 + 24 张头像）、攻略渲染均已 live 验收。**PL012 老板键已完结**（2026-10-07，omarchy 桌面复刻 + Ctrl+F10）；**PL013 金框按钮动效顺滑化已完结**（2026-10-07，双曲线按压 + 流光迁合成器 + 文字 SVG 化）；**PL014 职业与人种徽章已完结**（2026-10-08，五组配色胶囊 + SVG 居中）；**PL015 小地图拖拽已完结**（2026-10-08，箭头入地图层随图联动 + 边界钳制）；**PL016 游玩 UI 重构**（实验场与 CRT 特效已实装，对接未开始，见 `assets/design/game-ui-handoff.md`）。后续：PL016 补后端缺口并对接 Launcher → 发布工程立项（GitHub Actions / fork Release / 杀软实测）；0.2.0 三端适配登记不动。方案与实测结论见 `z.plan.md` 附录，体验硬化阶梯见 `CapsuleRetro_plan.md` §10。
+> 当前状态：**PL001–PL011 全部完工 + FIX001/FIX002 两轮审计收口**（V0.1.0.22）——产品三文件闭环、静默启动、帧流直推、HUD（头像缩略 / HP 四色 / 位置五要素）、会话内金手指、地图与头像资产链（622 张地图 + 24 张头像）、攻略渲染均已 live 验收。**PL012 老板键已完结**（2026-10-07，omarchy 桌面复刻 + Ctrl+F10）；**PL013 金框按钮动效顺滑化已完结**（2026-10-07，双曲线按压 + 流光迁合成器 + 文字 SVG 化）；**PL014 职业与人种徽章已完结**（2026-10-08，五组配色胶囊 + SVG 居中）；**PL015 小地图拖拽已完结**（2026-10-08，箭头入地图层随图联动 + 边界钳制）；**PL016 后端缺口补齐立项**（2026-10-11 自游玩 UI 重构拆出：复活+钳制 / 寄存器破解 / 状态头像 / 任务链，见 `assets/design/game-ui-handoff.md` 第三节）；**PL017 游玩 UI 重构**（实验场与 CRT 特效已实装，对接未开始）；**第 5 轮审计修复已收口**（2026-10-26，P2×3 + P3×21——切帧死循环防线、会话失败路径孤儿清理、帧缓冲拷贝量降 99%）。后续：PL016 补齐六缺口 → PL017 对接 Launcher → 发布工程立项（GitHub Actions / fork Release / 杀软实测）；0.2.0 三端适配登记不动。方案与实测结论见 `z.plan.md` 附录，体验硬化阶梯见 `CapsuleRetro_plan.md` §10。
 
 ## 技术栈
 

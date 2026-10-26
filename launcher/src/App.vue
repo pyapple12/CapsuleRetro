@@ -54,12 +54,14 @@ const appVersion = ref("…");
 const showGuide = ref(false);
 const guideHtml = ref("");
 
-// 顶栏版本 chip：读 tauri.conf 注入的产品版本（getVersion API）
+// 顶栏版本 chip：读 tauri.conf 注入的产品版本（getVersion API；失败留痕后
+// 显示占位——容错白名单 FIX005.18，版本号为增强显示信息）
 void getVersion()
   .then((v) => {
     appVersion.value = v;
   })
-  .catch(() => {
+  .catch((err) => {
+    console.warn("版本号读取失败:", err);
     appVersion.value = "—";
   });
 
@@ -132,8 +134,14 @@ async function onStop(): Promise<void> {
   }
 }
 
+// 金手指在途标记（FIX005.19）：读-改-写两次 HTTP 非原子，同字段并发请求
+// 会同读后各写、丢失更新——在途期间同字段点击直接忽略
+const cheatPending = new Set<string>();
+
 /** 会话内数值修改（金手指）：写成功后经状态行反馈新值，HUD 轮询自动跟显。 */
 async function onCheat(field: string, delta: number): Promise<void> {
+  if (cheatPending.has(field)) return;
+  cheatPending.add(field);
   try {
     const res = await invoke<{ field: string; value: number }>("cheat_adjust", {
       field,
@@ -142,6 +150,8 @@ async function onCheat(field: string, delta: number): Promise<void> {
     status.value = `${res.field} 已修改，现值 ${res.value}`;
   } catch (err) {
     status.value = `失败: ${String(err)}`;
+  } finally {
+    cheatPending.delete(field);
   }
 }
 </script>

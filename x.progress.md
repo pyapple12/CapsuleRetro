@@ -504,14 +504,58 @@
 - [x] PL015.2 渲染插值与钳制 ——（2026-10-08 ✓，同日五轮迭代后定版）**定版实现**：`#facing`（箭头）**移入地图层 `#map-world` 内**按玩家格坐标绘制（`facing.style.transform = translate((x+0.5)*TILE_W, (y+0.5)*TILE_H) translate(-50%,-50%)`，旋转在内层 #ui-arrow），CSS 去 50% 钉死定位、加 0.16s transition 与 map-world 同步——箭头成为地图的一部分，拖拽时随图一体平移（可出画，overflow:hidden 裁剪）；`renderPos` translate = 玩家居中 + dragOffset（查看偏移）+ TEST_OFFSET_X（对齐微调）**三者之和整体钳制**（tx ∈ [vw-iw, 0]、ty ∈ [vh-ih, 0]，任意方向拖到地图边缘即停、永不露黑底）；state 全程不参与拖拽；松手偏移归一到钳制后有效值（保留查看位置、消除反向拖死区黏滞）；走路（move）/切图（applyMap）dragOffset 清零回中；**迭代台账（五轮）**：初版快照坐标+浮点落格（拖玩家滑，错）→ 返工一 dragOffset 附加量（逻辑对但未动覆盖层）→ 返工二误读"钉中心"移钳制外（错，已撤销）→ 箭头移入地图层定版 → 用户验收发现上/左可拖出边界（偏移在 min 之外 + TEST_OFFSET_X 钳后追加 + 归一代码引用局部常量 ReferenceError 静默失效）→ 偏移入 min 内整体钳制 + 常量提升模块级 + 松手归一，定版；校验：右/左/下/上/对角五组 800–2000px 极值拖拽 translate 全落 [−690,0]×[−552,0] 界内 ✓、dragOffset 归一后 x==x0/y==y0 且不超界距 ✓、走路清零回中 ✓、error 零报错（ReferenceError 消除）✓、十一版证据照落 `.temp/pl015-baseline/` ✓；**收口后追加（同日用户验收微调）**：标记改 24×24 单格尺寸格内双向居中（原 30×30 纵向压邻格）、锚点自格心移至右下角交叉点（+0.5→+1.0，与坐标格点语义一致），final2/final3 证据照补档
 - [x] PL015.3 收口定稿 ——（2026-10-08 ✓）用户实机判收（"很好"）+ 交接文档第六节第 7 项打勾（**交接列表七项全勾**）+ z.plan 附录 PL015 状态改 ✅ + 顶部清单 PL015 移入已完成区 + 本组勾结上移；校验：三处文档同步一致 ✓ + 健康度终检通过（历史残留七标识符净零、变量闭环、分段拖拽/归一/回中全绿，见验证记录终检节）✓
 
+### FIX005: 第5轮审计修复 [audit#A005]（✅ 2026-10-26 收口，25/25——P2×3 + P3×21 全修 + 验证收尾；探针/TDD 红绿/双警告实捕全过经用户判收；证据见 `.temp/fix005-verification.md`）
+
+> 来源：A005（2026-10-26 三路并行全文审计，代码自 FIX004 零改动背景下抓前四轮漏网；三条 P2 与六条 P3 主张经主会话逐行亲核）。25 条参考级观察项经用户确认维持参考级不修（z.plan 附录 A005 第二节）。条目编号与 A005 清单 # 一一对应。
+
+- [x] FIX005.1 [P2] 切帧 total≤0 死循环防御 ——（A005 #1）GameCanvas.vue:231 切帧循环 pitch 校验（:228）之后并列加一行 `if (width === 0 || height === 0 || total < FRAME_HEADER_BYTES) { throw new Error("流式帧头异常（尺寸非法，流错位）"); }`，走既有失败计数+退避重连路径（与 pitch 异常同款）；——（2026-10-26 ✓）探针恶意帧头（h=0/pitch=w·4+28）护栏触发复现死循环、修复后抛尺寸非法走重连，total<0 与 0<total<28 旁支同拦截；验证：探针全 PASS + vue-tsc/npm build ✓
+- [x] FIX005.2 [P2] 恢复后失败路径孤儿进程清理 ——（A005 #2）commands.rs:444-445 `wait_webserver_ready?` 失败前与 :599-609 `duplicate_process_handle?` 失败前各补 `if let Err(err) = session.stop() { logging::warn(...) }`（对齐 :424-443 前段清理纪律；stop 内含 job.kill 杀树）；——（2026-10-26 ✓）三失败路径（resume/就绪超时/句柄复制）各补 kill/stop + 留痕，windows Error 经 anyhow! 包装对齐文件既有风格；验证：编译+代码路径评审 ✓（live 孤儿清理待用户下次会话顺带）
+- [x] FIX005.3 [P2] Session::stop 杀树先于停 HUD ——（A005 #3）commands.rs:157-166 调序：`self.job.kill()` 提到 `poller.stop()` 之前（杀树后 dosbox 连接速断，HUD 线程 32 连发速败退出，停滞事件与回写路径不受影响）；——（2026-10-26 ✓）实现为 kill 结果先持有、停 HUD 后再上抛——kill 失败也先停 HUD 防轮询线程泄漏；验证：编译+评审 ✓（挂起进程 stop 秒回待 live）
+- [x] FIX005.4 [P3] profile 死错误变体删除 ——（A005 #4）capsule-core/src/monitor/profile.rs:24 `UnknownValueType` 与 :30 `InvalidAddress` 两变体删除（全仓零构造，实际路径走 serde custom）；——（2026-10-26 ✓）；验证：cargo check/clippy -D warnings + cargo test --workspace 全绿 ✓
+- [x] FIX005.5 [P3] game_config validate 空值口径补齐 ——（A005 #5）capsule-core/src/game_config.rs validate()：`save_files` 空数组报错（复用 InvalidSaveFiles，文案指向"清单为空 = 永不持久化存档"）；`dosbox.exe_path` 补非空校验（新增 InvalidExePath 专用变体，对齐 game_dir 口径）；——（2026-10-26 ✓）TDD：两新用例先 FAILED 后 passed；验证：game_config_test 13 用例全绿 ✓
+- [x] FIX005.6 [P3] pack 目录迭代错误严格上抛 ——（A005 #6）capsule-core/src/save.rs:206 `.filter_map(|entry| entry.ok())` 改收集 Result 迭代器、迭代 Err 映射 `SaveError::Io` 上抛（与模块"其余错误严格上抛"口径一致）；——（2026-10-26 ✓）file_type() 一并严格化（A002 条件豁免 #1 闭环、迁 z.plan §③）；验证：save/patch 22 用例回归含零命中拒绝语义 ✓（DirEntry 中途 Err 在 Windows 无可移植构造，评审代证有注记）
+- [x] FIX005.7 [P3] save 白名单跳过聚合告警 ——（A005 #7）capsule-core/src/save.rs:127-141 对"非目录且非 meta 被跳过条目"聚合计数，unpack 收尾 eprintln 一条警告（列前几个名字，如"忽略 save 外条目 N 个：__MACOSX/…"）；目录条目不告警防噪声；——（2026-10-26 ✓）实捕：既有夹具测试 --nocapture 输出 `警告: 忽略 save 外条目 1 个: config/audio.cfg`（evil.txt 同证）；验证：落盘结果集不变 ✓
+- [x] FIX005.8 [P3] xeen-extractor 对 CUR 容器 extract 加闸 ——（A005 #8）capsule-core/src/bin/xeen-extractor.rs extract 分支入口检测容器基名 `.cur` 后缀 → 打印"该容器为明文 CUR，extract（XOR 0x35）将产出乱码——CUR 请用 mazes 子命令"警告后继续（不硬拒绝，保留取证用途）；帮助文本补 list/extract 面向 .CC、mazes 面向 .CUR 分工；——（2026-10-26 ✓）实捕：extract retro/XEEN/DARK.CUR 输出警告行后继续（证据产物已清理）；验证：退出码仍 0 ✓
+- [x] FIX005.9 [P3] exit-watcher kill 吞错留痕 ——（A005 #9）commands.rs:540 `let _ = session.job.kill()` 改 `if let Err(err) = session.job.kill() { logging::warn(&format!("崩溃兜底杀树失败: {err:#}")); }`；——（2026-10-26 ✓）；验证：clippy -D warnings + cargo test ✓
+- [x] FIX005.10 [P3] 会话配置加载五处收敛 ——（A005 #10）commands.rs 新增 `fn load_session_config() -> Result<(ResourceCtx, GameConfig)>`（封装 resolve_resource_ctx + GameConfig::load 两行组合），五调用点（:339/:742/:792/:867/:931）替换；——（2026-10-26 ✓）实施波折：replace_all 误替换 helper 自身函数体成自递归，已即时修正回真身；验证：grep 确认组合仅剩 helper 一处 + 编译 ✓
+- [x] FIX005.11 [P3] lib.rs 幽灵符号注释修正 ——（A005 #11）launcher/src-tauri/src/lib.rs:2-3 模块注释 `start_session/stop_session` 改为实际存在的入口表述（`start_session` command + `Session::stop`）；——（2026-10-26 ✓）；验证：grep 无幽灵符号 ✓
+- [x] FIX005.12 [P3] 六函数补 # Errors 小节 ——（A005 #12）commands.rs:332 start_session、:157 Session::stop、gameconf.rs:92 write_conf、jobctl.rs:22/:40/:45 三个 pub fn 各补 `/// # Errors` 小节（列举主要失败形态）；——（2026-10-26 ✓）；验证：cargo doc --no-deps 0 警告无断链 ✓
+- [x] FIX005.13 [P3] 帧流秒断绕过置错终态修复 ——（A005 #13）GameCanvas.vue:207 `streamFailures = 0` 清零时机改为"本连接成功消费至少 1 个完整帧后"（消费首帧时清零），或对"帧流意外中断"（:239 done 路径）不清零保留累计；——（2026-10-26 ✓）实现取"消费首帧清零"式（consumed 标记）；验证：探针秒断 10 轮第 5 轮置错 + 正常抖动 2 轮不误伤 ✓
+- [x] FIX005.14 [P3] 帧缓冲按 total 预分配 ——（A005 #14）GameCanvas.vue:213-216 读到 chunk 先判 acc 是否已含完整帧头、已知 total 时改用预分配缓冲定点写入（未满一帧前零重复拷贝）；实现需保持 FIX002.28 缓冲上限检查语义；——（2026-10-26 ✓）实现 = 几何增长工作缓冲 + 已消费前缀游标惰性收缩（copyWithin），上限改判 bufLen；验证：探针 3 帧字节逐一相等 + 拷贝量 189MB→2MB（99% 减少）+ FIX002.28 语义保持 ✓
+- [x] FIX005.15 [P3] 帧头解析收敛单处 ——（A005 #15）GameCanvas.vue 切帧侧（:224-229）解析结果（width/height/pitch/captureMs）随 latestFrame 一并传递，drawLatest（:125-137）只做像素转换不再重复解析校验；——（2026-10-26 ✓）latestFrame 升为 LatestFrame 接口（六字段），drawLatest 仅守 byteLength 完整性；验证：vue-tsc + npm build ✓
+- [x] FIX005.16 [P3] toKeyName 提升模块级 ——（A005 #16）GameCanvas.vue:95-115 键名映射表（15 项字面量 + F1–F12 循环）构建一次提为模块级 `const KEY_MAP`，函数内仅查表；——（2026-10-26 ✓）定名 KEY_NAME_MAP；验证：vue-tsc ✓
+- [x] FIX005.17 [P3] hpColor 注释失实修正 ——（A005 #17）HudBar.vue:142-146 删去"基线 ≤0 时交由回落色"句（分支不可达且无回落色）；——（2026-10-26 ✓）；验证：目测注释与实现一致 ✓
+- [x] FIX005.18 [P3] getVersion 失败留痕 + 白名单登记 ——（A005 #18）App.vue:58-64 `.catch(() => { appVersion.value = "—" })` 补 `console.warn("版本号读取失败:", err)`；AGENTS.md 容错白名单补登记（场景：非 Tauri 环境/早期窗口 getVersion 失败；降级：显示占位"—"；理由：版本号为增强显示信息）；——（2026-10-26 ✓）登记与实现逐字对齐；验证：vue-tsc + AGENTS.md 目测 ✓
+- [x] FIX005.19 [P3] 金手指连点防抖 ——（A005 #19）App.vue:136-146 onCheat 按 field 维护在途标记（`cheating = new Set<string>`，在途期间重复点击直接返回或禁用按钮），完成后释放；后端 adjust_field 保持现状（配合 #6/#19 语义）；——（2026-10-26 ✓）定名 cheatPending（finally 释放）；验证：vue-tsc ✓
+- [x] FIX005.20 [P3] capsule-pack dev-deps 冗余删除 ——（A005 #20）capsule-pack/Cargo.toml [dev-dependencies] 段 zip 条目删除（[dependencies] 已有同版本声明，tests 直接链接）；——（2026-10-26 ✓）[dev-dependencies] 空段一并移除；验证：cargo test -p capsule-pack 13 用例全绿 ✓
+- [x] FIX005.21 [P3] README_TEMPLATE 可见性收敛 ——（A005 #21）capsule-pack/src/lib.rs:17 `pub const README_TEMPLATE` 改 `pub(crate)`（唯一消费者 lib.rs:189 在 crate 内）；——（2026-10-26 ✓）；验证：cargo check + cargo test -p capsule-pack ✓
+- [x] FIX005.22 [P3] payload 清理容错白名单登记 ——（A005 #22）AGENTS.md 容错白名单补登记（场景：打包收尾删除临时 payload 文件失败（占用/权限）；降级：eprintln 警告继续、产物正确性不受影响；理由：清理是收尾次要动作，主产物已落盘）；——（2026-10-26 ✓）登记与 lib.rs:186-188 实现逐字对齐；验证：目测 ✓
+- [x] FIX005.23 [P3] webserver_port 契约强制 ——（A005 #23）start_session 加 `ensure!(config.dosbox.webserver_port == 18086, "webserver_port 锁死 18086（前端帧流/CSP 同源），如需调整属全局改造")`——**方案①保守式经定夺采用**（18086 提为 LOCKED_WEBSERVER_PORT 常量；方案②移除 game.json 键留作后续全局改造出口）；——（2026-10-26 ✓）验证偏差：原文案"临时改 game.json 端口"与 retro/ 写入纪律冲突未执行，以代码路径评审 + 编译代证（记录有注记）；验证：cargo check + clippy ✓
+- [x] FIX005.24 [P3] README Phase 徽章更新 ——（A005 #24）README.md:5 徽章文案改现行阶段（`Phase-PL016%E2%80%93PL017%E8%BF%9B%E8%A1%8C%E4%B8%AD`，PL016–PL017 进行中）；——（2026-10-26 ✓）另连带 z.plan §四 A002 条件豁免 #1 闭环迁移；验证：目测徽章与状态段一致 ✓
+- [x] FIX005.25 验证收尾 ——（2026-10-26 ✓）用户判收 + 全量门禁（cargo fmt --check / clippy -D warnings / cargo test --workspace 105 通过 / cargo doc 0 警告 / prettier / vue-tsc / npm build 全绿）+ 探针复跑 PASS + #7/#8 双警告实捕 + FIX002.28 缓冲上限与 FIX002.5 白名单语义保持确认（#1/#13 改动未破坏既有防线）+ 本组勾结上移已完成区 + z.plan 附录 A005 状态改 ✅；验证：判收 + 门禁绿 ✓
+
 ## 未完成
 
-### PL016: 游玩 UI 重构 [plan#PL016]（2026-09-13 立项登记；2026-09-15 起实验场阶段实施中；消费 PL010 底图 + PL011 位置数据。改号史：2026-10-06 原 PL012 让位老板键、本组改号 PL013；2026-10-07 本号让位金框按钮动效改号 PL014、职业徽章拆出为 PL014 本组顺延 PL015；2026-10-08 本号让位小地图拖拽改号 PL015、本组顺延为 PL016）
+### PL016: 后端缺口补齐 [plan#PL016]（2026-10-11 立项——自游玩 UI 重构组〔现 PL017〕拆出独立立项；范围 = 交接文档第三节六项缺口，完成即 PL017 对接的数据前提全部就绪）
+
+> 背景：六缺口 = ①LV/职业/人种寄存器无映射 ②复活写权限（前提已过期——`death1–6`/`unc1–6`/`weak1–6` 已登记 memory_map、白名单"登记即放行"）③HP/MP 写入钳制 ④中毒寄存器未登记 ⑤状态头像套图未提取 ⑥任务链数据源未结构化。PL016.1（②③）已于 2026-10-11 与用户细化定案，①④⑤⑥ 随做随细化。
+
+- [ ] PL016.1 会话复活与数值钳制（原缺口②③）—— 做法（2026-10-11 定案）：
+  - capsule-core `monitor::rest` 新增 `read_field` / `set_field` 两原语（与 `adjust_field` 同级、条目查找重构为共用私有 helper；`set_field` 按条目类型编码绝对值、白名单闸照过）；单测：`set_field` 白名单双面（登记内放行 / 越界 `WriteDenied`）+ `read_field` 解码正确（复用 PL007.2 测试风格）
+  - launcher 新增 `cheat_revive` 命令（游戏语义收敛 launcher，capsule-core 保持游戏无关）：①六槽 × death/unc/weak 共 18 次 `set_field(name, 0)`（单字节散落条目无法一片写——白名单要求写入完整落在单条条目内），任一失败带字段名上抛（严格策略，重按重试）；②负血拉正——六槽 `read_field(hpN)`，HP < 0 者 `set_field(hpN, 1)`、HP ≥ 0 不动（引擎按 HP 判死昏，只清位会被打回死亡态；拉到 1 非回满因 mhp/mmp 未登记，PL016.2 顺路登记可升级回满）
+  - `cheat_adjust` 加 HP/MP 钳制分支：字段 ∈ {hp1–6, mp1–6}（12 名显式列表不用前缀匹配）走 `read_field` → `min(当前+delta, 200)` → `set_field`（200 = 引擎安全阈值防污染最大值，用户实测口径，launcher 侧硬编码 + 注释登记；HTTP 次数与原 RMW 持平）；其余字段照旧 `adjust_field`（金币/宝石饱和到类型上限语义不变）
+  - lib.rs 注册命令；App.vue 会话顶栏金币/宝石旁加「复活」「+HP」「+MP」三按钮（复用 busy 禁用与状态行反馈；临时形态，PL017 对接期归位正式操作区）
+  - 语义备忘（+HP × 复活四组合均安全）：+HP 只动血不清位（死人 +100 直接过零变血正、死亡位仍在，200 封顶不触发）；复活清位 + 负血拉正（HP ≥ 0 跳过）；运算 i64 饱和 + i16 编码无回绕风险
+  - 验证：capsule-core 单测绿 + 真机四用例（金币/宝石回归；+HP 连点 HUD 见 200 封顶；游戏内弄死一角色 → 复活 → 槽位复活 HP=1 恢复可操作；死人 +HP → 血正仍死亡态 → 再复活 → 活人保血）+ 门禁（cargo fmt / clippy -D warnings / test --workspace + prettier）
+- [ ] PL016.2 角色寄存器破解（原缺口①④）—— 做法：①先验压缩搜索域——查 OpenXeen（GitHub 开源克隆）角色记录结构拿 class/race/level 字段偏移先验（hpN @0x56FA 系、角色记录步长 0x160 段，搜索域从全内存 1MB 压到角色记录附近）；②真机差分会（需用户配合约 30–60 分钟）——拉起真实游戏、队伍站定、用户报六人等级/职业/人种 → 快照差分定位 LV/职业/人种字节（不同角色 = 天然对照组）→ 用户令一角色中毒 → 前后快照差分定位 poison（可选顺路石化）；③每地址写读回验（改 LV 看游戏内生效）后才登记 memory_map + retro 档案，职业/人种破出后供 PL014 徽章换真数据；顺路 mhp/mmp 可得则一并登记（PL016.1 拉正升级回满）；验证：live 写读回验 + 新条目过白名单单测
+- [ ] PL016.3 状态头像套图提取（原缺口⑤）—— 做法：先勘探 CC 素材来源（51 个 `.ICN` 多为界面按钮，确认状态头像是叠加图标还是独立套图）→ xeen-extractor 提取转码 → 入 `retro/artwork/faces/` 体系；显示接线分两波——昏迷/死亡由 HP 推导可先行，中毒/石化显示等 PL016.2 寄存器；验证：提取素材清单 + 实验场框式占位替换目测
+- [ ] PL016.4 任务链数据源（原缺口⑥）—— 做法：`retro/xeen-guide.md` 攻略结构化 → chains JSON（npc/x/y/title/info/seq/world 对齐实验场 `CHAINS` 常量字段）入 retro 适配层；验证：用户内容验收 + 字段与实验场常量逐一对码
+
+### PL017: 游玩 UI 重构 [plan#PL017]（2026-09-13 立项登记；2026-09-15 起实验场阶段实施中；消费 PL010 底图 + PL011 位置数据。改号史：2026-10-06 原 PL012 让位老板键、本组改号 PL013；2026-10-07 本号让位金框按钮动效改号 PL014、职业徽章拆出为 PL014 本组顺延 PL015；2026-10-08 本号让位小地图拖拽改号 PL015、本组顺延为 PL016；2026-10-11 本组内后端缺口补齐拆出独立立项为 PL016、本组改号 PL017）
 
 > 实况（2026-09-16）：实验场单文件 HTML `assets/design/游玩界面实验场.html` 已迭代四轮——v1–v2 三栏布局与部件、v3 尺寸结构定稿（舞台 1850×1000）、v4 任务链系统、v4.5 头像比例与页脚；并追加左栏操作栏与浮窗（魔法/注音/说明/设置）、背景图按世界切换与毛玻璃滑杆、Uiverse 六组件接入、CRT 特效归属定案（前端侧，DOSBox shader 弃用）。对接要点与后端缺口见 `assets/design/game-ui-handoff.md`。
-> 后端缺口核对（2026-09-16 逐条对码）：六项中仅 ② 前提过期（`death1–6`/`unc1–6`/`weak1–6` 已登记 memory_map，白名单为"登记即放行"，无需放开）；①③④⑤⑥ 均未做。
+> 后端缺口核对（2026-09-16 逐条对码）：六项中仅 ② 前提过期（`death1–6`/`unc1–6`/`weak1–6` 已登记 memory_map，白名单为"登记即放行"，无需放开）；①③④⑤⑥ 均未做。（2026-10-11 起六缺口补齐独立为 PL016 组推进。）
 
-- [ ] PL016.1 立项细化讨论 —— 做法：过四个决策点（信息层级 / 小地图交互形态：固定角标 vs 悬停展开 vs 全图切换 / 攻略入口形态 / 连续热更 vs 整版）；输入 = PL010 PNG + PL011 四要素 + assets/design 五稿 + 实验场；验证：用户拍板设计方案与拆分
-- [ ] PL016.2 后端缺口补齐 —— 做法：①等级 LV 与职业、人种寄存器（升级事件前后全量快照差分定位，入 memory_map + 白名单；职业/人种供 PL014 徽章消费）②复活命令与按钮（清 death/unc/weak，白名单已开放无需改闸）③HP/MP 写入钳制 `min(当前+100, 200)`（launcher 侧钳制后调 write_memory）④中毒状态寄存器破解入档 ⑤状态头像套图（先勘探来源——51 个 `.ICN` 多为界面按钮，需确认是叠加图标还是独立套图，再走 xeen-extractor 提取）⑥任务链数据源（`retro/xeen-guide.md` 结构化 → npc/x/y/stages/world）；验证：③ 单测（钳制边界）+ live 写读回；①④⑤⑥ 各自 live 或对照证据
-- [ ] PL016.3 对接 Launcher —— 做法：按交接文档第二节施工——`#game-view` 内占位 img 换 GameCanvas 帧流画布（CRT 玻璃/扫描线图层 z-index 不动）、假数据常量换后端注入、换算公式 `image_px = (x × S_w, (15−y) × S_h)` 与城内连续坐标/世界前缀照定案、任务勾选状态改 json 或 sqlite；验证：live 会话全要素显示正确 + 用户目测
-- [ ] PL016.4 验收收尾 —— 做法：用户 live 判收 + 全量门禁（fmt/clippy/test/doc + prettier/vue-tsc/npm build）+ z.plan 附录 PL016 实测结论回写 + 本组勾结上移；验证：判收 + 门禁绿
+- [ ] PL017.1 立项细化讨论 —— 做法：过四个决策点（信息层级 / 小地图交互形态：固定角标 vs 悬停展开 vs 全图切换 / 攻略入口形态 / 连续热更 vs 整版）；输入 = PL010 PNG + PL011 四要素 + assets/design 五稿 + 实验场；验证：用户拍板设计方案与拆分
+- [ ] PL017.2 对接 Launcher —— 做法：按交接文档第二节施工——`#game-view` 内占位 img 换 GameCanvas 帧流画布（CRT 玻璃/扫描线图层 z-index 不动）、假数据常量换后端注入、换算公式 `image_px = (x × S_w, (15−y) × S_h)` 与城内连续坐标/世界前缀照定案、任务勾选状态改 json 或 sqlite；数据前提 = PL016 六缺口全就绪（金框按钮动效/老板键/小地图拖拽机制随对接平移）；验证：live 会话全要素显示正确 + 用户目测
+- [ ] PL017.3 验收收尾 —— 做法：用户 live 判收 + 全量门禁（fmt/clippy/test/doc + prettier/vue-tsc/npm build）+ z.plan 附录 PL017 实测结论回写 + 本组勾结上移；验证：判收 + 门禁绿

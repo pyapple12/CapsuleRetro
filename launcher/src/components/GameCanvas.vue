@@ -13,6 +13,28 @@ const MAX_STREAM_BUFFER_BYTES = 8 * 1024 * 1024; // 流累积缓冲上限（帧�
 const STATS_INTERVAL_MS = 15_000; // 性能采样上报周期
 const SAMPLE_CAPACITY = 256; // 每类采样的环形容量
 
+/** event.code → 注入端点键名固定映射（纯常量，模块级构建一次，FIX005.16）。 */
+const KEY_NAME_MAP: Record<string, string> = {
+  ArrowUp: "up",
+  ArrowDown: "down",
+  ArrowLeft: "left",
+  ArrowRight: "right",
+  Enter: "return",
+  Escape: "escape",
+  Space: "space",
+  Tab: "tab",
+  Backspace: "backspace",
+  AltLeft: "leftalt",
+  AltRight: "rightalt",
+  ControlLeft: "leftctrl",
+  ControlRight: "rightctrl",
+  ShiftLeft: "leftshift",
+  ShiftRight: "rightshift",
+};
+for (let f = 1; f <= 12; f++) {
+  KEY_NAME_MAP[`F${f}`] = `f${f}`;
+}
+
 const props = defineProps<{ active: boolean }>();
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
@@ -67,7 +89,17 @@ let streamController: AbortController | null = null;
 let rafHandle = 0;
 let lastFrameNumber = -1;
 let streamFailures = 0;
-let latestFrame: ArrayBuffer | null = null;
+
+/** 切帧侧解析完成的一帧：协议字段只解析一次随帧传递（FIX005.15）。 */
+interface LatestFrame {
+  buffer: ArrayBuffer;
+  number: number;
+  width: number;
+  height: number;
+  pitch: number;
+  captureMs: number;
+}
+let latestFrame: LatestFrame | null = null;
 
 // 鼠标相对位移累积（Pointer Lock 事件高频，按 MOUSE_BATCH_MS 合帧发送）
 let pendingDx = 0;
@@ -92,50 +124,22 @@ function toKeyName(code: string): string | null {
     const digit = code.slice(6);
     return /^[0-9]$/.test(digit) ? digit : null;
   }
-  const map: Record<string, string> = {
-    ArrowUp: "up",
-    ArrowDown: "down",
-    ArrowLeft: "left",
-    ArrowRight: "right",
-    Enter: "return",
-    Escape: "escape",
-    Space: "space",
-    Tab: "tab",
-    Backspace: "backspace",
-    AltLeft: "leftalt",
-    AltRight: "rightalt",
-    ControlLeft: "leftctrl",
-    ControlRight: "rightctrl",
-    ShiftLeft: "leftshift",
-    ShiftRight: "rightshift",
-  };
-  for (let f = 1; f <= 12; f++) {
-    map[`F${f}`] = `f${f}`;
-  }
-  return map[code] ?? null;
+  return KEY_NAME_MAP[code] ?? null;
 }
 
 /** 绘制最新帧（BGRX → RGBA + 帧龄/解码绘制耗时采样）。帧号未推进则跳过。 */
 function drawLatest(): void {
   if (!canvasRef.value || !offCtx || !latestFrame) return;
   const startedAt = performance.now();
-  const buffer = latestFrame;
+  const frame = latestFrame;
   latestFrame = null;
-
-  const view = new DataView(buffer);
-  const number = Number(view.getBigUint64(0, true));
-  const width = view.getUint32(8, true);
-  const height = view.getUint32(12, true);
-  const pitch = view.getUint32(16, true);
-  const captureMs = Number(view.getBigUint64(20, true));
-  // 帧协议校验：静默错值会表现为花屏且无诊断，宁可报错
-  if (
-    pitch < width * 4 ||
-    buffer.byteLength < FRAME_HEADER_BYTES + (height - 1) * pitch + width * 4
-  ) {
+  const { buffer, number, width, height, pitch, captureMs } = frame;
+  // 帧协议校验收敛在切帧侧单处（FIX005.15），此处仅守缓冲完整性——静默
+  // 错值表现为花屏且无诊断，宁可报错
+  if (buffer.byteLength < FRAME_HEADER_BYTES + (height - 1) * pitch + width * 4) {
     throw new Error(`帧数据异常: ${buffer.byteLength}B（${width}x${height} pitch ${pitch}）`);
   }
-  if (number === lastFrameNumber || width === 0 || height === 0) return;
+  if (number === lastFrameNumber) return;
   lastFrameNumber = number;
 
   // 尺寸未变时复用画布与 ImageData，消除每帧重分配
@@ -203,35 +207,65 @@ async function streamLoop(): Promise<void> {
         throw new Error(`流式端点响应异常: HTTP ${resp.status}`);
       }
       const reader = resp.body.getReader();
-      let acc = new Uint8Array(0);
-      streamFailures = 0;
+      // 几何增长工作缓冲（FIX005.14）：每 chunk 单次定点写入，替代整缓冲
+      // 重拼的 O(n²) 拷贝；start = 已消费前缀游标，帧边界后惰性收缩
+      let buf = new Uint8Array(0);
+      let bufLen = 0;
+      let consumed = false; // 本连接是否已消费到帧（FIX005.13：秒断不清零计数）
       frameError.value = null;
       while (running) {
         const { done, value } = await reader.read();
         if (done) break;
         if (!value || value.length === 0) continue;
-        const merged = new Uint8Array(acc.length + value.length);
-        merged.set(acc);
-        merged.set(value, acc.length);
-        acc = merged;
-        // 缓冲无界增长防线（FIX002.28）：帧头损坏出超大尺寸时 total 永不满足，
-        // acc 会随 chunk 无限堆积——超上限即抛错走失败计数路径
-        if (acc.length > MAX_STREAM_BUFFER_BYTES) {
-          throw new Error(`流式累积缓冲超限（${acc.length}B，疑似帧头损坏）`);
+        if (bufLen + value.length > buf.length) {
+          const grown = new Uint8Array(Math.max(buf.length * 2, bufLen + value.length));
+          grown.set(buf.subarray(0, bufLen));
+          buf = grown;
+        }
+        buf.set(value, bufLen);
+        bufLen += value.length;
+        // 缓冲无界增长防线（FIX002.28）：帧头损坏出超大尺寸时 total 永不
+        // 满足，数据随 chunk 无限堆积——超上限即抛错走失败计数路径
+        if (bufLen > MAX_STREAM_BUFFER_BYTES) {
+          throw new Error(`流式累积缓冲超限（${bufLen}B，疑似帧头损坏）`);
         }
         // 切分全部完整帧，仅保留最新一帧供 rAF 绘制（陈旧帧直接丢弃）
-        while (acc.length >= FRAME_HEADER_BYTES) {
-          const view = new DataView(acc.buffer, acc.byteOffset, acc.byteLength);
-          const width = view.getUint32(8, true);
-          const height = view.getUint32(12, true);
-          const pitch = view.getUint32(16, true);
+        let start = 0;
+        for (;;) {
+          if (bufLen - start < FRAME_HEADER_BYTES) break;
+          const headerView = new DataView(buf.buffer, start, FRAME_HEADER_BYTES);
+          const width = headerView.getUint32(8, true);
+          const height = headerView.getUint32(12, true);
+          const pitch = headerView.getUint32(16, true);
           if (pitch < width * 4) {
             throw new Error("流式帧头异常（行距校验失败，流错位）");
           }
           const total = FRAME_HEADER_BYTES + (height - 1) * pitch + width * 4;
-          if (acc.length < total) break;
-          latestFrame = acc.slice(0, total).buffer;
-          acc = acc.slice(total);
+          // FIX005.1 防线：尺寸非法即帧头损坏——slice(0,0) 不推进会同步
+          // 死循环（h=0 且 pitch=w*4+28 精确造出 total=0），抛错走重连
+          if (width === 0 || height === 0 || total < FRAME_HEADER_BYTES) {
+            throw new Error("流式帧头异常（尺寸非法，流错位）");
+          }
+          if (bufLen - start < total) break;
+          latestFrame = {
+            buffer: buf.slice(start, start + total).buffer,
+            number: Number(headerView.getBigUint64(0, true)),
+            width,
+            height,
+            pitch,
+            captureMs: Number(headerView.getBigUint64(20, true)),
+          };
+          // 白名单口径的"连续"以实际消费到帧为准：accept 后秒断的坏连接
+          // 不清零计数，连续 5 次置错停循环（FIX005.13）
+          if (!consumed) {
+            consumed = true;
+            streamFailures = 0;
+          }
+          start += total;
+        }
+        if (start > 0) {
+          buf.copyWithin(0, start, bufLen);
+          bufLen -= start;
         }
       }
       // 流结束：running 仍真说明是服务端异常关闭（正常结束由 active=false 中止）

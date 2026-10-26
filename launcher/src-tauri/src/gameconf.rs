@@ -90,6 +90,9 @@ pub fn save_path(repo_root: &Path, game: &str) -> PathBuf {
 }
 
 /// 把 conf 写入运行时目录并返回文件路径。
+///
+/// # Errors
+/// 运行时目录创建失败或 conf 写盘失败时返回错误。
 pub fn write_conf(content: &str, dir: &Path) -> Result<PathBuf> {
     std::fs::create_dir_all(dir)
         .with_context(|| format!("创建运行时目录失败: {}", dir.display()))?;

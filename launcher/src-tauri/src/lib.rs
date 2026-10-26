@@ -1,6 +1,7 @@
 //! CapsuleRetro launcher 库：UI 进程编排——spawn DOSBox、Job Object 生命周期、
 //! game.json 适配层消费、conf 生成。设计理由：lib 与 bin 分离，集成测试可直接
-//! 导入 start_session/stop_session 做真实进程验证。
+//! 导入 `commands` 模块（start_session 构造会话、`Session::stop` 停止）做真实
+//! 进程验证。
 
 pub mod commands;
 pub mod gameconf;

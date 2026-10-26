@@ -22,7 +22,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, ensure, Context, Result};
 use base64::Engine as _;
 use tauri::Emitter;
 use windows::Win32::Foundation::HANDLE;
@@ -38,6 +38,10 @@ const HUD_POLL_INTERVAL_MS: u64 = 500;
 
 /// webserver 就绪探测超时（秒）：VB1 实测 REST 10 秒内可达，留余量。
 const WEBSERVER_READY_TIMEOUT_SECS: u64 = 15;
+
+/// webserver 端口锁死值：前端帧流 URL 与 CSP connect-src 均按此写死
+///（PL005/FIX002.1 定案），FIX005.23 起在 start_session 显式强制。
+const LOCKED_WEBSERVER_PORT: u16 = 18086;
 
 /// dosbox.log 轮转阈值（字节）：超过则改名 .1 保留一份旧日志（审计观察项 #13 治理）。
 const DOSBOX_LOG_ROTATE_BYTES: u64 = 5 * 1024 * 1024;
@@ -121,6 +125,18 @@ fn resolve_resource_ctx() -> Result<ResourceCtx> {
     })
 }
 
+/// 加载资源根上下文与 game.json 配置（FIX005.10：五处消费方共用的两行组合
+/// 收敛单处，防调用点漂移）。
+///
+/// # Errors
+/// 资源根定位失败或 game.json 加载/校验失败时返回错误。
+fn load_session_config() -> Result<(ResourceCtx, capsule_core::game_config::GameConfig)> {
+    let ctx = resolve_resource_ctx()?;
+    let config = capsule_core::game_config::GameConfig::load(&ctx.root.join("retro/game.json"))
+        .context("加载 retro/game.json 失败")?;
+    Ok((ctx, config))
+}
+
 /// 全局会话槽（同一时刻至多一个游戏会话）。Arc 包装以便退出监听线程
 /// 持有同一槽位引用（State 内部不转移所有权）。
 #[derive(Default)]
@@ -153,12 +169,21 @@ impl Session {
         self.process.is_running()
     }
 
-    /// 终止会话（HUD 轮询 + Job 级杀树）并等待子进程退出。
+    /// 终止会话（Job 级杀树 + HUD 轮询）并等待子进程退出。
+    ///
+    /// 杀树先于停 HUD（FIX005.3）：dosbox 存活但无响应时，HUD 单轮 32 次
+    /// 串行 HTTP 各 5 秒超时，join 最坏 ~160 秒且持锁阻塞全部会话操作——
+    /// 先杀树让连接速断，join 秒级返回；杀树失败也要先停 HUD 再上抛，避免
+    /// 轮询线程随错误提前返回而泄漏。
+    ///
+    /// # Errors
+    /// Job 终止失败或进程 5 秒内未退出时返回错误。
     pub fn stop(&mut self) -> Result<()> {
+        let kill_result = self.job.kill().context("终止 Job 失败");
         if let Some(poller) = self.hud.take() {
             poller.stop();
         }
-        self.job.kill().context("终止 Job 失败")?;
+        kill_result?;
         if !self.process.wait_exit(5000) {
             return Err(anyhow!("进程在 5 秒内未退出"));
         }
@@ -335,10 +360,20 @@ fn ensure_save_root_writable(save_root: &Path) -> Result<()> {
 ///
 /// # 参数
 /// - `hack`：本次会话的补丁选择（None = 原版；随 save meta 持久化）
+///
+/// # Errors
+/// 配置加载/校验、端口契约不符、资源根定位、工作副本释放/补丁/save 解包、
+/// 可执行文件缺失、端口被占用、进程创建/Job 挂载/恢复执行/就绪等待失败时
+/// 返回错误（失败路径已含孤儿进程清理，FIX005.2）。
 pub fn start_session(hack: Option<String>) -> Result<Session> {
-    let ctx = resolve_resource_ctx()?;
-    let config = capsule_core::game_config::GameConfig::load(&ctx.root.join("retro/game.json"))
-        .context("加载 retro/game.json 失败")?;
+    let (ctx, config) = load_session_config()?;
+    // 端口契约（FIX005.23）：前端帧流 URL 与 CSP connect-src 均按 18086 写死
+    //（PL005/FIX002.1 定案），game.json 改值会让会话起到新端口而前端仍指旧
+    // 端口——在此显式拒绝，而非起来后黑屏排查；调整端口属前后端全局改造
+    ensure!(
+        config.dosbox.webserver_port == LOCKED_WEBSERVER_PORT,
+        "webserver_port 锁死 {LOCKED_WEBSERVER_PORT}（前端帧流/CSP 同源），如需调整属全局改造"
+    );
     logging::info(&format!(
         "资源根: {}（{}）",
         ctx.root.display(),
@@ -441,8 +476,22 @@ pub fn start_session(hack: Option<String>) -> Result<Session> {
         }
         return Err(anyhow!(err).context("挂载 Job Object 失败"));
     }
-    process.resume().context("恢复进程执行失败")?;
-    wait_webserver_ready(port, Duration::from_secs(WEBSERVER_READY_TIMEOUT_SECS))?;
+    // FIX005.2：resume 与就绪等待的失败路径必须显式杀树——进程此时已存活，
+    // Job 句柄无 Drop（KILL_ON_JOB_CLOSE 兜底在 launcher 存续期失效），漏杀
+    // 即孤儿 DOSBox 永生 + 端口占位阻塞下次启动；对齐上方挂载失败路径纪律
+    if let Err(err) = process.resume() {
+        if let Err(kill_err) = job.kill() {
+            logging::warn(&format!("resume 失败路径清理进程也失败: {kill_err}"));
+        }
+        return Err(anyhow!(err).context("恢复进程执行失败"));
+    }
+    if let Err(err) = wait_webserver_ready(port, Duration::from_secs(WEBSERVER_READY_TIMEOUT_SECS))
+    {
+        if let Err(kill_err) = job.kill() {
+            logging::warn(&format!("就绪超时路径清理 DOSBox 也失败: {kill_err}"));
+        }
+        return Err(err.context("等待 webserver 就绪失败"));
+    }
     let agent = ureq::AgentBuilder::new()
         .timeout(Duration::from_secs(3))
         .build();
@@ -536,8 +585,11 @@ fn spawn_exit_watcher(
         if let Some(poller) = session.hud.take() {
             poller.stop();
         }
-        // 进程已死，Job 终止仅为兜底收尾；失败不影响事件广播
-        let _ = session.job.kill();
+        // 进程已死，Job 终止仅为兜底收尾；失败不影响事件广播但必须留痕——
+        // kill 失败 = 崩溃兜底杀树未生效，正是需要诊断线索的场景（FIX005.9）
+        if let Err(err) = session.job.kill() {
+            logging::warn(&format!("崩溃兜底杀树失败: {err}"));
+        }
         // 崩溃/自退路径同样回写（被杀时游戏已写盘的存档不丢）
         let saved = match writeback_save(&mut session) {
             Ok(()) => true,
@@ -595,11 +647,18 @@ pub async fn launch_game(
             }
         }
     }));
-    // 退出监听：句柄副本 + 槽位 Arc 引用，进程自退/崩溃时自动清槽并通知 UI
-    let watch_handle = session
-        .process
-        .duplicate_process_handle()
-        .map_err(|e| format!("复制监听句柄失败: {e}"))?;
+    // 退出监听：句柄副本 + 槽位 Arc 引用，进程自退/崩溃时自动清槽并通知 UI。
+    // FIX005.2：此时进程已 resume、HUD 已启动，句柄复制失败必须显式停止会话
+    //（杀树），否则 launcher 存续期留下无主 DOSBox
+    let watch_handle = match session.process.duplicate_process_handle() {
+        Ok(handle) => handle,
+        Err(e) => {
+            if let Err(err) = session.stop() {
+                logging::warn(&format!("句柄复制失败路径会话停止也失败: {err:#}"));
+            }
+            return Err(format!("复制监听句柄失败: {e}"));
+        }
+    };
     spawn_exit_watcher(
         app.clone(),
         Arc::clone(&state.inner),
@@ -739,9 +798,7 @@ pub async fn get_guide() -> Result<String, String> {
 
 /// get_guide 的同步实现（读 game.json assets.guide 指向的适配层文档）。
 fn get_guide_impl() -> Result<String> {
-    let ctx = resolve_resource_ctx()?;
-    let config = capsule_core::game_config::GameConfig::load(&ctx.root.join("retro/game.json"))
-        .context("加载 retro/game.json 失败")?;
+    let (ctx, config) = load_session_config()?;
     let guide_path = ctx.root.join(&config.assets.guide);
     std::fs::read_to_string(&guide_path)
         .with_context(|| format!("读取攻略失败: {}", guide_path.display()))
@@ -789,9 +846,7 @@ pub async fn get_game_info() -> Result<GameInfo, String> {
 
 /// get_game_info 的同步实现（便于错误上下文组织）。
 fn get_game_info_impl() -> Result<GameInfo> {
-    let ctx = resolve_resource_ctx()?;
-    let config = capsule_core::game_config::GameConfig::load(&ctx.root.join("retro/game.json"))
-        .context("加载 retro/game.json 失败")?;
+    let (ctx, config) = load_session_config()?;
     let cover = match &config.assets.cover {
         Some(cover) => {
             let path = ctx.root.join(cover);
@@ -864,9 +919,7 @@ pub async fn get_faces() -> Result<Vec<FaceImage>, String> {
 
 /// get_faces 的同步实现：枚举 faces_dir 并按文件号排序编码。
 fn get_faces_impl() -> Result<Vec<FaceImage>> {
-    let ctx = resolve_resource_ctx()?;
-    let config = capsule_core::game_config::GameConfig::load(&ctx.root.join("retro/game.json"))
-        .context("加载 retro/game.json 失败")?;
+    let (ctx, config) = load_session_config()?;
     let Some(faces_dir) = &config.assets.faces_dir else {
         return Ok(Vec::new());
     };
@@ -928,9 +981,7 @@ pub async fn cheat_adjust(
 
 /// cheat_adjust 的同步实现（便于错误上下文组织）。
 fn cheat_adjust_impl(port: u16, field: &str, delta: i64) -> Result<CheatAdjusted> {
-    let ctx = resolve_resource_ctx()?;
-    let config = capsule_core::game_config::GameConfig::load(&ctx.root.join("retro/game.json"))
-        .context("加载 retro/game.json 失败")?;
+    let (ctx, config) = load_session_config()?;
     let map_path = ctx.root.join(&config.assets.memory_map);
     let map = capsule_core::monitor::profile::MemoryMap::load(&map_path)
         .with_context(|| format!("加载内存档案失败: {}", map_path.display()))?;

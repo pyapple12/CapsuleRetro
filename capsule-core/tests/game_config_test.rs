@@ -133,6 +133,35 @@ fn game_dir为空报专用错误() {
     );
 }
 
+/// FIX005.5：save_files 空清单在加载期显式拒绝——空清单语义 = 永不持久化
+/// 存档，延迟到整局游玩后回写才暴露为 InvalidPattern 为时已晚。
+#[test]
+fn save_files空清单报错() {
+    let text = 合法样例文本().replace(
+        r#""save_files": ["*.SAV", "XEEN.DAT"]"#,
+        r#""save_files": []"#,
+    );
+    let err = text
+        .parse::<GameConfig>()
+        .expect_err("空 save_files 清单应报错");
+    assert!(err.to_string().contains("清单为空"), "实际错误: {err}");
+}
+
+/// FIX005.5：dosbox.exe_path 为空在加载期拒绝（对齐 game_dir 同口径），
+/// 不再延迟到会话启动 spawn 时才暴露。
+#[test]
+fn dosbox_exe_path为空报错() {
+    let text = 合法样例文本().replace(
+        r#""exe_path": "assets/dosbox/dosbox-staging/dosbox-staging-v0.83.0/dosbox.exe""#,
+        r#""exe_path": """#,
+    );
+    let err = text.parse::<GameConfig>().expect_err("空 exe_path 应报错");
+    assert!(
+        err.to_string().contains("dosbox.exe_path 为空"),
+        "实际错误: {err}"
+    );
+}
+
 /// FIX002.25 验证：guest_exe 缺省回落 name 小写派生（适配层约定），
 /// 显式声明优先（exe 基名 ≠ name 的下一款游戏可配置）。
 #[test]
